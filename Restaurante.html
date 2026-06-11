@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -2614,13 +2614,12 @@
               </div>
               <div class="mb-3">
                 <label class="form-label">Galería de login</label>
-                <p class="section-subtitle mb-3">Sube cada imagen por separado y se rotará automáticamente en el login.</p>
+                <p class="section-subtitle mb-3">Pega la URL de cada imagen y se rotará automáticamente en el login.</p>
                 <div class="login-gallery-grid">
                   <div class="login-gallery-slot">
                     <div class="slot-head"><div><strong>Imagen 1</strong><br><span>Principal / portada</span></div><span>#1</span></div>
                     <div id="loginGalleryPreview0" class="slot-preview"></div>
-                    <input id="loginGalleryFile0" class="form-control mb-2" type="file" accept="image/*" onchange="previewLoginGalleryFile(event,0)">
-                    <input id="loginGalleryUrl0" class="form-control mb-2" type="url" placeholder="URL o base64" oninput="setLoginGalleryFromUrl(0, this.value)">
+                    <input id="loginGalleryUrl0" class="form-control mb-2" type="url" placeholder="https://ejemplo.com/imagen.jpg" oninput="setLoginGalleryFromUrl(0, this.value)">
                     <input id="loginGalleryValue0" type="hidden">
                     <div class="slot-actions">
                       <button class="btn btn-sm btn-outline-secondary btn-pill" type="button" onclick="clearLoginGallerySlot(0)">Limpiar</button>
@@ -2629,8 +2628,7 @@
                   <div class="login-gallery-slot">
                     <div class="slot-head"><div><strong>Imagen 2</strong><br><span>Ambiente / salón</span></div><span>#2</span></div>
                     <div id="loginGalleryPreview1" class="slot-preview"></div>
-                    <input id="loginGalleryFile1" class="form-control mb-2" type="file" accept="image/*" onchange="previewLoginGalleryFile(event,1)">
-                    <input id="loginGalleryUrl1" class="form-control mb-2" type="url" placeholder="URL o base64" oninput="setLoginGalleryFromUrl(1, this.value)">
+                    <input id="loginGalleryUrl1" class="form-control mb-2" type="url" placeholder="https://ejemplo.com/imagen.jpg" oninput="setLoginGalleryFromUrl(1, this.value)">
                     <input id="loginGalleryValue1" type="hidden">
                     <div class="slot-actions">
                       <button class="btn btn-sm btn-outline-secondary btn-pill" type="button" onclick="clearLoginGallerySlot(1)">Limpiar</button>
@@ -2639,8 +2637,7 @@
                   <div class="login-gallery-slot">
                     <div class="slot-head"><div><strong>Imagen 3</strong><br><span>Platos / experiencia</span></div><span>#3</span></div>
                     <div id="loginGalleryPreview2" class="slot-preview"></div>
-                    <input id="loginGalleryFile2" class="form-control mb-2" type="file" accept="image/*" onchange="previewLoginGalleryFile(event,2)">
-                    <input id="loginGalleryUrl2" class="form-control mb-2" type="url" placeholder="URL o base64" oninput="setLoginGalleryFromUrl(2, this.value)">
+                    <input id="loginGalleryUrl2" class="form-control mb-2" type="url" placeholder="https://ejemplo.com/imagen.jpg" oninput="setLoginGalleryFromUrl(2, this.value)">
                     <input id="loginGalleryValue2" type="hidden">
                     <div class="slot-actions">
                       <button class="btn btn-sm btn-outline-secondary btn-pill" type="button" onclick="clearLoginGallerySlot(2)">Limpiar</button>
@@ -2649,8 +2646,7 @@
                   <div class="login-gallery-slot">
                     <div class="slot-head"><div><strong>Imagen 4</strong><br><span>Exterior / marca</span></div><span>#4</span></div>
                     <div id="loginGalleryPreview3" class="slot-preview"></div>
-                    <input id="loginGalleryFile3" class="form-control mb-2" type="file" accept="image/*" onchange="previewLoginGalleryFile(event,3)">
-                    <input id="loginGalleryUrl3" class="form-control mb-2" type="url" placeholder="URL o base64" oninput="setLoginGalleryFromUrl(3, this.value)">
+                    <input id="loginGalleryUrl3" class="form-control mb-2" type="url" placeholder="https://ejemplo.com/imagen.jpg" oninput="setLoginGalleryFromUrl(3, this.value)">
                     <input id="loginGalleryValue3" type="hidden">
                     <div class="slot-actions">
                       <button class="btn btn-sm btn-outline-secondary btn-pill" type="button" onclick="clearLoginGallerySlot(3)">Limpiar</button>
@@ -4557,12 +4553,16 @@
       refreshLoginCarousel();
     }
     function setLoginGalleryFromUrl(index, value){
-      setLoginGalleryValue(index, value);
+      const url = String(value || '').trim();
+      if(url && url.startsWith('data:')){
+        toast('Solo se permiten URLs de imagen (no archivos locales)', 'warning');
+        return;
+      }
+      setLoginGalleryValue(index, url);
     }
     function clearLoginGallerySlot(index){
       setLoginGalleryValue(index, '');
-      const fileInput = byId(`loginGalleryFile${index}`);
-      if(fileInput) fileInput.value = '';
+      setValue(`loginGalleryUrl${index}`, '');
       persistAll(false);
       applyTheme();
       toast(`Imagen ${index + 1} restablecida`, 'info');

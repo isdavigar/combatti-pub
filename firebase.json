@@ -1,0 +1,30 @@
+{
+  "hosting": {
+    "site": "combatti-pub",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "**/.*",
+      "**/node_modules/**",
+      "netlify.toml",
+      "_redirects",
+      "firestore.rules",
+      "README.md"
+    ],
+    "rewrites": [
+      { "source": "**", "destination": "/Restaurante.html" }
+    ],
+    "headers": [
+      {
+        "source": "/Restaurante.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

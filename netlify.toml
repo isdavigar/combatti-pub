@@ -1,0 +1,9 @@
+# Configuración de despliegue en Netlify para Combatti PUB · POS
+# Publica el repositorio tal cual (sin build) y abre la app en la raíz.
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/Restaurante.html"
+  status = 200

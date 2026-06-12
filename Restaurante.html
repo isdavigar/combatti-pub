@@ -1169,6 +1169,41 @@
       .order-history-total{ font-size:1.1rem; }
     }
     
+    /* Pago de nómina */
+    .payroll-balances{
+      display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:10px;
+    }
+    .payroll-balance-card{
+      border:1px solid var(--border); border-radius:16px; padding:12px 14px;
+      background:linear-gradient(180deg, rgba(var(--primary-rgb),.06), var(--card));
+      box-shadow:var(--shadow);
+    }
+    .payroll-balance-card .pb-label{ display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--muted); font-weight:700; }
+    .payroll-balance-card .pb-value{ font-size:1.18rem; font-weight:900; margin-top:4px; }
+    .payroll-group{ margin-top:18px; }
+    .payroll-group-title{
+      display:flex; align-items:center; gap:8px; font-weight:800; font-size:.95rem;
+      margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid rgba(var(--primary-rgb),.25);
+    }
+    .payroll-emp-row{
+      display:grid; grid-template-columns:auto 1fr 130px 170px; gap:10px; align-items:center;
+      border:1px solid var(--border); border-radius:14px; padding:10px 12px; margin-bottom:8px;
+      background:var(--card); transition:border-color .15s ease, background .15s ease;
+    }
+    .payroll-emp-row.is-on{ border-color:rgba(var(--primary-rgb),.5); background:rgba(var(--primary-rgb),.05); }
+    .payroll-emp-name{ font-weight:700; min-width:0; }
+    .payroll-emp-name .role-badge{ display:block; font-size:.72rem; color:var(--muted); font-weight:600; }
+    .payroll-emp-row .form-check-input{ width:1.4rem; height:1.4rem; cursor:pointer; }
+    .payroll-footer{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+    .payroll-total-box{ display:flex; flex-direction:column; }
+    .payroll-total-box span{ font-size:.76rem; color:var(--muted); font-weight:700; }
+    .payroll-total-box strong{ font-size:1.4rem; font-weight:900; color:var(--primary); }
+    @media (max-width: 575.98px){
+      .payroll-emp-row{ grid-template-columns:auto 1fr; }
+      .payroll-emp-row .payroll-amount-wrap,
+      .payroll-emp-row .payroll-source-wrap{ grid-column:2 / 3; }
+    }
+
     .cash-buttons-grid{
       display:grid;
       grid-template-columns:repeat(4,minmax(0,1fr));
@@ -1839,8 +1874,8 @@
       padding:12px;
     }
     .product-image-placeholder.small{ height:46px; width:46px; border-radius:8px; }
-    .ticket-screen .kitchen-observation{display:block;margin-top:4px;font-weight:800;font-size:1.12em;line-height:1.15;white-space:pre-wrap;color:#111827;}
-    .ticket-screen .kitchen-observation.is-empty{font-weight:600;opacity:.72;font-size:1em;}
+    .ticket-screen .kitchen-observation{display:block;margin-top:4px;font-weight:400;font-style:italic;font-size:1.02em;line-height:1.25;white-space:pre-wrap;color:#111827;}
+    .ticket-screen .kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#6b7280;font-size:.95em;}
     #orderCatalogColumn > .glass-card{display:flex;flex-direction:column;height:100%;min-height:0;}
     #orderCatalogColumn .order-catalog-toolbar{flex:0 0 auto;}
     #orderProductsGrid{flex:1 1 auto;overflow:auto;max-height:none;}
@@ -2426,6 +2461,7 @@
               <div class="cash-action-grid">
                 <div id="cashActionArea"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button></div>
                 <button class="btn btn-outline-danger btn-pill" onclick="showCloseCashModal()">Cerrar caja</button>
+                <button class="btn btn-warning btn-pill" onclick="openPayrollModal()"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pagar nómina</button>
                 <button class="btn btn-primary-soft btn-pill" onclick="exportDailyCloseExcel(false)"><i class="fa-solid fa-file-excel me-2"></i>Exportar cierre diario</button>
                 <button class="btn btn-outline-primary btn-pill" onclick="printCurrentCashReport()"><i class="fa-solid fa-receipt me-2"></i>Imprimir comprobante diario</button>
                 <button class="btn btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-boxes-stacked me-2"></i>Imprimir inventario</button>
@@ -2702,6 +2738,7 @@
                     <option>Administrador del sistema</option>
                     <option>Administrador</option>
                     <option>Cajero</option>
+                    <option>Cocinero</option>
                     <option>Mesero</option>
                   </select>
                 </div>
@@ -3153,6 +3190,34 @@
     </div>
   </div>
 
+  <div class="modal fade" id="payrollModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pago de nómina</h5>
+            <small class="text-secondary">Marca quién trabajó hoy, escribe el valor y de qué cuenta sale el dinero.</small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="payroll-balances" id="payrollBalances"></div>
+          <div id="payrollEmployeeList" class="mt-3"></div>
+        </div>
+        <div class="modal-footer payroll-footer">
+          <div class="payroll-total-box">
+            <span>Total a pagar</span>
+            <strong id="payrollTotalLabel">$0</strong>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-warning btn-pill" onclick="confirmPayroll()"><i class="fa-solid fa-check me-2"></i>Pagar e imprimir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal fade" id="cashDetailModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
@@ -3189,6 +3254,9 @@
             <label class="form-label">Sale de</label>
             <select id="movementExpenseSourceInput" class="form-select">
               <option value="EFECTIVO">Efectivo - dinero de caja</option>
+              <option value="BANCOLOMBIA">Transferencia Bancolombia</option>
+              <option value="NEQUI">Nequi</option>
+              <option value="BOLD">Bold</option>
               <option value="TARJETA_CREDITO">Tarjeta de credito - Jesús</option>
             </select>
           </div>
@@ -3428,6 +3496,7 @@
       [SYSTEM_ADMIN_ROLE]: [...PERMISSION_ORDER],
       Administrador: [...PERMISSION_ORDER],
       Cajero: ['dashboard','mesas','inventarios','insumos','caja','zona-domicilio','movimientos'], 
+      Cocinero: ['dashboard','insumos'],
       Mesero: ['dashboard','mesas','insumos']
     };
     const TABLE_MIN_SIZE = 96;
@@ -3514,7 +3583,7 @@
     function setHtml(id, value){ const el = byId(id); if(el) el.innerHTML = value; }
     function formatMoneyInputValue(value){
       const n = clampNumber(value);
-      return Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits:0, minimumFractionDigits:0 });
+      return groupThousands(n);
     }
     function setValue(id, value){
       const el = byId(id);
@@ -3560,7 +3629,7 @@
         input.addEventListener('blur', normalize);
         input.addEventListener('input', () => {
           const clean = String(input.value || '').replace(/[^\d]/g, '');
-          input.value = clean ? clean : '';
+          input.value = clean ? groupThousands(clean) : '';
         });
         if(input.value !== '') normalize();
       });
@@ -3659,7 +3728,9 @@
       return '';
     }
     function isStockManaged(product){
-      return product?.stockManaged !== false;
+      // Stock desactivado: los productos SIEMPRE estan disponibles para la venta.
+      // (No se descuenta inventario ni se bloquean productos por existencias.)
+      return false;
     }
     function productStockLabel(product){
       if(!isStockManaged(product)) return 'Sin conteo';
@@ -4059,6 +4130,7 @@
       modals.order = modalFor(document.getElementById('orderModal'));
       modals.cashOpen = modalFor(document.getElementById('cashOpenModal'));
       modals.cashClose = modalFor(document.getElementById('cashCloseModal'));
+      modals.payroll = modalFor(document.getElementById('payrollModal'));
       modals.cashDetail = modalFor(document.getElementById('cashDetailModal'));
       modals.ticketPreview = modalFor(document.getElementById('ticketPreviewModal'));
       modals.movement = modalFor(document.getElementById('movementModal'));
@@ -4362,7 +4434,15 @@
     }
 
     function uid(){ return 'id_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
-    function money(n){ return '$' + Number(Math.round(Number(n || 0))).toLocaleString('es-CO', { maximumFractionDigits:0, minimumFractionDigits:0 }); }
+    // Separador de miles manual (estilo Colombia: punto) garantizado en todo
+    // navegador/webview, sin depender de toLocaleString (que a veces no aplica).
+    function groupThousands(value){
+      const num = Math.round(Number(value || 0));
+      const negative = num < 0;
+      const digits = Math.abs(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return (negative ? '-' : '') + digits;
+    }
+    function money(n){ return '$' + groupThousands(n); }
     function hexToRgb(hex){
       const value = String(hex || '').trim().replace('#','');
       if(!/^[0-9a-f]{6}$/i.test(value)) return null;
@@ -5001,11 +5081,14 @@
       if(loginAuthMode === 'reset'){
         const user = state.users.find(u => u.username.toLowerCase() === username.toLowerCase());
         if(!user){ toast('No existe un usuario con ese nombre', 'warning'); return; }
-        if(user.role === SYSTEM_ADMIN_ROLE && !requireSystemAdmin('restablecer la clave del administrador del sistema')) return;
+        if(user.role === 'Administrador' || user.role === SYSTEM_ADMIN_ROLE){
+          toast('No puedes cambiar la contraseña de un administrador desde el login. Hazlo dentro del sistema como administrador.', 'warning');
+          return;
+        }
         user.password = password;
         persistAll(false);
         hideLoginAuthPanel();
-        toast('Contrasena restablecida', 'success');
+        toast('Contraseña restablecida', 'success');
         return;
       }
       if(state.users.some(u => u.username.toLowerCase() === username.toLowerCase())){ toast('Ya existe un usuario con ese nombre', 'warning'); return; }
@@ -6954,7 +7037,7 @@ const colors = [
       const rows = (order.items || []).map(item => isComanda ? `
         <tr>
           <td class="center"><strong>${Number(item.qty || 0)}</strong></td>
-          <td><strong>${escapeHtml(item.name)}</strong>${item.note ? `<div class="kitchen-observation">${escapeHtml(String(item.note)).replace(/\\n/g,'<br>')}</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
+          <td><strong>${escapeHtml(item.name)}</strong>${item.note ? `<div class="kitchen-observation">(${escapeHtml(String(item.note)).replace(/\\n/g,'<br>')})</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
         </tr>
       ` : `
         <tr>
@@ -7071,7 +7154,7 @@ const colors = [
         </tr>
       ` : `
         <tr>
-          <td><b>${escapeHtml(i.name)}</b>${i.note ? `<div class="kitchen-observation">${escapeHtml(String(i.note)).replace(/\\n/g,'<br>')}</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
+          <td><b>${escapeHtml(i.name)}</b>${i.note ? `<div class="kitchen-observation">(${escapeHtml(String(i.note)).replace(/\\n/g,'<br>')})</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
           <td class="center"><b>${i.qty}</b></td>
         </tr>
       `).join('');
@@ -7091,7 +7174,7 @@ const colors = [
       const meta = isTicket
         ? `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p><p><b>Vendedor:</b> ${escapeHtml(order.seller || '-')}</p>`
         : `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
-      const style = `body{font-family:Arial,sans-serif;margin:0;padding:${isTicket ? '10px' : '6px'};width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:700;font-size:14px;line-height:1.15;white-space:pre-wrap}.kitchen-observation.is-empty{opacity:.72;font-size:12px}`;
+      const style = `body{font-family:Arial,sans-serif;margin:0;padding:${isTicket ? '10px' : '6px'};width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}${totals}<div class="line"></div>${footer}</body></html>`;
       const printWin = window.open('', '_blank', 'width=420,height=700');
       if(!printWin){ toast('El navegador bloqueó la ventana de impresión', 'warning'); return; }
@@ -7311,9 +7394,208 @@ const colors = [
       const w = window.open('', '_blank', 'width=720,height=900'); if(!w){ toast('El navegador bloqueó la impresión del cierre', 'warning'); return; } w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 450);
     }
     function cashReportPrintStyle(){
-      return `body{font-family:Arial,sans-serif;margin:0;padding:0;color:#111;background:#fff}.daily-report{width:360px;max-width:360px;margin:0 auto;padding:8px 5px;font-size:12px;line-height:1.22}.daily-report h2,.daily-report h3,.daily-report p{margin:0 0 3px}.daily-report .center{text-align:center}.daily-report .right{text-align:right}.daily-report .muted{color:#444}.daily-report .header-title{font-weight:800;margin:16px 0}.daily-report .brand-name{font-weight:800;margin-top:8px}.daily-report .meta{margin:10px 0 14px}.daily-report .meta div{font-weight:700}.daily-report .section-title{text-align:center;font-weight:800;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:8px 0;margin:10px 0 6px}.daily-report table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}.daily-report th,.daily-report td{padding:3px 2px;text-align:left;vertical-align:top}.daily-report th{font-weight:800}.daily-report .total-row td{font-weight:800}.daily-report .summary td:first-child{font-weight:800}.daily-report .spacer{height:8px}@media print{body{padding:0}.daily-report{margin:0}}`;
+      return `body{font-family:Arial,sans-serif;margin:0;padding:12px 10px;color:#111;background:#fff;font-size:15px;line-height:1.42}
+h2{font-size:23px;margin:0 0 6px;font-weight:800}
+h3,h5{font-size:18px;margin:16px 0 6px;font-weight:800}
+p{margin:0 0 4px;font-size:14px}
+.muted{color:#555}
+.center{text-align:center}
+.right{text-align:right}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 14px}
+.col-md-3{flex:1 1 130px}
+.mini-table{border:1px solid #e5e7eb;border-radius:10px;padding:9px 11px}
+.mini-table span{display:block;font-size:12.5px;color:#666;margin-bottom:2px}
+.mini-table strong{font-size:15.5px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin-bottom:12px}
+th,td{padding:7px 6px;text-align:left;vertical-align:top;border-bottom:1px solid #e5e7eb}
+th{font-weight:800}
+table .right,td.right{text-align:right}
+tr.total-row td,tr td b{font-weight:800}
+/* compatibilidad con estilos antiguos */
+.daily-report{width:100%;max-width:380px;margin:0 auto;font-size:14px;line-height:1.35}
+.daily-report h2,.daily-report h3,.daily-report p{margin:0 0 4px}
+.daily-report .section-title{text-align:center;font-weight:800;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:8px 0;margin:10px 0 6px}
+@media print{body{padding:0}}`;
     }
     function printCurrentCashReport(){ printCloseReport(currentCashRecord()); }
+
+    // =====================================================================
+    // NÓMINA: pagar a empleados (cocineros, meseros, cajeros) desde la caja.
+    // =====================================================================
+    const PAYROLL_SOURCES = [
+      { key:'EFECTIVO', label:'Efectivo en caja', icon:'fa-money-bill-wave' },
+      { key:'BANCOLOMBIA', label:'Transferencia Bancolombia', icon:'fa-building-columns' },
+      { key:'NEQUI', label:'Nequi', icon:'fa-mobile-screen-button' },
+      { key:'BOLD', label:'Bold', icon:'fa-credit-card' }
+    ];
+    const PAYROLL_ROLE_GROUPS = [
+      { role:'Cocinero', label:'Cocineros', icon:'fa-utensils' },
+      { role:'Mesero', label:'Meseros', icon:'fa-person-walking' },
+      { role:'Cajero', label:'Cajeros', icon:'fa-cash-register' }
+    ];
+    // Saldo disponible por cuenta en el periodo de caja actual.
+    function payrollAccountBalances(){
+      const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
+      const to = new Date();
+      const report = buildCashReport(from, to);
+      const expenseBySource = src => state.movements
+        .filter(m => m.type === 'Egreso' && (m.source || 'EFECTIVO') === src && m.date && new Date(m.date) >= from && new Date(m.date) <= to)
+        .reduce((a, b) => a + Number(b.amount || 0), 0);
+      return {
+        EFECTIVO: report.final,
+        BANCOLOMBIA: (report.methodTotals.BANCOLOMBIA || 0) - expenseBySource('BANCOLOMBIA'),
+        NEQUI: (report.methodTotals.NEQUI || 0) - expenseBySource('NEQUI'),
+        BOLD: (report.methodTotals.BOLD || 0) - expenseBySource('BOLD')
+      };
+    }
+    function payrollEmployees(){
+      return state.users
+        .filter(u => u.active !== false && PAYROLL_ROLE_GROUPS.some(g => g.role === u.role))
+        .map(normalizeUser);
+    }
+    function renderPayrollBalances(){
+      const wrap = byId('payrollBalances');
+      if(!wrap) return;
+      const bal = payrollAccountBalances();
+      wrap.innerHTML = PAYROLL_SOURCES.map(s => `
+        <div class="payroll-balance-card">
+          <div class="pb-label"><i class="fa-solid ${s.icon}"></i>${s.label}</div>
+          <div class="pb-value">${money(bal[s.key] || 0)}</div>
+        </div>
+      `).join('');
+    }
+    function openPayrollModal(){
+      if(!requireCashOpen('pagar nómina')) return;
+      const employees = payrollEmployees();
+      const list = byId('payrollEmployeeList');
+      if(!employees.length){
+        list.innerHTML = '<div class="alert alert-warning rounded-4 mb-0">No hay empleados registrados. Crea cocineros, meseros o cajeros en <strong>Marca y Configuración → Usuarios</strong>.</div>';
+      } else {
+        const sourceOptions = PAYROLL_SOURCES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+        list.innerHTML = PAYROLL_ROLE_GROUPS.map(group => {
+          const members = employees.filter(u => u.role === group.role);
+          if(!members.length) return '';
+          return `
+            <div class="payroll-group">
+              <div class="payroll-group-title"><i class="fa-solid ${group.icon}"></i>${group.label} <span class="badge text-bg-light text-dark ms-1">${members.length}</span></div>
+              ${members.map(u => `
+                <div class="payroll-emp-row" id="payRow_${u.id}">
+                  <input class="form-check-input" type="checkbox" id="payChk_${u.id}" onchange="onPayrollRowToggle('${u.id}')">
+                  <div class="payroll-emp-name">${escapeHtml(u.username)}<span class="role-badge">${escapeHtml(u.role)}</span></div>
+                  <div class="payroll-amount-wrap"><input id="payAmt_${u.id}" type="text" inputmode="numeric" class="form-control" placeholder="Valor" oninput="formatPayrollAmount('${u.id}'); updatePayrollTotals();" disabled></div>
+                  <div class="payroll-source-wrap"><select id="paySrc_${u.id}" class="form-select" disabled>${sourceOptions}</select></div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        }).join('');
+      }
+      renderPayrollBalances();
+      updatePayrollTotals();
+      modals.payroll.show();
+    }
+    function onPayrollRowToggle(id){
+      const checked = byId(`payChk_${id}`)?.checked;
+      const amt = byId(`payAmt_${id}`);
+      const src = byId(`paySrc_${id}`);
+      const row = byId(`payRow_${id}`);
+      if(amt) amt.disabled = !checked;
+      if(src) src.disabled = !checked;
+      if(row) row.classList.toggle('is-on', !!checked);
+      if(checked) amt?.focus();
+      updatePayrollTotals();
+    }
+    function formatPayrollAmount(id){
+      const amt = byId(`payAmt_${id}`);
+      if(!amt) return;
+      const clean = String(amt.value || '').replace(/[^\d]/g, '');
+      amt.value = clean ? groupThousands(clean) : '';
+    }
+    function collectPayrollSelections(){
+      return payrollEmployees().map(u => {
+        const checked = byId(`payChk_${u.id}`)?.checked;
+        const amount = clampNumber(byId(`payAmt_${u.id}`)?.value || 0);
+        const source = byId(`paySrc_${u.id}`)?.value || 'EFECTIVO';
+        return { id:u.id, name:u.username, role:u.role, amount, source, checked:!!checked };
+      }).filter(item => item.checked && item.amount > 0);
+    }
+    function updatePayrollTotals(){
+      const total = collectPayrollSelections().reduce((a, b) => a + b.amount, 0);
+      setText('payrollTotalLabel', money(total));
+    }
+    function confirmPayroll(){
+      if(!requireCashOpen('pagar nómina')) return;
+      const selections = collectPayrollSelections();
+      if(!selections.length){ toast('Marca al menos un empleado y escribe un valor mayor a cero', 'warning'); return; }
+      const total = selections.reduce((a, b) => a + b.amount, 0);
+      const balances = payrollAccountBalances();
+      const overdrawn = PAYROLL_SOURCES.map(s => s.key).filter(key => {
+        const used = selections.filter(x => x.source === key).reduce((a, b) => a + b.amount, 0);
+        return used > (balances[key] || 0);
+      });
+      const warn = overdrawn.length ? `<br><br><span class="text-danger">Atención: el pago supera el saldo disponible en ${overdrawn.map(k => expenseSourceLabel(k)).join(', ')}.</span>` : '';
+      confirmAction({
+        title:'Confirmar pago de nómina',
+        message:`Vas a pagar <strong>${money(total)}</strong> a <strong>${selections.length}</strong> empleado(s). Se registrarán como egresos y se imprimirá el comprobante.${warn}`,
+        confirmLabel:'Sí, pagar',
+        confirmClass:'btn-warning',
+        onConfirm: () => {
+          const now = new Date().toISOString();
+          selections.forEach(sel => {
+            state.movements.push({
+              id:uid(),
+              type:'Egreso',
+              concept:`Nómina - ${sel.name} (${sel.role})`,
+              amount:sel.amount,
+              source:sel.source,
+              payroll:true,
+              date:now
+            });
+          });
+          persistAll();
+          modals.payroll.hide();
+          printPayrollReport(selections);
+          renderCashView();
+          if(currentView === 'movimientos') renderMovements();
+          toast(`Nómina pagada: ${money(total)} a ${selections.length} empleado(s)`, 'success');
+        }
+      });
+    }
+    function printPayrollReport(selections){
+      const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
+      const to = new Date();
+      const report = buildCashReport(from, to);
+      const balances = payrollAccountBalances();
+      const total = selections.reduce((a, b) => a + b.amount, 0);
+      const payRows = selections.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.role)}</td><td>${escapeHtml(expenseSourceLabel(s.source))}</td><td class="right">${money(s.amount)}</td></tr>`).join('');
+      const balRows = PAYROLL_SOURCES.map(s => `<tr><td>${escapeHtml(s.label)}</td><td class="right">${money(balances[s.key] || 0)}</td></tr>`).join('');
+      const content = `
+        <h2 class="center">${escapeHtml(state.brand.name || 'Combatti PUB')}</h2>
+        <p class="center muted">Comprobante de pago de nómina</p>
+        <p class="center muted">${formatDate(to)}</p>
+        <div class="row">
+          <div class="col-md-3"><div class="mini-table"><span>Responsable</span><strong>${escapeHtml(currentUser?.username || 'Sin usuario')}</strong></div></div>
+          <div class="col-md-3"><div class="mini-table"><span>Turno</span><strong>${escapeHtml(shiftLabel(state.shift))}</strong></div></div>
+          <div class="col-md-3"><div class="mini-table"><span>Empleados pagados</span><strong>${selections.length}</strong></div></div>
+          <div class="col-md-3"><div class="mini-table"><span>Total nómina</span><strong>${money(total)}</strong></div></div>
+        </div>
+        <h5>Pagos realizados</h5>
+        <table><thead><tr><th>Empleado</th><th>Rol</th><th>Medio</th><th class="right">Valor</th></tr></thead>
+        <tbody>${payRows}<tr class="total-row"><td colspan="3"><b>Total nómina</b></td><td class="right"><b>${money(total)}</b></td></tr></tbody></table>
+        <h5>Saldo por cuenta (después del pago)</h5>
+        <table><thead><tr><th>Cuenta</th><th class="right">Saldo</th></tr></thead><tbody>${balRows}</tbody></table>
+        <h5>Resumen de caja</h5>
+        <table><tbody>
+          <tr><td>Ventas pagadas</td><td class="right">${money(report.sales)}</td></tr>
+          <tr><td>Ingresos manuales</td><td class="right">${money(report.income)}</td></tr>
+          <tr><td>Egresos totales (incluye nómina)</td><td class="right">${money(report.expense)}</td></tr>
+          <tr class="total-row"><td><b>Saldo efectivo en caja</b></td><td class="right"><b>${money(report.final)}</b></td></tr>
+        </tbody></table>`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pago de nómina</title><style>${cashReportPrintStyle()}</style></head><body>${content}</body></html>`;
+      const w = window.open('', '_blank', 'width=720,height=900');
+      if(!w){ toast('El navegador bloqueó la impresión del comprobante de nómina', 'warning'); return; }
+      w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 450);
+    }
     function renderCashView(){
       const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date()), to = endOfDay(new Date());
       const report = buildCashReport(from, to);
@@ -7448,6 +7730,7 @@ const colors = [
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printCashRecord('${record.id}')"><i class="fa-solid fa-receipt me-1"></i>Comprobante diario</button>
               <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-print me-1"></i>Inventario</button>
+              ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteCashRecord('${record.id}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
             </div>
           </div>
         </div>
@@ -7472,11 +7755,54 @@ const colors = [
               <div class="small text-secondary">Motivo: ${escapeHtml(entry.reason || '-')}</div>
               ${entry.item ? `<div class="small text-secondary">Producto: ${escapeHtml(entry.item.name || '')} x ${Number(entry.item.qty || 0)}</div>` : ''}
             </div>
-            <strong>${money(entry.order?.total || (Number(entry.item?.price || 0) * Number(entry.item?.qty || 0)))}</strong>
+            <div class="text-end d-flex flex-column align-items-end gap-2">
+              <strong>${money(entry.order?.total || (Number(entry.item?.price || 0) * Number(entry.item?.qty || 0)))}</strong>
+              ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteAuditEntry('${entry.id || ''}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
+            </div>
           </div>
         </div>
       `).join('') : '<div class="p-3 text-secondary">No hay pedidos ni productos eliminados internamente.</div>';
       renderHistoryPager('deletedOrdersPagination', pager.page, pager.totalPages, pager.totalItems, 'setDeletedOrdersPage');
+    }
+    // Eliminar un cuadre de caja del historial (solo admin del sistema).
+    function deleteCashRecord(id){
+      if(!requireSystemAdmin('eliminar cuadres de caja')) return;
+      const record = (state.cash.history || []).find(r => r.id === id);
+      if(!record){ toast('No se encontró el cuadre', 'warning'); return; }
+      if(record.status === 'Abierta' || (!record.closedAt && state.cash.open)){
+        toast('No puedes eliminar el cuadre de la caja abierta. Ciérrala primero.', 'warning');
+        return;
+      }
+      confirmAction({
+        title:'Eliminar cuadre de caja',
+        message:`¿Eliminar el cuadre del <strong>${formatDate(record.openedAt)}</strong>?<br><br>Esta acción no se puede deshacer.`,
+        confirmLabel:'Sí, eliminar',
+        confirmClass:'btn-danger',
+        onConfirm: () => {
+          state.cash.history = (state.cash.history || []).filter(r => r.id !== id);
+          persistAll();
+          renderCashHistory();
+          toast('Cuadre de caja eliminado', 'info');
+        }
+      });
+    }
+    // Eliminar una entrada de la auditoría de eliminados (solo admin del sistema).
+    function deleteAuditEntry(id){
+      if(!requireSystemAdmin('eliminar registros de auditoría')) return;
+      const exists = (state.deletedOrders || []).some(e => (e.id || '') === id);
+      if(!exists){ toast('No se encontró el registro', 'warning'); return; }
+      confirmAction({
+        title:'Eliminar registro de auditoría',
+        message:'¿Eliminar este registro de la lista de eliminados internamente?<br><br>Esta acción no se puede deshacer.',
+        confirmLabel:'Sí, eliminar',
+        confirmClass:'btn-danger',
+        onConfirm: () => {
+          state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== id);
+          persistAll();
+          renderDeletedOrders();
+          toast('Registro eliminado', 'info');
+        }
+      });
     }
     function findCashRecord(id){
       return (state.cash.history || []).find(r => r.id === id) || currentCashRecord();
@@ -7771,7 +8097,14 @@ const colors = [
       const w = window.open('', '_blank', 'width=900,height=900'); if(!w){ toast('El navegador bloqueó la impresión de inventario', 'warning'); return; } w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 450);
     }
     function expenseSourceLabel(source){
-      return source === 'TARJETA_CREDITO' ? 'Tarjeta de credito - Jesús' : 'Efectivo - caja';
+      switch(source){
+        case 'TARJETA_CREDITO': return 'Tarjeta de credito - Jesús';
+        case 'BANCOLOMBIA': return 'Transferencia Bancolombia';
+        case 'NEQUI': return 'Nequi';
+        case 'BOLD': return 'Bold';
+        case 'EFECTIVO':
+        default: return 'Efectivo - caja';
+      }
     }
     function renderMovements(){
       const grid = document.getElementById('movementsGrid'); const items = [...state.movements].reverse();
@@ -8598,6 +8931,58 @@ function parseMoneyValue(value){
     function chartPalette(){
       return [brandPrimaryColor(),'#2563eb','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#111827','#84cc16'];
     }
+    // Renderizador unificado de graficas de torta (estilo doughnut moderno y
+    // consistente): mismo grosor, espaciado, bordes redondeados, hover y texto
+    // central con el total. Lo usan las 3 tortas del dashboard.
+    function modernDoughnutChart(key, canvas, labels, data, colors, opts = {}){
+      if(!canvas) return;
+      if(typeof Chart === 'undefined'){ drawFallbackDoughnut(canvas, labels, data); return; }
+      if(charts[key]) charts[key].destroy();
+      const cardColor = getComputedStyle(document.body).getPropertyValue('--card').trim() || '#fff';
+      const total = data.reduce((a, b) => a + Number(b || 0), 0);
+      const centerPlugin = {
+        id:`center_${key}`,
+        afterDraw(chart){
+          const { ctx, chartArea } = chart;
+          if(!chartArea) return;
+          const cx = (chartArea.left + chartArea.right) / 2;
+          const cy = (chartArea.top + chartArea.bottom) / 2;
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = chartMutedColor();
+          ctx.font = '600 11px Inter, Arial, sans-serif';
+          ctx.fillText(opts.centerLabel || 'Total', cx, cy - 11);
+          ctx.fillStyle = chartTextColor();
+          ctx.font = '800 17px Inter, Arial, sans-serif';
+          ctx.fillText(opts.formatCenter ? opts.formatCenter(total) : String(total), cx, cy + 9);
+          ctx.restore();
+        }
+      };
+      charts[key] = new Chart(canvas, {
+        type:'doughnut',
+        data:{ labels, datasets:[{ data, backgroundColor:colors, borderColor:cardColor, borderWidth:4, hoverOffset:12, borderRadius:6, spacing:2 }] },
+        options:{
+          responsive:true,
+          maintainAspectRatio:true,
+          aspectRatio:1,
+          cutout:'66%',
+          layout:{ padding:10 },
+          animation:{ animateRotate:true, animateScale:true, duration:650 },
+          plugins:{
+            legend:{ display:false },
+            tooltip:{
+              backgroundColor:'rgba(15,23,42,.94)',
+              padding:12,
+              cornerRadius:12,
+              usePointStyle:true,
+              callbacks:{ label:item => opts.tooltip ? opts.tooltip(item) : `${item.label}: ${item.raw}` }
+            }
+          }
+        },
+        plugins:[centerPlugin]
+      });
+    }
     function makeCanvasGradient(canvas, topColor, bottomColor){
       const context = canvas.getContext('2d');
       const gradient = context.createLinearGradient(0, 0, 0, canvas.clientHeight || 320);
@@ -8703,21 +9088,10 @@ function parseMoneyValue(value){
         }).join('');
       }
       if(typeof Chart === 'undefined'){ drawFallbackDoughnut(ctx, labels, data); return; }
-      if(charts.incomeVsExpenseChart) charts.incomeVsExpenseChart.destroy();
-      charts.incomeVsExpenseChart = new Chart(ctx, {
-        type:'doughnut',
-        data:{ labels, datasets:[{ data, backgroundColor:colors, borderColor:getComputedStyle(document.body).getPropertyValue('--card').trim() || '#fff', borderWidth:5, hoverOffset:8 }] },
-        options:{
-          responsive:true,
-          maintainAspectRatio:true,
-          aspectRatio:1,
-          cutout:'58%',
-          layout:{ padding:12 },
-          plugins:{
-            legend:{ display:false },
-            tooltip:{ callbacks:{ label:item => `${item.label}: ${money(values[item.dataIndex] || 0)}` } }
-          }
-        }
+      modernDoughnutChart('incomeVsExpenseChart', ctx, labels, data, colors, {
+        centerLabel:'Balance',
+        formatCenter:() => money((values[0] || 0) - (values[1] || 0)),
+        tooltip:item => `${item.label}: ${money(values[item.dataIndex] || 0)}`
       });
     }
     function updatePaymentMethodsChart(labels, data){
@@ -8737,21 +9111,10 @@ function parseMoneyValue(value){
       }
       if(!canvas) return;
       if(typeof Chart === 'undefined'){ drawFallbackDoughnut(canvas, safeLabels, safeData); return; }
-      if(charts.paymentMethodsChart) charts.paymentMethodsChart.destroy();
-      charts.paymentMethodsChart = new Chart(canvas, {
-        type:'doughnut',
-        data:{ labels:safeLabels, datasets:[{ data:safeData, backgroundColor:safeLabels.map((_,i)=>colors[i % colors.length]), borderColor:getComputedStyle(document.body).getPropertyValue('--card').trim() || '#fff', borderWidth:4, hoverOffset:8 }] },
-        options:{
-          responsive:true,
-          maintainAspectRatio:true,
-          aspectRatio:1,
-          cutout:'62%',
-          layout:{ padding:8 },
-          plugins:{
-            legend:{ display:false },
-            tooltip:{ callbacks:{ label:item => `${item.label}: ${item.raw} (${Math.round((Number(item.raw || 0) / total) * 100)}%)` } }
-          }
-        }
+      modernDoughnutChart('paymentMethodsChart', canvas, safeLabels, safeData, safeLabels.map((_,i)=>colors[i % colors.length]), {
+        centerLabel:'Pedidos',
+        formatCenter:() => (labels.length ? safeData.reduce((a,b)=>a + Number(b||0), 0) : 0),
+        tooltip:item => `${item.label}: ${item.raw} (${Math.round((Number(item.raw || 0) / total) * 100)}%)`
       });
     }
     function updateTopProductsPie(labels, data){
@@ -8769,20 +9132,10 @@ function parseMoneyValue(value){
       }
       if(!canvas) return;
       if(typeof Chart === 'undefined'){ drawFallbackDoughnut(canvas, labels, data); return; }
-      if(charts.topProductsChart) charts.topProductsChart.destroy();
-      charts.topProductsChart = new Chart(canvas, {
-        type:'pie',
-        data:{ labels, datasets:[{ data, backgroundColor:labels.map((_,i)=>colors[i % colors.length]), borderColor:getComputedStyle(document.body).getPropertyValue('--card').trim() || '#fff', borderWidth:4, hoverOffset:10 }] },
-        options:{
-          responsive:true,
-          maintainAspectRatio:true,
-          aspectRatio:1,
-          layout:{ padding:12 },
-          plugins:{
-            legend:{ display:false },
-            tooltip:{ callbacks:{ label:item => `${item.label}: ${item.raw} unidades` } }
-          }
-        }
+      modernDoughnutChart('topProductsChart', canvas, labels, data, labels.map((_,i)=>colors[i % colors.length]), {
+        centerLabel:'Unidades',
+        formatCenter:() => data.reduce((a,b)=>a + Number(b||0), 0),
+        tooltip:item => `${item.label}: ${item.raw} unidades`
       });
     }
     function prepareFallbackCanvas(canvas){

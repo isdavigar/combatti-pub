@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     :root{
       --primary:var(--primary);
@@ -1181,6 +1182,14 @@
     .close-cash-card strong{ display:block; font-size:1.3rem; font-weight:900; margin-top:6px; }
     .close-cash-card.highlight{ background:linear-gradient(135deg, rgba(var(--primary-rgb),.12), var(--card)); border-color:rgba(var(--primary-rgb),.35); }
     .close-cash-card.highlight strong{ color:var(--primary); }
+    .close-discrepancy{ height:100%; display:flex; flex-direction:column; justify-content:center; border:1px solid var(--border); border-radius:16px; padding:12px 16px; }
+    .close-discrepancy span{ font-size:.78rem; font-weight:700; color:var(--muted); }
+    .close-discrepancy strong{ font-size:1.5rem; font-weight:900; }
+    .close-discrepancy.neutral{ background:rgba(148,163,184,.08); }
+    .close-discrepancy.ok{ background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.4); }
+    .close-discrepancy.ok strong{ color:#16a34a; }
+    .close-discrepancy.bad{ background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); }
+    .close-discrepancy.bad strong{ color:#dc2626; }
     .payroll-balance-card{
       border:1px solid var(--border); border-radius:16px; padding:12px 14px;
       background:linear-gradient(180deg, rgba(var(--primary-rgb),.06), var(--card));
@@ -2704,6 +2713,37 @@
                 <label class="form-label">Información adicional</label>
                 <textarea id="brandInfoInput" class="form-control" rows="3" placeholder="Dirección, teléfono, horarios..."></textarea>
               </div>
+
+              <hr>
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-file-invoice me-2"></i>Facturación electrónica</h6>
+              <p class="section-subtitle mb-3">Datos del negocio que aparecen en la factura. La numeración es consecutiva automática.</p>
+              <div class="row g-2 mb-3">
+                <div class="col-md-6"><label class="form-label">NIT / Documento</label><input id="brandNitInput" class="form-control" placeholder="901.234.567-8"></div>
+                <div class="col-md-6"><label class="form-label">Teléfono fiscal</label><input id="brandFiscalPhoneInput" class="form-control" placeholder="320 000 0000"></div>
+                <div class="col-12"><label class="form-label">Dirección fiscal</label><input id="brandFiscalAddressInput" class="form-control" placeholder="Cra 00 # 00-00, Ciudad"></div>
+                <div class="col-md-6"><label class="form-label">Régimen</label><input id="brandFiscalRegimeInput" class="form-control" placeholder="No responsable de IVA"></div>
+                <div class="col-md-6"><label class="form-label">Prefijo factura</label><input id="brandInvoicePrefixInput" class="form-control" placeholder="FE-"></div>
+                <div class="col-12"><label class="form-label">Resolución DIAN (opcional)</label><input id="brandInvoiceResolutionInput" class="form-control" placeholder="Resolución DIAN No. ... de ..."></div>
+              </div>
+
+              <hr>
+              <h6 class="fw-bold mb-2"><i class="fa-solid fa-envelope me-2"></i>Correo de cierre de caja</h6>
+              <p class="section-subtitle mb-3">Al cerrar caja se envía al administrador el Excel, la factura de cierre y el estado de cuadre/descuadre.</p>
+              <div class="row g-2 mb-3">
+                <div class="col-12">
+                  <label class="form-label">Correo del administrador</label>
+                  <input id="brandAdminEmailInput" type="email" class="form-control" placeholder="admin@correo.com">
+                </div>
+                <div class="col-12 form-check ms-2">
+                  <input class="form-check-input" type="checkbox" id="brandEmailEnabledInput">
+                  <label class="form-check-label" for="brandEmailEnabledInput">Enviar correo automático al cerrar caja</label>
+                </div>
+                <div class="col-12"><small class="text-secondary">Envío automático con adjuntos vía EmailJS (opcional). Si no lo configuras, se abre tu correo con el resumen listo para enviar.</small></div>
+                <div class="col-md-4"><label class="form-label">EmailJS Service ID</label><input id="brandEmailServiceInput" class="form-control" placeholder="service_xxx"></div>
+                <div class="col-md-4"><label class="form-label">EmailJS Template ID</label><input id="brandEmailTemplateInput" class="form-control" placeholder="template_xxx"></div>
+                <div class="col-md-4"><label class="form-label">EmailJS Public Key</label><input id="brandEmailKeyInput" class="form-control" placeholder="public_key"></div>
+              </div>
+
               <div class="d-grid gap-2">
                 <button class="btn btn-success btn-pill" onclick="saveBrand()">Guardar marca</button>
               </div>
@@ -3148,6 +3188,7 @@
         <div class="modal-footer">
           <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cerrar</button>
           <button class="btn btn-outline-success btn-pill d-none" id="ticketPreviewKitchenButton" onclick="openKitchenDisplay(true)"><i class="fa-solid fa-utensils me-2"></i>Pantalla cocina</button>
+          <button class="btn btn-outline-primary btn-pill" id="ticketPreviewInvoiceButton" onclick="generateElectronicInvoiceFromPreview()"><i class="fa-solid fa-file-invoice me-2"></i>Factura electrónica</button>
           <button class="btn btn-primary-soft btn-pill" id="ticketPreviewPrintButton"><i class="fa-solid fa-print me-2"></i>Imprimir ticket</button>
         </div>
       </div>
@@ -3198,6 +3239,22 @@
           </div>
           <h6 class="fw-bold mt-4 mb-2">Detalle del turno</h6>
           <div class="list-group list-panel mb-1" id="closeSummaryList"></div>
+          <div class="close-arqueo mt-3">
+            <div class="row g-2 align-items-stretch">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Efectivo contado en caja (arqueo)</label>
+                <input id="closeCountedInput" type="text" inputmode="numeric" data-money-input="1" class="form-control form-control-lg" placeholder="0" oninput="updateCloseDiscrepancy()">
+                <div class="form-text">Cuenta el dinero físico y escríbelo para verificar el cuadre.</div>
+              </div>
+              <div class="col-md-6">
+                <div id="closeDiscrepancyBox" class="close-discrepancy neutral">
+                  <span>Diferencia (contado − esperado)</span>
+                  <strong id="closeDiscrepancyValue">$0</strong>
+                  <div class="small" id="closeDiscrepancyMsg">Escribe el efectivo contado para verificar el cuadre.</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
@@ -3299,7 +3356,29 @@
         </div>
         <div class="modal-body">
           <div class="alert alert-info border rounded-4 mb-3" id="licenseCountdownInfo">Licencia: revisando estado...</div>
+          <div class="alert alert-light border rounded-4 small mb-3"><i class="fa-solid fa-cloud me-1"></i>Lo que configures aquí se guarda y se sincroniza automáticamente en todos los dispositivos.</div>
           <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Fecha de corte</label>
+              <input id="licenseCutoffInput" type="date" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Valor mensual</label>
+              <input id="licenseAmountInput" type="text" inputmode="numeric" data-money-input="1" class="form-control" placeholder="50000">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Días de aviso</label>
+              <input id="licenseWarningInput" type="number" min="1" max="30" class="form-control" placeholder="5">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nequi administrador</label>
+              <input id="licenseNequiInput" class="form-control" placeholder="3000000000">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">WhatsApp administrador</label>
+              <input id="licenseWhatsappInput" class="form-control" placeholder="573000000000">
+            </div>
+            <div class="col-12"><hr class="my-1"><small class="text-secondary">Conexión remota opcional (Firebase Realtime Database). Déjala vacía para usar solo la fecha de corte compartida.</small></div>
             <div class="col-md-8">
               <label class="form-label">URL de Firebase Realtime Database</label>
               <input id="licenseDbUrl" class="form-control" placeholder="https://tu-proyecto-default-rtdb.firebaseio.com">
@@ -3307,9 +3386,6 @@
             <div class="col-md-4">
               <label class="form-label">ID del cliente</label>
               <input id="licenseClientId" class="form-control" placeholder="restaurante-combatti">
-            </div>
-            <div class="col-12">
-              <div class="alert alert-light border rounded-4 mb-0">El sistema consulta la licencia cada minuto. Si el administrador bloquea o vence la fecha, se muestra la pantalla de pago.</div>
             </div>
           </div>
         </div>
@@ -4528,7 +4604,21 @@
         info: brand.info || 'Centro Comercial Villa Campestre',
         loginImage: brand.loginImage || loginGallery[0] || '',
         loginGallery,
-        theme: brand.theme || 'light'
+        theme: brand.theme || 'light',
+        // Datos fiscales para factura electrónica
+        nit: brand.nit || '',
+        fiscalAddress: brand.fiscalAddress || '',
+        fiscalPhone: brand.fiscalPhone || '',
+        fiscalRegime: brand.fiscalRegime || '',
+        invoiceResolution: brand.invoiceResolution || '',
+        invoicePrefix: brand.invoicePrefix || 'FE-',
+        invoiceCounter: Number(brand.invoiceCounter || 0),
+        // Configuración de correo (cierre de caja)
+        adminEmail: brand.adminEmail || '',
+        emailEnabled: brand.emailEnabled === true,
+        emailjsPublicKey: brand.emailjsPublicKey || '',
+        emailjsServiceId: brand.emailjsServiceId || '',
+        emailjsTemplateId: brand.emailjsTemplateId || ''
       };
     }
     function tableSize(table){
@@ -4981,7 +5071,11 @@
       licenseState.editUnlocked = false;
       setValue('licenseDbUrl', licenseState.local.databaseUrl || '');
       setValue('licenseClientId', licenseState.local.clientId || LICENSE_DEFAULTS.clientId);
-      setLicenseConfigLocked(hasPlacedLicenseConfig());
+      setValue('licenseCutoffInput', String(licenseState.local.licenseUntil || '').slice(0, 10));
+      setValue('licenseAmountInput', licenseState.local.monthlyAmount || 0);
+      setValue('licenseWarningInput', licenseState.local.warningDays || LICENSE_DEFAULTS.warningDays);
+      setValue('licenseNequiInput', licenseState.local.adminNequi || '');
+      setValue('licenseWhatsappInput', licenseState.local.adminWhatsapp || '');
       modals.licenseConfig?.show();
     }
     function unlockLicenseConfig(){
@@ -4993,33 +5087,26 @@
       toast('Edicion de licencia habilitada', 'info');
     }
     function saveLicenseConfig(){
-      const currentUrl = normalizeDatabaseUrl(licenseState.local.databaseUrl || '');
-      const currentClientId = String(licenseState.local.clientId || '').trim();
-      const hasConfiguredLicense = Boolean(currentUrl && currentClientId);
+      if(!requireSystemAdmin('configurar la licencia')) return;
       const databaseUrl = normalizeDatabaseUrl(byId('licenseDbUrl')?.value || '');
-      const clientId = String(byId('licenseClientId')?.value || '').trim();
-      if(!hasConfiguredLicense && !requireSystemAdmin('configurar la licencia')) return;
-      if(hasConfiguredLicense && !licenseState.editUnlocked && (databaseUrl !== currentUrl || clientId !== currentClientId)){
-        setValue('licenseDbUrl', currentUrl);
-        setValue('licenseClientId', currentClientId);
-        setLicenseConfigLocked(true);
-        toast('No se puede modificar ni borrar la licencia ya configurada', 'warning');
+      const clientId = String(byId('licenseClientId')?.value || '').trim() || LICENSE_DEFAULTS.clientId;
+      if(databaseUrl && !clientId){
+        toast('Escribe el ID del cliente para la licencia remota', 'warning');
         return;
       }
-      if(hasConfiguredLicense && licenseState.editUnlocked && !requireSystemAdmin('cambiar la licencia')) return;
-      if(!databaseUrl || !clientId){
-        toast('Completa la URL y el ID de la licencia', 'warning');
-        return;
-      }
-      saveLicenseLocalSettings({
-        databaseUrl,
-        clientId
-      });
+      const licenseUntil = String(byId('licenseCutoffInput')?.value || '').slice(0, 10);
+      const monthlyAmount = clampNumber(byId('licenseAmountInput')?.value || 0);
+      const warningDays = clampNumber(byId('licenseWarningInput')?.value || LICENSE_DEFAULTS.warningDays, 1, 30);
+      const adminNequi = String(byId('licenseNequiInput')?.value || '').trim();
+      const adminWhatsapp = String(byId('licenseWhatsappInput')?.value || '').replace(/\D/g, '');
+      saveLicenseLocalSettings({ databaseUrl, clientId, licenseUntil, monthlyAmount, warningDays, adminNequi, adminWhatsapp });
       licenseState.editUnlocked = false;
-      setLicenseConfigLocked(hasPlacedLicenseConfig());
       modals.licenseConfig?.hide();
       renderLicenseUi();
       refreshLicenseStatus(true);
+      // Comparte la configuración de licencia con los demás dispositivos.
+      if(typeof queueCloudPush === 'function') queueCloudPush();
+      toast('Licencia guardada y sincronizada en todos los dispositivos', 'success');
     }
     function bindLicenseButtons(){
       byId('btnLicenseCopyNequi')?.addEventListener('click', copyLicenseNequi);
@@ -7151,6 +7238,116 @@ const colors = [
       const order = findOrderById(orderId);
       if(order) printKitchenTicket(order, type);
     }
+    // ===== Factura electrónica (documento formal con consecutivo) =====
+    function nextInvoiceNumber(){
+      const prefix = state.brand.invoicePrefix || 'FE-';
+      const next = Number(state.brand.invoiceCounter || 0) + 1;
+      state.brand.invoiceCounter = next;
+      return `${prefix}${String(next).padStart(5, '0')}`;
+    }
+    function generateElectronicInvoiceFromPreview(){
+      if(!lastTicketOrderId){ toast('Abre un ticket primero', 'warning'); return; }
+      generateElectronicInvoice(lastTicketOrderId);
+    }
+    function generateElectronicInvoice(orderId){
+      const order = findOrderById(orderId);
+      if(!order){ toast('No se encontró el pedido', 'warning'); return; }
+      if(!order.invoiceNumber){
+        const customerName = (prompt('Nombre del cliente para la factura (opcional):', order.customer || 'Consumidor final') || '').trim();
+        const customerDoc = (prompt('Documento / NIT del cliente (opcional):', order.invoiceCustomerDoc || '') || '').trim();
+        order.invoiceNumber = nextInvoiceNumber();
+        order.invoiceCustomer = customerName || 'Consumidor final';
+        order.invoiceCustomerDoc = customerDoc;
+        order.invoiceIssuedAt = new Date().toISOString();
+        persistAll();
+      }
+      const html = electronicInvoiceHtml(order);
+      const w = window.open('', '_blank', 'width=820,height=940');
+      if(!w){ toast('El navegador bloqueó la factura. Permite ventanas emergentes.', 'warning'); return; }
+      w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 500);
+      toast(`Factura ${order.invoiceNumber} generada`, 'success');
+    }
+    function electronicInvoiceHtml(order){
+      normalizeOrderContact(order);
+      normalizeOrderPayments(order);
+      const b = state.brand || {};
+      const itemRows = (order.items || []).map(i => `<tr><td class="c">${Number(i.qty || 0)}</td><td>${escapeHtml(i.name)}${i.note ? `<div class="note">(${escapeHtml(i.note)})</div>` : ''}</td><td class="r">${money(i.price || 0)}</td><td class="r">${money(Number(i.price || 0) * Number(i.qty || 0))}</td></tr>`).join('') || '<tr><td colspan="4" class="c">Sin productos</td></tr>';
+      const subtotal = Number(order.subtotal || 0);
+      const discount = Number(order.discount || 0);
+      const delivery = Number(order.deliveryFee || 0);
+      const tip = Number(order.tip || 0);
+      const fiscalLines = [
+        b.nit ? `NIT/Doc: ${escapeHtml(b.nit)}` : '',
+        b.fiscalAddress ? escapeHtml(b.fiscalAddress) : escapeHtml(b.info || ''),
+        b.fiscalPhone ? `Tel: ${escapeHtml(b.fiscalPhone)}` : '',
+        b.fiscalRegime ? escapeHtml(b.fiscalRegime) : ''
+      ].filter(Boolean).join(' · ');
+      const style = `body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:26px;color:#111;background:#fff;font-size:14px;line-height:1.45}
+.inv-head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #111;padding-bottom:14px;margin-bottom:16px}
+.inv-brand h1{margin:0 0 4px;font-size:22px}
+.inv-brand .muted{color:#555;font-size:12.5px}
+.inv-doc{text-align:right;min-width:230px}
+.inv-doc .tag{display:inline-block;background:#111;color:#fff;padding:4px 10px;border-radius:8px;font-weight:800;letter-spacing:.04em;font-size:12px}
+.inv-doc .num{font-size:20px;font-weight:900;margin-top:8px}
+.inv-doc .muted{color:#555;font-size:12.5px;margin-top:4px}
+.inv-parties{display:flex;justify-content:space-between;gap:16px;margin-bottom:14px}
+.inv-card{flex:1;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px}
+.inv-card h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;color:#666;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{background:#f3f4f6;text-align:left;padding:8px;border-bottom:2px solid #111}
+td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
+.c{text-align:center}.r{text-align:right}
+.note{color:#666;font-style:italic;font-size:12px}
+.totals{margin-top:14px;margin-left:auto;width:300px}
+.totals tr td{border:0;padding:4px 8px}
+.totals .grand td{border-top:2px solid #111;font-size:18px;font-weight:900}
+.foot{margin-top:22px;border-top:1px dashed #999;padding-top:12px;color:#555;font-size:12px}
+@media print{body{padding:10px}}`;
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Factura ${escapeHtml(order.invoiceNumber || '')}</title><style>${style}</style></head><body>
+        <div class="inv-head">
+          <div class="inv-brand">
+            <h1>${escapeHtml(b.name || 'Combatti PUB')}</h1>
+            <div class="muted">${fiscalLines || 'Restaurante'}</div>
+            ${b.invoiceResolution ? `<div class="muted">${escapeHtml(b.invoiceResolution)}</div>` : ''}
+          </div>
+          <div class="inv-doc">
+            <span class="tag">FACTURA DE VENTA</span>
+            <div class="num">${escapeHtml(order.invoiceNumber || '')}</div>
+            <div class="muted">Fecha: ${formatTicketDate(order.invoiceIssuedAt || order.paidAt || new Date())}</div>
+            <div class="muted">Vendedor: ${escapeHtml(order.seller || currentUser?.username || '-')}</div>
+          </div>
+        </div>
+        <div class="inv-parties">
+          <div class="inv-card">
+            <h4>Cliente</h4>
+            <div><strong>${escapeHtml(order.invoiceCustomer || order.customer || 'Consumidor final')}</strong></div>
+            ${order.invoiceCustomerDoc ? `<div class="muted">Doc: ${escapeHtml(order.invoiceCustomerDoc)}</div>` : ''}
+            ${order.address ? `<div class="muted">${escapeHtml(order.address)}</div>` : ''}
+          </div>
+          <div class="inv-card">
+            <h4>Detalles</h4>
+            <div>Mesa / Pedido: <strong>${escapeHtml(order.tableName || '-')}</strong></div>
+            <div>Método de pago: <strong>${escapeHtml(paymentSummaryText(order))}</strong></div>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th class="c">Cant.</th><th>Descripción</th><th class="r">Vr. Unit.</th><th class="r">Total</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <table class="totals">
+          <tr><td>Subtotal</td><td class="r">${money(subtotal)}</td></tr>
+          ${discount > 0 ? `<tr><td>Descuento</td><td class="r">-${money(discount)}</td></tr>` : ''}
+          ${delivery > 0 ? `<tr><td>Domicilio</td><td class="r">${money(delivery)}</td></tr>` : ''}
+          ${tip > 0 ? `<tr><td>Propina voluntaria</td><td class="r">${money(tip)}</td></tr>` : ''}
+          <tr class="grand"><td>TOTAL</td><td class="r">${money(order.total || 0)}</td></tr>
+        </table>
+        <div class="foot">
+          Documento generado por el sistema POS ${escapeHtml(b.name || 'Combatti PUB')}.
+          ${b.invoiceResolution ? '' : 'Para facturación electrónica con validez fiscal ante la DIAN se requiere un proveedor tecnológico autorizado.'}
+          Gracias por su compra.
+        </div>
+      </body></html>`;
+    }
     function printKitchenTicket(order, type='COMANDA'){
       normalizeOrderContact(order);
       normalizeOrderPayments(order);
@@ -7374,6 +7571,92 @@ const colors = [
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
       renderAll();
     }
+    let closeExpectedCash = 0;
+    function updateCloseDiscrepancy(){
+      const input = byId('closeCountedInput');
+      const counted = clampNumber(input?.value || 0);
+      const hasValue = String(input?.value || '').trim() !== '';
+      const diff = counted - Number(closeExpectedCash || 0);
+      const box = byId('closeDiscrepancyBox');
+      setText('closeDiscrepancyValue', (diff > 0 ? '+' : '') + money(diff));
+      let msg, cls;
+      if(!hasValue){ msg = 'Escribe el efectivo contado para verificar el cuadre.'; cls = 'neutral'; }
+      else if(diff === 0){ msg = '¡Caja cuadrada perfectamente!'; cls = 'ok'; }
+      else if(diff > 0){ msg = `Sobran ${money(diff)} frente a lo esperado (${money(closeExpectedCash)}).`; cls = 'bad'; }
+      else { msg = `Faltan ${money(Math.abs(diff))} frente a lo esperado (${money(closeExpectedCash)}).`; cls = 'bad'; }
+      setText('closeDiscrepancyMsg', msg);
+      if(box) box.className = `close-discrepancy ${cls}`;
+    }
+    function cashCloseEmailBody(record){
+      const expected = Number(record.expectedCash ?? record.final ?? 0);
+      const counted = Number(record.countedCash ?? expected);
+      const diff = Number(record.discrepancy ?? (counted - expected));
+      const estado = diff === 0 ? 'CAJA CUADRADA PERFECTAMENTE ✔' : (diff > 0 ? `DESCUADRE - SOBRANTE de ${money(diff)}` : `DESCUADRE - FALTANTE de ${money(Math.abs(diff))}`);
+      const methodLines = PAYMENT_METHODS.map(m => `  - ${m}: ${money(record.methodTotals?.[m] || 0)}`).join('\n');
+      return [
+        `CIERRE DE CAJA - ${state.brand.name || 'Combatti PUB'}`,
+        `Fecha de cierre: ${formatDate(record.closedAt || new Date())}`,
+        `Responsable: ${record.responsible || 'Sin usuario'}`,
+        `Turno: ${shiftLabel(record.shift)}`,
+        ``,
+        `===== ESTADO DEL CUADRE =====`,
+        estado,
+        `Efectivo esperado en caja: ${money(expected)}`,
+        `Efectivo contado (arqueo): ${money(counted)}`,
+        `Diferencia: ${money(diff)}`,
+        ``,
+        `===== RESUMEN =====`,
+        `Caja inicial: ${money(record.openingAmount || 0)}`,
+        `Ventas pagadas: ${money(record.sales || 0)}`,
+        `Propinas: ${money(record.tips || 0)}`,
+        `Domicilios por pagar: ${money(record.deliveryFees || 0)}`,
+        `Ingresos manuales: ${money(record.income || 0)}`,
+        `Egresos totales: ${money(record.expense || 0)}`,
+        `Saldo efectivo en caja: ${money(record.final || 0)}`,
+        `Saldo luego de pagar domiciliario: ${money(record.finalAfterDelivery || 0)}`,
+        ``,
+        `===== PAGOS POR MÉTODO =====`,
+        methodLines,
+        ``,
+        `Adjunto el Excel del cierre diario. El comprobante de cierre se imprime aparte.`
+      ].join('\n');
+    }
+    function openMailtoClose(email, subject, body){
+      const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      try{ window.open(url, '_blank'); }catch(_){ location.href = url; }
+    }
+    function sendCashCloseEmail(record){
+      const b = state.brand || {};
+      const email = String(b.adminEmail || '').trim();
+      if(!b.emailEnabled || !email || !record) return;
+      const body = cashCloseEmailBody(record);
+      const diff = Number(record.discrepancy ?? 0);
+      const estado = diff === 0 ? 'CUADRADA' : (diff > 0 ? 'SOBRANTE' : 'FALTANTE');
+      const subject = `Cierre de caja ${formatDate(record.closedAt || new Date())} - ${estado}`;
+      const hasEmailjs = typeof emailjs !== 'undefined' && b.emailjsServiceId && b.emailjsTemplateId && b.emailjsPublicKey;
+      if(hasEmailjs){
+        const excel = dailyCloseExcelBase64(record);
+        const params = {
+          to_email: email,
+          subject,
+          message: body,
+          estado_cuadre: estado,
+          diferencia: money(diff),
+          total_ventas: money(record.sales || 0),
+          saldo_final: money(record.final || 0),
+          excel_base64: excel,
+          excel_name: `cierre_${dateTimeStamp()}.xlsx`
+        };
+        try{
+          emailjs.send(b.emailjsServiceId, b.emailjsTemplateId, params, { publicKey:b.emailjsPublicKey })
+            .then(() => toast('Correo de cierre enviado al administrador', 'success'))
+            .catch(err => { console.warn('emailjs', err); toast('No se pudo enviar el correo automático; abriendo tu correo.', 'warning'); openMailtoClose(email, subject, body); });
+        }catch(err){ console.warn('emailjs', err); openMailtoClose(email, subject, body); }
+      } else {
+        openMailtoClose(email, subject, body);
+        toast('Abrí tu correo con el resumen del cierre. Adjunta el Excel descargado.', 'info');
+      }
+    }
     function showCloseCashModal(){
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
       if(!requireNoActiveOrders('cerrar caja')) return;
@@ -7381,6 +7664,9 @@ const colors = [
       const methodRows = PAYMENT_METHODS.map(method => `<div class="list-group-item d-flex justify-content-between"><span>${method}</span><strong>${money(report.methodTotals?.[method] || 0)}</strong></div>`).join('');
       document.getElementById('closeOpen').textContent = money(state.cash.openingAmount || 0); document.getElementById('closeSales').textContent = money(report.sales + report.income); document.getElementById('closeFinal').textContent = money(report.finalAfterDelivery);
       document.getElementById('closeSummaryList').innerHTML = `<div class="list-group-item d-flex justify-content-between"><span>Apertura</span><strong>${money(state.cash.openingAmount || 0)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Ventas pagadas</span><strong>${money(report.sales)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Propinas separadas</span><strong>${money(report.tips)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Domicilios por pagar</span><strong>${money(report.deliveryFees)}</strong></div>${methodRows}<div class="list-group-item d-flex justify-content-between"><span>Créditos</span><strong>${money(report.creditSales)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Cortesías</span><strong>${money(report.courtesyTotal)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Ingresos</span><strong>${money(report.income)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Egresos efectivo caja</span><strong>${money(report.cashExpense)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Egresos tarjeta credito Jesús</span><strong>${money(report.creditCardExpense)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Egresos totales</span><strong>${money(report.expense)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Saldo efectivo antes de domiciliario</span><strong>${money(report.final)}</strong></div><div class="list-group-item d-flex justify-content-between"><span>Saldo luego de pagar domiciliario</span><strong>${money(report.finalAfterDelivery)}</strong></div>`;
+      closeExpectedCash = report.final;
+      setValue('closeCountedInput', '');
+      updateCloseDiscrepancy();
       modals.cashClose.show();
     }
     function closeCash(){
@@ -7391,16 +7677,23 @@ const colors = [
       state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
       state.cash.openedBy = null; state.cash.openedByUser = null;
       const lastHistory = currentCashRecord();
+      const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
+      const countedCash = clampNumber(byId('closeCountedInput')?.value || 0);
+      const discrepancy = countedProvided ? (countedCash - report.final) : 0;
       const movementsHistory = report.movements.map(m => ({ ...m }));
       const expenseHistory = movementsHistory.filter(m => m.type === 'Egreso');
       if(lastHistory){
-        Object.assign(lastHistory, { closedAt, status:'Cerrada', shift:state.shift, final:report.final, finalAfterDelivery:report.finalAfterDelivery, sales:report.sales, tips:report.tips, deliveryFees:report.deliveryFees, methodTotals:report.methodTotals, cashPayments:report.cashPayments, transferPayments:report.transferPayments, cardPayments:report.cardPayments, creditSales:report.creditSales, courtesyTotal:report.courtesyTotal, income:report.income, expense:report.expense, cashExpense:report.cashExpense, creditCardExpense:report.creditCardExpense, orders:report.orders.map(o => o.id), movements:report.movements.map(m => m.id), movementsHistory, expenseHistory });
+        Object.assign(lastHistory, { closedAt, status:'Cerrada', shift:state.shift, final:report.final, finalAfterDelivery:report.finalAfterDelivery, sales:report.sales, tips:report.tips, deliveryFees:report.deliveryFees, methodTotals:report.methodTotals, cashPayments:report.cashPayments, transferPayments:report.transferPayments, cardPayments:report.cardPayments, creditSales:report.creditSales, courtesyTotal:report.courtesyTotal, income:report.income, expense:report.expense, cashExpense:report.cashExpense, creditCardExpense:report.creditCardExpense, expectedCash:report.final, countedCash:countedProvided ? countedCash : null, discrepancy, orders:report.orders.map(o => o.id), movements:report.movements.map(m => m.id), movementsHistory, expenseHistory });
       }
-      state.movements = [];
+      // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
+      // los movimientos, para que el informe incluya ingresos/egresos del turno.
       persistAll();
       modals.cashClose.hide();
       exportDailyCloseExcel(true, lastHistory);
       printCloseReport(lastHistory);
+      sendCashCloseEmail(lastHistory);
+      state.movements = [];
+      persistAll();
       toast('Caja cerrada e informe generado', 'success');
       renderCashView();
       if(currentView === 'movimientos') renderMovements();
@@ -7876,7 +8169,7 @@ tr.total-row td,tr td b{font-weight:800}
       const movementHistory = Array.isArray(record.movementsHistory) ? record.movementsHistory : report.movements.map(m => ({ ...m }));
       const expenseHistory = Array.isArray(record.expenseHistory) ? record.expenseHistory : movementHistory.filter(m => m.type === 'Egreso');
       const expenseRows = expenseHistory.map(m => `<tr><td>${formatDate(m.date)}</td><td>${escapeHtml(m.concept || m.reason || '-')}</td><td>${escapeHtml(m.source || 'EFECTIVO')}</td><td class="right">${money(m.amount || 0)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Sin egresos guardados en este cuadre</td></tr>';
-      return `<h2>${escapeHtml(state.brand.name)}</h2><p class="muted">Cuadre de caja</p><div class="row g-3 mb-3"><div class="col-md-3"><div class="mini-table"><span>Inicio</span><strong>${formatDate(record.openedAt)}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Cierre</span><strong>${record.closedAt ? formatDate(record.closedAt) : 'Abierta'}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Responsable</span><strong>${escapeHtml(record.responsible || record.user || 'Sin usuario')}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Estado</span><strong>${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</strong></div></div></div><table class="table table-sm"><tbody><tr><td>Total inicial</td><td class="right">${money(record.openingAmount || 0)}</td></tr><tr><td>Ventas pagadas</td><td class="right">${money(report.sales)}</td></tr><tr><td>Propinas</td><td class="right">${money(report.tips)}</td></tr><tr><td>Domicilios</td><td class="right">${money(report.deliveryFees)}</td></tr><tr><td>Efectivo</td><td class="right">${money(report.cashPayments)}</td></tr><tr><td>Transferencia</td><td class="right">${money(report.transferPayments)}</td></tr><tr><td>Datafono</td><td class="right">${money(report.cardPayments)}</td></tr><tr><td>Créditos</td><td class="right">${money(report.creditSales)}</td></tr><tr><td>Cortesías</td><td class="right">${money(report.courtesyTotal)}</td></tr><tr><td>Ingresos manuales</td><td class="right">${money(report.income)}</td></tr><tr><td>Egresos efectivo caja</td><td class="right">${money(report.cashExpense)}</td></tr><tr><td>Egresos tarjeta credito Jesús</td><td class="right">${money(report.creditCardExpense)}</td></tr><tr><td>Egresos totales</td><td class="right">${money(report.expense)}</td></tr><tr><td><b>Saldo efectivo estimado</b></td><td class="right"><b>${money(report.final)}</b></td></tr></tbody></table><h5 class="mt-4">Historial de egresos</h5><table class="table table-sm"><thead><tr><th>Fecha</th><th>Concepto</th><th>Medio</th><th class="right">Valor</th></tr></thead><tbody>${expenseRows}</tbody></table><h5 class="mt-4">Ventas del cuadre</h5><table class="table table-sm"><thead><tr><th>Fecha</th><th>Mesa</th><th>Cliente</th><th>Estado</th><th>Método</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table>`;
+      return `<h2>${escapeHtml(state.brand.name)}</h2><p class="muted">Cuadre de caja</p><div class="row g-3 mb-3"><div class="col-md-3"><div class="mini-table"><span>Inicio</span><strong>${formatDate(record.openedAt)}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Cierre</span><strong>${record.closedAt ? formatDate(record.closedAt) : 'Abierta'}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Responsable</span><strong>${escapeHtml(record.responsible || record.user || 'Sin usuario')}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Estado</span><strong>${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</strong></div></div></div><table class="table table-sm"><tbody><tr><td>Total inicial</td><td class="right">${money(record.openingAmount || 0)}</td></tr><tr><td>Ventas pagadas</td><td class="right">${money(report.sales)}</td></tr><tr><td>Propinas</td><td class="right">${money(report.tips)}</td></tr><tr><td>Domicilios</td><td class="right">${money(report.deliveryFees)}</td></tr><tr><td>Efectivo</td><td class="right">${money(report.cashPayments)}</td></tr><tr><td>Transferencia</td><td class="right">${money(report.transferPayments)}</td></tr><tr><td>Datafono</td><td class="right">${money(report.cardPayments)}</td></tr><tr><td>Créditos</td><td class="right">${money(report.creditSales)}</td></tr><tr><td>Cortesías</td><td class="right">${money(report.courtesyTotal)}</td></tr><tr><td>Ingresos manuales</td><td class="right">${money(report.income)}</td></tr><tr><td>Egresos efectivo caja</td><td class="right">${money(report.cashExpense)}</td></tr><tr><td>Egresos tarjeta credito Jesús</td><td class="right">${money(report.creditCardExpense)}</td></tr><tr><td>Egresos totales</td><td class="right">${money(report.expense)}</td></tr><tr><td><b>Saldo efectivo estimado</b></td><td class="right"><b>${money(report.final)}</b></td></tr>${record && record.countedCash != null ? `<tr><td>Efectivo contado (arqueo)</td><td class="right">${money(record.countedCash)}</td></tr><tr class="total-row"><td><b>Diferencia de cuadre</b></td><td class="right"><b>${money(record.discrepancy || 0)}</b></td></tr><tr><td>Estado del cuadre</td><td class="right">${Number(record.discrepancy || 0) === 0 ? 'CUADRADA' : (Number(record.discrepancy || 0) > 0 ? 'SOBRANTE' : 'FALTANTE')}</td></tr>` : ''}</tbody></table><h5 class="mt-4">Historial de egresos</h5><table class="table table-sm"><thead><tr><th>Fecha</th><th>Concepto</th><th>Medio</th><th class="right">Valor</th></tr></thead><tbody>${expenseRows}</tbody></table><h5 class="mt-4">Ventas del cuadre</h5><table class="table table-sm"><thead><tr><th>Fecha</th><th>Mesa</th><th>Cliente</th><th>Estado</th><th>Método</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table>`;
     }
     function categoryForOrderItem(item){
       const product = state.products.find(p => p.id === item.productId);
@@ -8212,6 +8505,18 @@ tr.total-row td,tr td b{font-weight:800}
       setValue('brandThemeInput', state.theme || state.brand.theme || 'light');
       setLoginImageValue(state.brand.loginImage || '');
       document.getElementById('brandInfoInput').value = state.brand.info || '';
+      setValue('brandNitInput', state.brand.nit || '');
+      setValue('brandFiscalPhoneInput', state.brand.fiscalPhone || '');
+      setValue('brandFiscalAddressInput', state.brand.fiscalAddress || '');
+      setValue('brandFiscalRegimeInput', state.brand.fiscalRegime || '');
+      setValue('brandInvoicePrefixInput', state.brand.invoicePrefix || 'FE-');
+      setValue('brandInvoiceResolutionInput', state.brand.invoiceResolution || '');
+      setValue('brandAdminEmailInput', state.brand.adminEmail || '');
+      const emailEnabledEl = byId('brandEmailEnabledInput');
+      if(emailEnabledEl) emailEnabledEl.checked = state.brand.emailEnabled === true;
+      setValue('brandEmailServiceInput', state.brand.emailjsServiceId || '');
+      setValue('brandEmailTemplateInput', state.brand.emailjsTemplateId || '');
+      setValue('brandEmailKeyInput', state.brand.emailjsPublicKey || '');
       updateBrandLogoPreview();
       renderBrandGalleryInputs();
       if(byId('userPermissionGrid') && !byId('userPermissionGrid').children.length) renderUserPermissionGrid(permissionsForRole('Administrador'));
@@ -8233,6 +8538,18 @@ tr.total-row td,tr td b{font-weight:800}
       state.brand.loginGallery = gallery;
       state.brand.loginImage = gallery[0] || byId('loginImageValueInput')?.value || '';
       state.brand.info = document.getElementById('brandInfoInput').value.trim();
+      state.brand.nit = byId('brandNitInput')?.value.trim() || '';
+      state.brand.fiscalPhone = byId('brandFiscalPhoneInput')?.value.trim() || '';
+      state.brand.fiscalAddress = byId('brandFiscalAddressInput')?.value.trim() || '';
+      state.brand.fiscalRegime = byId('brandFiscalRegimeInput')?.value.trim() || '';
+      state.brand.invoicePrefix = byId('brandInvoicePrefixInput')?.value.trim() || 'FE-';
+      state.brand.invoiceResolution = byId('brandInvoiceResolutionInput')?.value.trim() || '';
+      state.brand.invoiceCounter = Number(state.brand.invoiceCounter || 0);
+      state.brand.adminEmail = byId('brandAdminEmailInput')?.value.trim() || '';
+      state.brand.emailEnabled = byId('brandEmailEnabledInput')?.checked === true;
+      state.brand.emailjsServiceId = byId('brandEmailServiceInput')?.value.trim() || '';
+      state.brand.emailjsTemplateId = byId('brandEmailTemplateInput')?.value.trim() || '';
+      state.brand.emailjsPublicKey = byId('brandEmailKeyInput')?.value.trim() || '';
       persistAll();
       applyTheme();
       toast('Marca guardada correctamente', 'success');
@@ -8627,8 +8944,7 @@ tr.total-row td,tr td b{font-weight:800}
       toast('Productos exportados', 'success');
     }
 
-    function exportDailyCloseExcel(auto = false, record = null){
-      if(!auto && !requireNoActiveOrders('cerrar el cierre diario')) return;
+    function dailyCloseData(record = null){
       const from = record?.openedAt ? new Date(record.openedAt) : (state.cash.open ? cashPeriodStart() : startOfDay(new Date()));
       const to = record?.closedAt ? new Date(record.closedAt) : endOfDay(new Date());
       const report = buildCashReport(from, to);
@@ -8653,6 +8969,11 @@ tr.total-row td,tr td b{font-weight:800}
         { Concepto:'Total efectivo caja antes de domiciliario', Valor:report.final },
         { Concepto:'Saldo luego de pagar domiciliario', Valor:report.finalAfterDelivery }
       ];
+      if(record && (record.countedCash != null || record.discrepancy != null)){
+        resumen.push({ Concepto:'Efectivo contado (arqueo)', Valor:Number(record.countedCash || 0) });
+        resumen.push({ Concepto:'Diferencia de arqueo', Valor:Number(record.discrepancy || 0) });
+        resumen.push({ Concepto:'Estado del cuadre', Valor:Number(record.discrepancy || 0) === 0 ? 'CUADRADA' : (Number(record.discrepancy || 0) > 0 ? 'SOBRANTE' : 'FALTANTE') });
+      }
       const ventas = orders.map(o => ({
         Fecha:formatDate(o.paidAt), Mesa:o.tableName, Tipo:o.type, Canal:channelForOrder(o), Cliente:o.customer || '', Vendedor:o.seller || '',
         Estado:o.status, Método:paymentSummaryText(o), Subtotal:o.subtotal || 0, Propina:o.tip || 0, Domicilio:o.deliveryFee || 0, Zona:o.deliveryZone || '', Descuento:o.discount || 0,
@@ -8669,8 +8990,27 @@ tr.total-row td,tr td b{font-weight:800}
       }));
       const productos = [...productMap.values()].sort((a,b)=>b.Cantidad-a.Cantidad);
       const movimientos = report.movements.map(m => ({ Fecha:formatDate(m.date), Tipo:m.type, Fuente:m.type === 'Egreso' ? expenseSourceLabel(m.source) : '', Concepto:m.concept, Valor:m.amount }));
-      exportWorkbookOrCsv(`cierre_diario_combatti_${dateTimeStamp()}`, { Resumen:resumen, Ventas:ventas, Productos:productos, Movimientos:movimientos });
+      return { from, to, report, sheets:{ Resumen:resumen, Ventas:ventas, Productos:productos, Movimientos:movimientos } };
+    }
+    function exportDailyCloseExcel(auto = false, record = null){
+      if(!auto && !requireNoActiveOrders('cerrar el cierre diario')) return;
+      const { sheets } = dailyCloseData(record);
+      exportWorkbookOrCsv(`cierre_diario_combatti_${dateTimeStamp()}`, sheets);
       if(!auto) toast('Cierre diario exportado', 'success');
+    }
+    function dailyCloseExcelBase64(record = null){
+      try{
+        if(typeof XLSX === 'undefined') return '';
+        const { sheets } = dailyCloseData(record);
+        const wb = XLSX.utils.book_new();
+        Object.entries(sheets).forEach(([name, rows]) => {
+          const sheetRows = rows.length ? rows : [{ SinDatos:'Sin registros' }];
+          const ws = XLSX.utils.json_to_sheet(sheetRows);
+          ws['!cols'] = autoExcelColumns(sheetRows);
+          XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+        });
+        return XLSX.write(wb, { bookType:'xlsx', type:'base64' });
+      } catch(e){ console.warn('excel base64', e); return ''; }
     }
 
 function parseMoneyValue(value){
@@ -9375,8 +9715,28 @@ function cloudConfigPayload() {
     shift: normalizeShift(state.shift),
     categories: state.categories || [],
     tableLayoutVersion: state.tableLayoutVersion || '',
+    license: licenseConfigForSync(),
     _device: CLOUD_DEVICE_ID,
     _seq: Date.now()
+  };
+}
+// Subconjunto de la licencia que se comparte entre dispositivos (fecha de corte,
+// valor, datos del administrador y conexión remota). Se excluye nada sensible
+// porque el sistema usa la config de Firebase integrada por defecto.
+function licenseConfigForSync() {
+  const l = licenseState.local || {};
+  return {
+    databaseUrl: l.databaseUrl || '',
+    clientId: l.clientId || LICENSE_DEFAULTS.clientId,
+    licenseUntil: l.licenseUntil || '',
+    cutoffDay: l.cutoffDay || LICENSE_DEFAULTS.cutoffDay,
+    warningDays: l.warningDays || LICENSE_DEFAULTS.warningDays,
+    monthlyAmount: l.monthlyAmount || 0,
+    adminName: l.adminName || '',
+    adminNequi: l.adminNequi || '',
+    adminWhatsapp: l.adminWhatsapp || '',
+    paymentReference: l.paymentReference || '',
+    enabled: l.enabled !== false
   };
 }
 function cloudConfigKey(p) { const c = { ...p }; delete c._device; delete c._seq; try { return JSON.stringify(c); } catch (_) { return ''; } }
@@ -9405,6 +9765,12 @@ function applyConfigRemote(data) {
   if (data.shift != null) state.shift = normalizeShift(data.shift);
   if (Array.isArray(data.categories)) state.categories = data.categories;
   if (data.tableLayoutVersion != null) state.tableLayoutVersion = data.tableLayoutVersion;
+  // Licencia compartida: al configurar la fecha de corte (u otros datos) en un
+  // dispositivo, se aplica automáticamente en todos los demás.
+  if (data.license && typeof data.license === 'object') {
+    saveLicenseLocalSettings(data.license);
+    if (typeof renderLicenseUi === 'function') renderLicenseUi();
+  }
   // El "shadow" refleja lo que HAY en la nube. Si conservamos una caja local mas
   // reciente, dejamos el shadow con la caja remota para que el siguiente push
   // suba la caja correcta (abierta) y la nube quede sincronizada.
@@ -9413,7 +9779,8 @@ function applyConfigRemote(data) {
     brand: state.brand ?? null,
     shift: normalizeShift(state.shift),
     categories: state.categories || [],
-    tableLayoutVersion: state.tableLayoutVersion || ''
+    tableLayoutVersion: state.tableLayoutVersion || '',
+    license: licenseConfigForSync()
   });
 }
 

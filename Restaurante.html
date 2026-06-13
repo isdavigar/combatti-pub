@@ -198,6 +198,12 @@
       color:var(--primary);
     }
     .nav-pill i{ width:18px; text-align:center; }
+    .nav-pill-subscription{
+      background:rgba(var(--primary-rgb),.08);
+      border-color:rgba(var(--primary-rgb),.25);
+      color:var(--primary); font-weight:800;
+    }
+    .nav-pill-subscription:hover{ background:rgba(var(--primary-rgb),.16); }
     .sidebar-footer{
       margin-top:auto; padding-top:10px; border-top:1px solid var(--border);
     }
@@ -300,7 +306,7 @@
       display:grid;
       place-items:center;
       flex:0 0 56px;
-      background:conic-gradient(var(--primary) var(--goal-progress, 0%), rgba(148,163,184,.20) 0);
+      background:conic-gradient(var(--goal-color, var(--primary)) var(--goal-progress, 0%), rgba(148,163,184,.20) 0);
       color:#64748b;
       font-weight:900;
       font-size:.72rem;
@@ -317,8 +323,8 @@
     .goal-ring{ isolation:isolate; }
     .goal-ring::before{ content:attr(data-label); position:relative; z-index:1; }
     .goal-ring{ font-size:0; }
-    .goal-ring::before{ font-size:.72rem; color:#18212f; }
-    body.dark-mode .goal-ring::before{ color:#f8fafc; }
+    .goal-ring::before{ font-size:.72rem; color:var(--goal-color, var(--primary)); font-weight:900; }
+    body.dark-mode .goal-ring::before{ color:var(--goal-color, var(--primary)); }
     .goal-copy{ min-width:0; flex:1; text-align:right; }
     .goal-copy .stat-value{ font-size:1rem; color:var(--primary); }
     .goal-copy small{ color:var(--muted); font-size:.72rem; }
@@ -1190,6 +1196,23 @@
     .close-discrepancy.ok strong{ color:#16a34a; }
     .close-discrepancy.bad{ background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4); }
     .close-discrepancy.bad strong{ color:#dc2626; }
+    /* Chat de soporte por WhatsApp */
+    .support-chat-launcher{ position:fixed; right:20px; bottom:20px; z-index:3000; width:58px; height:58px; border-radius:50%; border:0; background:#25d366; color:#fff; font-size:1.6rem; box-shadow:0 12px 30px rgba(0,0,0,.25); cursor:pointer; display:grid; place-items:center; transition:transform .15s ease; }
+    .support-chat-launcher:hover{ transform:scale(1.07); }
+    .support-chat-panel{ position:fixed; right:20px; bottom:88px; z-index:3000; width:min(360px, calc(100vw - 32px)); height:min(520px, calc(100vh - 120px)); background:var(--card); border:1px solid var(--border); border-radius:20px; box-shadow:0 24px 60px rgba(0,0,0,.3); display:flex; flex-direction:column; overflow:hidden; }
+    .support-chat-head{ background:linear-gradient(135deg, var(--primary), var(--primary-dark)); color:#fff; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; }
+    .support-avatar{ width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.2); display:grid; place-items:center; }
+    .support-title{ font-weight:800; }
+    .support-sub{ font-size:.74rem; opacity:.9; }
+    .support-close{ background:transparent; border:0; color:#fff; font-size:1.1rem; cursor:pointer; }
+    .support-chat-body{ flex:1; overflow-y:auto; padding:16px; background:var(--bg); display:flex; flex-direction:column; gap:10px; }
+    .support-bubble{ max-width:85%; padding:10px 13px; border-radius:14px; font-size:.9rem; line-height:1.35; }
+    .support-bubble.bot{ background:var(--card); border:1px solid var(--border); align-self:flex-start; }
+    .support-bubble.me{ background:rgba(var(--primary-rgb),.16); color:var(--text); align-self:flex-end; }
+    .support-chat-input{ display:flex; gap:8px; padding:10px; border-top:1px solid var(--border); }
+    .support-chat-input input{ flex:1; border:1px solid var(--border); border-radius:999px; padding:.6rem 1rem; background:var(--card); color:var(--text); }
+    .support-chat-input button{ width:42px; height:42px; border-radius:50%; border:0; background:var(--primary); color:#fff; cursor:pointer; flex:0 0 auto; }
+    .support-chat-foot{ font-size:.7rem; color:var(--muted); text-align:center; padding:0 10px 10px; }
     .payroll-balance-card{
       border:1px solid var(--border); border-radius:16px; padding:12px 14px;
       background:linear-gradient(180deg, rgba(var(--primary-rgb),.06), var(--card));
@@ -1588,6 +1611,55 @@
       .cash-buttons-grid{
         grid-template-columns:repeat(2, minmax(0,1fr));
       }
+    }
+
+    @media (min-width: 993px){
+      /* Menú reubicado como barra superior (estructura tipo referencia) */
+      .app-shell{ display:block; }
+      .sidebar{
+        position:static;
+        transform:none !important;
+        width:100%;
+        height:auto;
+        min-height:0;
+        flex-direction:row;
+        align-items:center;
+        flex-wrap:wrap;
+        gap:8px 12px;
+        padding:10px 18px;
+        border-right:0;
+        border-bottom:1px solid var(--border);
+        box-shadow:0 4px 18px rgba(15,23,42,.06);
+        overflow:visible;
+      }
+      .sidebar > .d-grid{
+        display:flex !important;
+        flex-direction:row;
+        flex-wrap:wrap;
+        gap:6px !important;
+        flex:1 1 auto;
+        align-items:center;
+      }
+      .sidebar .brand-badge{ flex:0 0 auto; padding:8px 12px; border-radius:14px; }
+      .sidebar .brand-sub{ display:none; }
+      .sidebar .nav-pill{ padding:9px 12px; border-radius:12px; white-space:nowrap; font-size:.9rem; }
+      .sidebar-footer{
+        margin-top:0 !important;
+        padding-top:0 !important;
+        border-top:0 !important;
+        display:flex;
+        align-items:center;
+        gap:8px;
+        flex:0 0 auto;
+        flex-wrap:wrap;
+      }
+      .sidebar-footer .mini-table{ margin:0 !important; padding:6px 10px; }
+      .sidebar-footer .cash-mini{ display:none !important; }
+      .sidebar-footer .btn{ width:auto !important; margin:0 !important; }
+      .sidebar-close-button{ display:none !important; }
+      .sidebar-toggle-button{ display:none !important; }
+      .main-content{ margin-left:0 !important; padding-top:18px; }
+      .sidebar-backdrop{ display:none !important; }
     }
 
     @media (max-width: 992px){
@@ -2068,6 +2140,7 @@
         <div class="nav-pill" data-view="zona-domicilio" onclick="openView('zona-domicilio')"><i class="fa-solid fa-location-dot"></i> Zona de domicilio</div>
         <div class="nav-pill" data-view="movimientos" onclick="openView('movimientos')"><i class="fa-solid fa-money-bill-transfer"></i> Ingresos / Egresos</div>
         <div class="nav-pill" data-view="marca" onclick="openView('marca')"><i class="fa-solid fa-shop"></i> Marca y Configuración</div>
+        <div class="nav-pill nav-pill-subscription" onclick="openSubscription()"><i class="fa-solid fa-credit-card"></i> Pagar Suscripción</div>
  
       </div>
       
@@ -2085,7 +2158,7 @@
           <div><span>Cierres</span><strong id="cashCloseCount">0</strong></div>
           <div><span>Caja</span><strong id="cashEstimated">$0</strong></div>
         </div>
-        <a class="btn btn-outline-success btn-pill w-100 mb-2" id="adminWhatsappMenu" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp me-2"></i>WhatsApp</a>
+        <a class="btn btn-outline-success btn-pill w-100 mb-2" id="adminWhatsappMenu" href="#" onclick="event.preventDefault(); openSupportChat();"><i class="fa-brands fa-whatsapp me-2"></i>WhatsApp</a>
         <button class="btn btn-primary-soft btn-pill w-100 mb-2" onclick="toggleTheme()"><i class="fa-solid fa-moon me-2"></i>Modo claro / oscuro</button>
         <button class="btn btn-outline-danger btn-pill w-100" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Salir</button>
       </div>
@@ -2517,7 +2590,10 @@
                   <h5 class="section-title mb-1">Historial de pedidos</h5>
                   <p class="section-subtitle mb-0">Tickets pagados y resúmenes para consultar o imprimir.</p>
                 </div>
-                <button class="btn btn-outline-danger btn-pill" data-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
+                <div class="d-flex gap-2 flex-wrap">
+                  <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
+                  <button class="btn btn-outline-danger btn-pill" data-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
+                </div>
               </div>
               
               <div class="row g-2 mb-3 align-items-end">
@@ -2580,6 +2656,7 @@
                   <h5 class="section-title mb-1">Pedidos eliminados internamente</h5>
                   <p class="section-subtitle mb-0">Auditoria de errores reportados por administrador en caja.</p>
                 </div>
+                <button class="btn btn-outline-danger btn-pill" id="clearDeletedOrdersBtn" onclick="clearAllDeletedOrders()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar todo</button>
               </div>
               
               <div class="row g-2 mb-3 align-items-end">
@@ -2730,9 +2807,13 @@
               <h6 class="fw-bold mb-2"><i class="fa-solid fa-envelope me-2"></i>Correo de cierre de caja</h6>
               <p class="section-subtitle mb-3">Al cerrar caja se envía al administrador el Excel, la factura de cierre y el estado de cuadre/descuadre.</p>
               <div class="row g-2 mb-3">
-                <div class="col-12">
-                  <label class="form-label">Correo del administrador</label>
-                  <input id="brandAdminEmailInput" type="email" class="form-control" placeholder="admin@correo.com">
+                <div class="col-md-6">
+                  <label class="form-label">Correo del administrador (recibe)</label>
+                  <input id="brandAdminEmailInput" type="email" class="form-control" placeholder="faninhergo@gmail.com">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Correo emisor (remitente)</label>
+                  <input id="brandFromEmailInput" type="email" class="form-control" placeholder="isdaavigar@gmail.com">
                 </div>
                 <div class="col-12 form-check ms-2">
                   <input class="form-check-input" type="checkbox" id="brandEmailEnabledInput">
@@ -3414,6 +3495,29 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Chat de soporte por WhatsApp -->
+  <button id="supportChatLauncher" class="support-chat-launcher" type="button" onclick="toggleSupportChat()" title="Soporte por WhatsApp" aria-label="Soporte por WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
+  <div id="supportChatPanel" class="support-chat-panel d-none">
+    <div class="support-chat-head">
+      <div class="d-flex align-items-center gap-2">
+        <div class="support-avatar"><i class="fa-solid fa-headset"></i></div>
+        <div>
+          <div class="support-title">Soporte Combatti</div>
+          <div class="support-sub">En línea por WhatsApp</div>
+        </div>
+      </div>
+      <button class="support-close" type="button" onclick="toggleSupportChat(false)" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="support-chat-body" id="supportChatBody">
+      <div class="support-bubble bot">👋 ¡Bienvenido a Soporte Combatti! ¿Cómo te podemos ayudar? Escribe tu mensaje y te atenderemos por WhatsApp.</div>
+    </div>
+    <div class="support-chat-input">
+      <input id="supportChatInput" type="text" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter'){ event.preventDefault(); sendSupportChat(); }">
+      <button type="button" onclick="sendSupportChat()" aria-label="Enviar"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+    <div class="support-chat-foot">Te conectamos por WhatsApp al +57 304 359 6351</div>
   </div>
 
   <div id="toastArea" class="toast-container"></div>
@@ -4614,8 +4718,9 @@
         invoicePrefix: brand.invoicePrefix || 'FE-',
         invoiceCounter: Number(brand.invoiceCounter || 0),
         // Configuración de correo (cierre de caja)
-        adminEmail: brand.adminEmail || '',
-        emailEnabled: brand.emailEnabled === true,
+        adminEmail: brand.adminEmail || 'faninhergo@gmail.com',
+        fromEmail: brand.fromEmail || 'isdaavigar@gmail.com',
+        emailEnabled: brand.emailEnabled !== false,
         emailjsPublicKey: brand.emailjsPublicKey || '',
         emailjsServiceId: brand.emailjsServiceId || '',
         emailjsTemplateId: brand.emailjsTemplateId || ''
@@ -4977,6 +5082,35 @@
       if(navigator.clipboard?.writeText) navigator.clipboard.writeText(value).then(() => toast('Nequi copiado', 'success')).catch(() => toast(value, 'info'));
       else toast(`Nequi: ${value}`, 'info');
     }
+    const SUPPORT_WHATSAPP = '573043596351';
+    function openSupportChat(){ toggleSupportChat(true); }
+    function toggleSupportChat(show){
+      const panel = byId('supportChatPanel');
+      if(!panel) return;
+      const willShow = show === undefined ? panel.classList.contains('d-none') : show;
+      panel.classList.toggle('d-none', !willShow);
+      if(willShow) setTimeout(() => byId('supportChatInput')?.focus(), 120);
+    }
+    function sendSupportChat(){
+      const input = byId('supportChatInput');
+      const text = String(input?.value || '').trim();
+      if(!text) return;
+      const body = byId('supportChatBody');
+      if(body){
+        const bubble = document.createElement('div');
+        bubble.className = 'support-bubble me';
+        bubble.textContent = text;
+        body.appendChild(bubble);
+        const reply = document.createElement('div');
+        reply.className = 'support-bubble bot';
+        reply.textContent = 'Te estamos conectando por WhatsApp...';
+        body.appendChild(reply);
+        body.scrollTop = body.scrollHeight;
+      }
+      if(input) input.value = '';
+      const url = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}`;
+      setTimeout(() => { try{ window.open(url, '_blank'); }catch(_){ location.href = url; } }, 200);
+    }
     function renderLicenseUi(){
       const record = currentLicenseRecord();
       const result = licenseResolution(record);
@@ -5004,11 +5138,10 @@
               : `Ultima revision: ${licenseState.checked ? formatDate(new Date()) : 'pendiente'}`;
       setText('licenseConnectionStatus', status);
       const whatsapp = licenseWhatsappUrl(record);
-      ['btnLicensePayWhatsapp','btnWarningWhatsapp','adminWhatsappMenu'].forEach(id => {
+      ['btnLicensePayWhatsapp','btnWarningWhatsapp'].forEach(id => {
         const el = byId(id);
         if(el) el.href = whatsapp;
       });
-      byId('adminWhatsappMenu')?.classList.toggle('d-none', !String(record.adminWhatsapp || '').replace(/\D/g, ''));
     }
     async function fetchRemoteLicense(){
       const url = licenseRecordUrl();
@@ -5077,6 +5210,18 @@
       setValue('licenseNequiInput', licenseState.local.adminNequi || '');
       setValue('licenseWhatsappInput', licenseState.local.adminWhatsapp || '');
       modals.licenseConfig?.show();
+    }
+    // "Pagar Suscripción": si la licencia está vencida/bloqueada, muestra la
+    // pantalla de pago (igual que ya la tienes); si está activa, abre la licencia.
+    function openSubscription(){
+      const result = licenseResolution(currentLicenseRecord());
+      renderLicenseUi();
+      if(result.locked){
+        byId('licenseLockOverlay')?.classList.remove('d-none');
+      } else {
+        openLicenseConfigModal();
+      }
+      if(isCompactLayout()) toggleSidebar(false);
     }
     function unlockLicenseConfig(){
       if(!requireSystemAdmin('cambiar la licencia')) return;
@@ -5446,7 +5591,12 @@
       if(!ring) return;
       const pct = goal > 0 ? (Number(value || 0) / goal) * 100 : 0;
       const capped = Math.max(0, Math.min(100, pct));
+      const met = pct >= 100;
+      // Verde cuando el objetivo se cumple; rojo cuando aún NO se cumple.
+      ring.style.setProperty('--goal-color', met ? 'var(--primary)' : '#ef4444');
       ring.style.setProperty('--goal-progress', `${capped}%`);
+      ring.classList.toggle('goal-met', met);
+      ring.classList.toggle('goal-pending', !met);
       const label = `${pct.toLocaleString('es-CO', { minimumFractionDigits:2, maximumFractionDigits:2 })}%`;
       ring.dataset.label = label;
       ring.setAttribute('aria-label', `Cumplimiento del objetivo: ${label}`);
@@ -7638,6 +7788,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         const excel = dailyCloseExcelBase64(record);
         const params = {
           to_email: email,
+          from_email: b.fromEmail || 'isdaavigar@gmail.com',
+          reply_to: b.fromEmail || 'isdaavigar@gmail.com',
           subject,
           message: body,
           estado_cuadre: estado,
@@ -7987,6 +8139,10 @@ tr.total-row td,tr td b{font-weight:800}
       // El pago de nómina solo está disponible cuando la caja está cerrada.
       const payrollBtn = byId('payrollButton');
       if(payrollBtn) payrollBtn.classList.toggle('d-none', !locked);
+      // Vaciar historial / auditoría: solo administrador del sistema.
+      const sysAdmin = isSystemAdmin();
+      byId('clearOrderHistoryBtn')?.classList.toggle('d-none', !sysAdmin);
+      byId('clearDeletedOrdersBtn')?.classList.toggle('d-none', !sysAdmin);
     }
 
     const HISTORY_PAGE_SIZE = 5;
@@ -8108,6 +8264,58 @@ tr.total-row td,tr td b{font-weight:800}
       `).join('') : '<div class="p-3 text-secondary">No hay pedidos ni productos eliminados internamente.</div>';
       renderHistoryPager('deletedOrdersPagination', pager.page, pager.totalPages, pager.totalItems, 'setDeletedOrdersPage');
     }
+    // Fuerza la sincronización inmediata (incluye BORRADOS) hacia Firestore para
+    // que al recargar la página los datos eliminados NO regresen desde la nube.
+    function forceCloudSyncNow(){
+      try{
+        if(typeof firebaseDb !== 'undefined' && firebaseDb && typeof pushIncremental === 'function'){
+          pushIncremental(true);
+        }
+      }catch(_){}
+    }
+    // Vaciar TODO el historial de pedidos (solo admin del sistema) -> resetea ventas.
+    function clearAllOrderHistory(){
+      if(!requireSystemAdmin('vaciar el historial de pedidos')) return;
+      const closed = (state.orders || []).filter(isClosedOrder).length;
+      if(!closed){ toast('No hay pedidos en el historial', 'info'); return; }
+      confirmAction({
+        title:'Vaciar historial de pedidos',
+        message:`Vas a eliminar <strong>${closed}</strong> pedido(s) del historial de forma permanente (también de la nube).<br><br>Esta acción no se puede deshacer.`,
+        confirmLabel:'Sí, vaciar todo',
+        confirmClass:'btn-danger',
+        onConfirm: () => {
+          const removedIds = new Set((state.orders || []).filter(isClosedOrder).map(o => o.id));
+          state.orders = (state.orders || []).filter(o => !isClosedOrder(o));
+          state.cash.history = (state.cash.history || []).map(record => ({
+            ...record,
+            orders: Array.isArray(record.orders) ? record.orders.filter(id => !removedIds.has(id)) : record.orders
+          }));
+          persistAll();
+          forceCloudSyncNow();
+          renderOrderHistory();
+          renderCashView();
+          toast('Historial de pedidos vaciado', 'info');
+        }
+      });
+    }
+    // Vaciar TODA la auditoría de eliminados internamente (solo admin del sistema).
+    function clearAllDeletedOrders(){
+      if(!requireSystemAdmin('vaciar los pedidos eliminados internamente')) return;
+      if(!(state.deletedOrders || []).length){ toast('No hay registros para vaciar', 'info'); return; }
+      confirmAction({
+        title:'Vaciar pedidos eliminados internamente',
+        message:'Vas a eliminar <strong>toda</strong> la auditoría de eliminados de forma permanente (también de la nube).<br><br>Esta acción no se puede deshacer.',
+        confirmLabel:'Sí, vaciar todo',
+        confirmClass:'btn-danger',
+        onConfirm: () => {
+          state.deletedOrders = [];
+          persistAll();
+          forceCloudSyncNow();
+          renderDeletedOrders();
+          toast('Auditoría de eliminados vaciada', 'info');
+        }
+      });
+    }
     // Eliminar un cuadre de caja del historial (solo admin del sistema).
     function deleteCashRecord(id){
       if(!requireSystemAdmin('eliminar cuadres de caja')) return;
@@ -8125,6 +8333,7 @@ tr.total-row td,tr td b{font-weight:800}
         onConfirm: () => {
           state.cash.history = (state.cash.history || []).filter(r => r.id !== id);
           persistAll();
+          forceCloudSyncNow();
           renderCashHistory();
           toast('Cuadre de caja eliminado', 'info');
         }
@@ -8143,6 +8352,7 @@ tr.total-row td,tr td b{font-weight:800}
         onConfirm: () => {
           state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== id);
           persistAll();
+          forceCloudSyncNow();
           renderDeletedOrders();
           toast('Registro eliminado', 'info');
         }
@@ -8400,6 +8610,7 @@ tr.total-row td,tr td b{font-weight:800}
       }));
       state.orders = state.orders.filter(item => item.id !== orderId);
       persistAll();
+      forceCloudSyncNow();
       renderOrderHistory();
       renderDeletedOrders();
       toast('Venta eliminada del historial y stock devuelto', 'info');
@@ -8432,6 +8643,7 @@ tr.total-row td,tr td b{font-weight:800}
       currentOrderTableId = null;
       seenKitchenTicketIds = new Set();
       persistAll();
+      forceCloudSyncNow();
       renderAll();
       toast('Ventas restablecidas de fábrica', 'success');
     }
@@ -8512,6 +8724,7 @@ tr.total-row td,tr td b{font-weight:800}
       setValue('brandInvoicePrefixInput', state.brand.invoicePrefix || 'FE-');
       setValue('brandInvoiceResolutionInput', state.brand.invoiceResolution || '');
       setValue('brandAdminEmailInput', state.brand.adminEmail || '');
+      setValue('brandFromEmailInput', state.brand.fromEmail || '');
       const emailEnabledEl = byId('brandEmailEnabledInput');
       if(emailEnabledEl) emailEnabledEl.checked = state.brand.emailEnabled === true;
       setValue('brandEmailServiceInput', state.brand.emailjsServiceId || '');
@@ -8546,6 +8759,7 @@ tr.total-row td,tr td b{font-weight:800}
       state.brand.invoiceResolution = byId('brandInvoiceResolutionInput')?.value.trim() || '';
       state.brand.invoiceCounter = Number(state.brand.invoiceCounter || 0);
       state.brand.adminEmail = byId('brandAdminEmailInput')?.value.trim() || '';
+      state.brand.fromEmail = byId('brandFromEmailInput')?.value.trim() || '';
       state.brand.emailEnabled = byId('brandEmailEnabledInput')?.checked === true;
       state.brand.emailjsServiceId = byId('brandEmailServiceInput')?.value.trim() || '';
       state.brand.emailjsTemplateId = byId('brandEmailTemplateInput')?.value.trim() || '';

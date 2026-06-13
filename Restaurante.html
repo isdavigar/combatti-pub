@@ -402,7 +402,20 @@
     .kpi-card, .stat-card, .chart-box, .glass-card{ transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
     .kpi-card:hover, .stat-card:hover{ transform:translateY(-3px); box-shadow:0 18px 42px rgba(15,23,42,.13); border-color:rgba(var(--primary-rgb),.28); }
     .chart-box:hover{ box-shadow:0 18px 46px rgba(15,23,42,.12); }
-    .dashboard-side-panel{ display:grid; gap:12px; align-content:start; }
+    .dashboard-side-panel{ display:flex; flex-direction:column; gap:12px; }
+    .dashboard-quick-panel{
+      display:flex; flex-direction:column; gap:10px;
+      padding:14px; border:1px solid rgba(255,255,255,.18); border-radius:18px;
+      background:rgba(255,255,255,.10); backdrop-filter:blur(12px);
+      flex:1 1 auto;
+    }
+    .dashboard-quick-panel .quick-action-grid{ flex:1 1 auto; align-content:stretch; }
+    .quick-action-btn{
+      background:rgba(255,255,255,.92); color:#18212f; border:1px solid rgba(255,255,255,.5);
+      font-weight:800; border-radius:14px; min-height:48px;
+      transition:transform .16s ease, box-shadow .16s ease, background .16s ease, color .16s ease;
+    }
+    .quick-action-btn:hover{ background:#fff; color:var(--primary-dark); transform:translateY(-2px); box-shadow:0 10px 22px rgba(0,0,0,.18); }
     .dashboard-filter-panel{
       display:grid; gap:12px;
       margin:0; padding:14px;
@@ -442,14 +455,11 @@
       width:84px;
       height:84px;
       border-radius:50%;
-      display:grid;
-      place-items:center;
       flex:0 0 84px;
       background:conic-gradient(var(--goal-color, var(--primary)) var(--goal-progress, 0%), rgba(148,163,184,.20) 0);
-      color:#64748b;
-      font-weight:900;
-      font-size:.9rem;
+      font-size:0;
       position:relative;
+      isolation:isolate;
     }
     .goal-ring::after{
       content:'';
@@ -458,11 +468,24 @@
       border-radius:50%;
       background:var(--card);
       box-shadow:inset 0 0 0 1px var(--border);
+      z-index:0;
     }
-    .goal-ring{ isolation:isolate; }
-    .goal-ring::before{ content:attr(data-label); position:relative; z-index:1; }
-    .goal-ring{ font-size:0; }
-    .goal-ring::before{ font-size:.92rem; line-height:1; white-space:nowrap; text-align:center; color:var(--goal-color, var(--primary)); font-weight:900; }
+    /* El número se posiciona en valor absoluto y se centra exacto dentro del círculo */
+    .goal-ring::before{
+      content:attr(data-label);
+      position:absolute;
+      inset:0;
+      z-index:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      line-height:1;
+      white-space:nowrap;
+      font-size:.92rem;
+      font-weight:900;
+      color:var(--goal-color, var(--primary));
+    }
     body.dark-mode .goal-ring::before{ color:var(--goal-color, var(--primary)); }
     .goal-copy{ min-width:0; flex:1; text-align:right; }
     .goal-copy .stat-value{ font-size:1.2rem; color:var(--primary); }
@@ -1808,8 +1831,7 @@
         flex:1 1 auto;
         align-items:center;
       }
-      .sidebar .brand-badge{ flex:0 0 auto; padding:8px 12px; border-radius:14px; }
-      .sidebar .brand-sub{ display:none; }
+      .sidebar .brand-badge{ display:none; }
       .sidebar .nav-pill{ padding:9px 12px; border-radius:12px; white-space:nowrap; font-size:.9rem; }
       .sidebar-footer{
         margin-top:0 !important;
@@ -2168,6 +2190,75 @@
     }
     .quick-note-chip:hover{ border-color:var(--primary); color:var(--text); }
     .quick-note-chip.active{ background:var(--primary); color:#fff; border-color:var(--primary); }
+    /* Configuración de impresoras */
+    .printer-engine-option{ display:flex; align-items:flex-start; gap:10px; border:1px solid var(--border); border-radius:14px; padding:10px 12px; cursor:pointer; transition:.15s ease; }
+    .printer-engine-option:hover{ border-color:rgba(var(--primary-rgb),.4); background:rgba(var(--primary-rgb),.06); }
+    .printer-engine-option input{ margin-top:3px; }
+    .printer-list{ display:flex; flex-direction:column; gap:8px; }
+    .printer-list-item{ display:flex; align-items:center; gap:10px; border:1px solid var(--border); border-radius:12px; padding:9px 12px; }
+    .printer-list-item .pli-name{ font-weight:700; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .printer-list-item .pli-role{ font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background:rgba(var(--primary-rgb),.12); color:var(--primary); }
+    .printer-list-item .pli-role.caja{ background:rgba(37,99,235,.12); color:#2563eb; }
+    .printer-list-item .pli-role.otro{ background:rgba(148,163,184,.18); color:#64748b; }
+    .printer-list-empty{ color:var(--muted); font-size:.86rem; padding:6px 2px; }
+
+    /* ============================================================
+       Experiencia móvil: menú lateral tipo panel deslizable (drawer)
+       ordenado por encima de todo, y barra superior verde compacta.
+       (Este bloque va al final para tener prioridad en la cascada.)
+       ============================================================ */
+    @media (max-width: 992px){
+      /* El menú se comporta como panel deslizable sobre el contenido */
+      .sidebar{
+        position:fixed;
+        inset:0 auto 0 0;
+        width:min(86vw, 320px);
+        height:100vh;
+        min-height:100vh;
+        transform:translateX(-100%);
+        z-index:1300;
+        display:flex;
+        flex-direction:column;
+        gap:14px;
+        padding:18px 16px;
+        border-right:1px solid var(--border);
+        box-shadow:24px 0 60px rgba(15,23,42,.28);
+        overflow-y:auto;
+        transition:transform .24s ease;
+      }
+      body.sidebar-open .sidebar{ transform:translateX(0); }
+      .sidebar-backdrop{ z-index:1250; }
+      body.sidebar-open .sidebar-backdrop{ display:block; }
+      /* La marca y el botón de cerrar se ven dentro del menú deslizable */
+      .sidebar .brand-badge{ display:flex !important; }
+      .sidebar .brand-sub{ display:block !important; }
+      .sidebar-close-button{ display:grid !important; }
+      /* Opciones del menú en columna, a lo ancho y cómodas de tocar */
+      .sidebar > .d-grid{ display:grid !important; grid-template-columns:1fr; gap:8px !important; }
+      .sidebar .nav-pill{ width:100%; padding:13px 14px; font-size:.98rem; border-radius:14px; }
+      .sidebar-footer{ margin-top:auto !important; padding-top:12px !important; border-top:1px solid var(--border) !important; display:block; }
+      .sidebar-footer .cash-mini{ display:grid !important; }
+      .main-content{ margin-left:0 !important; }
+
+      /* Barra verde superior: compacta y ordenada */
+      .app-topbar{ padding:10px 14px; gap:8px 10px; }
+      .app-topbar-brand-name{ display:none; }
+      .app-topbar-right{ gap:8px; row-gap:8px; }
+      /* La acción de caja pasa a su propia fila a lo ancho para no amontonar */
+      .app-topbar-right #topCashActionArea{ order:5; flex:1 1 100%; }
+      .app-topbar-right #topCashActionArea > .btn,
+      .app-topbar .cash-open-badge{ width:100%; justify-content:center; min-height:42px; }
+    }
+    @media (max-width: 576px){
+      .app-topbar{ padding:9px 12px; gap:8px; }
+      .app-topbar-logo{ width:40px; height:40px; }
+      .app-topbar-icon-btn{ width:40px; height:40px; }
+      /* En pantallas muy pequeñas el usuario queda solo como avatar */
+      .app-topbar .user-menu-id{ display:none; }
+      .app-topbar .user-menu-caret{ display:none; }
+      .app-topbar .user-menu-trigger{ padding:6px; gap:0; }
+      .app-topbar .cash-open-badge{ font-size:.78rem; }
+    }
     </style>
 </head>
 <body>
@@ -2332,7 +2423,6 @@
     <aside class="sidebar">
       <div class="brand-badge">
         <div>
-          <p class="brand-title" id="brandTitle">Combatti PUB</p>
           <p class="brand-sub">Sistema POS Restaurante</p>
         </div>
         <button class="btn btn-primary-soft sidebar-close-button" type="button" onclick="toggleSidebar(false)" title="Ocultar menu">
@@ -2384,7 +2474,15 @@
                 <label class="dashboard-filter-field"><span>Fecha</span><input id="dashboardDateFilter" type="date" class="form-control" onchange="renderDashboard()"></label>
               </div>
             </div>
-            <div class="quick-action-grid d-none"></div>
+            <div class="dashboard-quick-panel">
+              <div class="dashboard-filter-title"><i class="fa-solid fa-bolt"></i><span>Accesos rápidos</span></div>
+              <div class="quick-action-grid">
+                <button class="btn quick-action-btn" type="button" onclick="openView('caja')"><i class="fa-solid fa-cash-register"></i> Caja</button>
+                <button class="btn quick-action-btn" type="button" onclick="openView('mesas')"><i class="fa-solid fa-chair"></i> Mesas</button>
+                <button class="btn quick-action-btn" type="button" onclick="openView('productos')"><i class="fa-solid fa-burger"></i> Productos</button>
+                <button class="btn quick-action-btn" type="button" onclick="openView('inventarios')"><i class="fa-solid fa-boxes-stacked"></i> Inventario</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2412,7 +2510,7 @@
             </div>
           </div>
           <div class="col-lg-4">
-            <div class="chart-box pie">
+            <div class="chart-box pie h-100">
               <div class="chart-head">
                 <div>
                   <h5 class="section-title mb-1">Métodos de pago</h5>
@@ -2640,6 +2738,7 @@
               <button class="btn btn-primary-soft btn-pill" onclick="exportProductsExcel()"><i class="fa-solid fa-file-export me-2"></i>Exportar Excel</button>
               <button class="btn btn-outline-danger btn-pill" data-admin-only onclick="deleteAllProducts()"><i class="fa-solid fa-trash-can me-2"></i>Eliminar todos</button>
               <button class="btn btn-outline-primary btn-pill" data-admin-only onclick="openCategoryModal()"><i class="fa-solid fa-tags me-2"></i>Nueva categoría</button>
+              <button class="btn btn-warning btn-pill" data-admin-only onclick="openPromoModal()"><i class="fa-solid fa-gift me-2"></i>Promociones y combos</button>
               <button class="btn btn-success btn-pill" data-admin-only onclick="openProductModal()"><i class="fa-solid fa-plus me-2"></i>Nuevo producto</button>
             </div>
           </div>
@@ -2976,6 +3075,15 @@
                   <p class="section-subtitle mb-0">Datos fiscales del negocio que aparecen en la factura. La numeración es consecutiva automática.</p>
                 </div>
                 <button class="btn btn-outline-success btn-pill flex-shrink-0" type="button" onclick="openInvoiceConfigModal()"><i class="fa-solid fa-sliders me-2"></i>Configurar facturación</button>
+              </div>
+
+              <hr>
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                  <h6 class="fw-bold mb-1"><i class="fa-solid fa-print me-2"></i>Impresoras</h6>
+                  <p class="section-subtitle mb-0">Separa qué imprime cada impresora: las comandas en cocina y los tickets de cliente, domicilios y cierre en caja.</p>
+                </div>
+                <button class="btn btn-outline-success btn-pill flex-shrink-0" type="button" onclick="openPrinterConfigModal()"><i class="fa-solid fa-sliders me-2"></i>Configurar impresoras</button>
               </div>
 
               <hr>
@@ -3734,6 +3842,95 @@
         <div class="modal-footer">
           <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
           <button class="btn btn-success btn-pill" type="button" onclick="saveProfile()"><i class="fa-solid fa-floppy-disk me-2"></i>Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="printerConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title"><i class="fa-solid fa-print me-2"></i>Configurar impresoras</h5>
+            <small class="text-secondary">Asigna una impresora para cocina y otra para caja. Puedes agregar más.</small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Modo de impresión</label>
+            <div class="d-flex flex-column gap-2">
+              <label class="printer-engine-option"><input type="radio" name="printerEngine" value="navegador" onchange="onPrinterEngineChange()"> <span><strong>Navegador</strong> — usa el cuadro de impresión (eliges la impresora cada vez). Funciona sin instalar nada.</span></label>
+              <label class="printer-engine-option"><input type="radio" name="printerEngine" value="qz" onchange="onPrinterEngineChange()"> <span><strong>QZ Tray (automático)</strong> — envía cada documento directo a su impresora, sin preguntar. Ideal para 2 impresoras.</span></label>
+            </div>
+          </div>
+          <div id="qzPanel" class="alert alert-light border rounded-4 small d-none">
+            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+              <div><i class="fa-solid fa-plug me-1"></i><span id="qzStatusText">QZ Tray: sin conectar.</span></div>
+              <button type="button" class="btn btn-sm btn-primary-soft btn-pill" onclick="connectQzAndList()"><i class="fa-solid fa-rotate me-1"></i>Conectar / Detectar</button>
+            </div>
+            <div class="mt-2">Instala <strong>QZ Tray</strong> (gratis, en <strong>qz.io</strong>) en este equipo y déjalo abierto. Luego presiona “Conectar / Detectar” para listar tus impresoras.</div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label"><i class="fa-solid fa-utensils me-1 text-success"></i>Impresora de Cocina (comandas)</label>
+              <select id="printerCocinaSelect" class="form-select"></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"><i class="fa-solid fa-cash-register me-1 text-success"></i>Impresora de Caja (tickets, domicilios, cierre)</label>
+              <select id="printerCajaSelect" class="form-select"></select>
+            </div>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="printerNotifyCaja">
+            <label class="form-check-label" for="printerNotifyCaja">Cuando se envía una comanda a cocina, imprimir también un aviso pequeño en caja (requiere QZ Tray)</label>
+          </div>
+          <hr>
+          <h6 class="fw-bold mb-1">Mis impresoras</h6>
+          <p class="section-subtitle mb-2">Agrega cada impresora con un nombre y su uso. Si usas QZ Tray, escribe el nombre exacto del sistema (o detéctalas arriba).</p>
+          <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-6"><label class="form-label">Nombre de la impresora</label><input id="printerNewName" class="form-control" placeholder="Ej. EPSON TM-T20 Cocina"></div>
+            <div class="col-md-4"><label class="form-label">Uso</label><select id="printerNewRole" class="form-select"><option value="cocina">Cocina</option><option value="caja">Caja</option><option value="otro">Otro</option></select></div>
+            <div class="col-md-2"><button type="button" class="btn btn-success btn-pill w-100" onclick="addPrinterProfile()" title="Agregar impresora"><i class="fa-solid fa-plus"></i></button></div>
+          </div>
+          <div id="printerListBox" class="printer-list"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-success btn-pill" type="button" onclick="savePrinterConfig()"><i class="fa-solid fa-floppy-disk me-2"></i>Guardar impresoras</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="promoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title"><i class="fa-solid fa-gift me-2"></i>Promoción / Combo especial</h5>
+            <small class="text-secondary">Crea un combo o promo con precio especial. Aparecerá en el catálogo para venderlo.</small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-8"><label class="form-label">Nombre del combo / promo</label><input id="promoNameInput" class="form-control" placeholder="Ej. Combo Pareja: 2 Hamburguesas + 2 Gaseosas"></div>
+            <div class="col-md-4"><label class="form-label">Categoría</label><input id="promoCategoryInput" class="form-control" value="Promociones" placeholder="Promociones"></div>
+            <div class="col-md-4"><label class="form-label">Precio promocional</label><input id="promoPriceInput" type="text" inputmode="numeric" data-money-input="1" class="form-control" placeholder="35000"></div>
+            <div class="col-md-4"><label class="form-label">Precio normal (opcional)</label><input id="promoComparePriceInput" type="text" inputmode="numeric" data-money-input="1" class="form-control" placeholder="45000"></div>
+            <div class="col-md-4"><label class="form-label">Stock (opcional)</label><input id="promoStockInput" type="number" class="form-control" placeholder="0"></div>
+            <div class="col-12">
+              <label class="form-label">¿Qué incluye? (una línea por producto)</label>
+              <textarea id="promoItemsInput" class="form-control" rows="4" placeholder="2x Hamburguesa PUB&#10;2x Gaseosa&#10;1x Papas grandes"></textarea>
+            </div>
+            <div class="col-12"><label class="form-label">Imagen (URL opcional)</label><input id="promoImageInput" type="url" class="form-control" placeholder="https://servidor.com/combo.jpg"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-warning btn-pill" type="button" onclick="savePromo()"><i class="fa-solid fa-gift me-2"></i>Crear promoción</button>
         </div>
       </div>
     </div>
@@ -4592,6 +4789,8 @@
       modals.licenseConfig = modalFor(document.getElementById('licenseConfigModal'));
       modals.invoiceConfig = modalFor(document.getElementById('invoiceConfigModal'));
       modals.profile = modalFor(document.getElementById('profileModal'));
+      modals.printerConfig = modalFor(document.getElementById('printerConfigModal'));
+      modals.promo = modalFor(document.getElementById('promoModal'));
       document.getElementById('licenseConfigModal')?.addEventListener('hidden.bs.modal', stopLicenseCountdownTimer);
       modals.confirm = modalFor(document.getElementById('confirmModal'));
       document.getElementById('orderModal').addEventListener('hidden.bs.modal', cleanupEmptyCurrentOrder);
@@ -4984,7 +5183,22 @@
         emailEnabled: brand.emailEnabled !== false,
         emailjsPublicKey: brand.emailjsPublicKey || EMAILJS_DEFAULTS.publicKey,
         emailjsServiceId: brand.emailjsServiceId || EMAILJS_DEFAULTS.serviceId,
-        emailjsTemplateId: brand.emailjsTemplateId || EMAILJS_DEFAULTS.templateId
+        emailjsTemplateId: brand.emailjsTemplateId || EMAILJS_DEFAULTS.templateId,
+        printing: normalizePrinting(brand.printing)
+      };
+    }
+    function normalizePrinting(p = {}){
+      const list = Array.isArray(p && p.list) ? p.list.filter(x => x && x.name).map(x => ({
+        id: x.id || uid(),
+        name: String(x.name).trim(),
+        role: ['cocina','caja','otro'].includes(x.role) ? x.role : 'otro'
+      })) : [];
+      return {
+        engine: (p && p.engine === 'qz') ? 'qz' : 'navegador',
+        cocina: String((p && p.cocina) || ''),
+        caja: String((p && p.caja) || ''),
+        notifyCaja: !p || p.notifyCaja !== false,
+        list
       };
     }
     function tableSize(table){
@@ -5218,7 +5432,7 @@
       if(themeBtn) themeBtn.title = state.theme === 'dark' ? 'Modo oscuro activo · cambiar a claro' : 'Modo claro activo · cambiar a oscuro';
       renderUserAvatar();
       applyBrandPalette();
-      document.getElementById('brandTitle').textContent = state.brand.name || 'Combatti PUB';
+      setText('brandTitle', state.brand.name || 'Combatti PUB');
       setText('loginBrandName', state.brand.name || 'Combatti PUB');
       setText('topbarBrandName', state.brand.name || 'Combatti PUB');
       setText('topTitle', currentViewTitle(currentView));
@@ -7832,9 +8046,7 @@ const colors = [
         persistAll();
       }
       const html = electronicInvoiceHtml(order);
-      const w = window.open('', '_blank', 'width=820,height=940');
-      if(!w){ toast('El navegador bloqueó la factura. Permite ventanas emergentes.', 'warning'); return; }
-      w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 500);
+      routePrint(html, 'caja', 820);
       toast(`Factura ${order.invoiceNumber} generada`, 'success');
     }
     function electronicInvoiceHtml(order){
@@ -7918,15 +8130,228 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         </div>
       </body></html>`;
     }
+    // ===================== IMPRESIÓN POR ROLES (Cocina / Caja) =====================
+    // Permite separar a qué impresora va cada documento. Con QZ Tray la impresión
+    // es automática a la impresora asignada; sin QZ usa el cuadro del navegador.
+    let printerDraft = { engine:'navegador', cocina:'', caja:'', notifyCaja:true, list:[] };
+    let qzDetectedPrinters = [];
+    let qzConnected = false;
+
+    function printingConfig(){ return (state.brand && state.brand.printing) || normalizePrinting({}); }
+    function printerNameForRole(role){
+      const pr = printingConfig();
+      return role === 'cocina' ? pr.cocina : pr.caja;
+    }
+    function openBrowserPrint(html, width = 420){
+      const w = window.open('', '_blank', `width=${width},height=760`);
+      if(!w){ toast('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.', 'warning'); return false; }
+      w.document.open(); w.document.write(html); w.document.close();
+      setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 450);
+      return true;
+    }
+    function loadQzLibrary(){
+      return new Promise((resolve, reject) => {
+        if(window.qz){ return resolve(); }
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qz-tray@2/qz-tray.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('No se pudo cargar la librería de QZ Tray'));
+        document.head.appendChild(s);
+      });
+    }
+    async function ensureQz(){
+      await loadQzLibrary();
+      if(!window.qz) throw new Error('QZ no disponible');
+      if(!qz.security.__combattiSet){
+        qz.security.setCertificatePromise(function(resolve){ resolve(); });
+        qz.security.setSignaturePromise(function(){ return function(resolve){ resolve(); }; });
+        qz.security.__combattiSet = true;
+      }
+      if(!qz.websocket.isActive()){ await qz.websocket.connect(); }
+      qzConnected = true;
+    }
+    async function connectQzAndList(){
+      setText('qzStatusText', 'QZ Tray: conectando...');
+      try{
+        await ensureQz();
+        let printers = await qz.printers.find();
+        qzDetectedPrinters = Array.isArray(printers) ? printers : [printers].filter(Boolean);
+        setText('qzStatusText', `QZ Tray conectado. ${qzDetectedPrinters.length} impresora(s) detectada(s).`);
+        renderPrinterSelectsAndList();
+        toast('QZ Tray conectado', 'success');
+      }catch(e){
+        qzConnected = false;
+        console.warn('QZ connect', e);
+        setText('qzStatusText', 'No se pudo conectar a QZ Tray. ¿Está instalado y abierto?');
+        toast('No se pudo conectar a QZ Tray', 'warning');
+      }
+    }
+    async function qzPrintHtml(printerName, html){
+      await ensureQz();
+      const cfg = qz.configs.create(printerName, { rasterize:true, scaleContent:true });
+      await qz.print(cfg, [{ type:'pixel', format:'html', flavor:'plain', data: html }]);
+    }
+    // Enruta un documento HTML a la impresora del rol indicado ('cocina' | 'caja').
+    async function routePrint(html, role, width = 420){
+      const pr = printingConfig();
+      if(pr.engine === 'qz'){
+        const printer = printerNameForRole(role);
+        if(printer){
+          try{ await qzPrintHtml(printer, html); toast(`Enviado a impresora de ${role}`, 'success'); return; }
+          catch(e){ console.warn('QZ print fail', e); toast('Falló la impresión automática; abriendo el cuadro de impresión.', 'warning'); }
+        }
+      }
+      openBrowserPrint(html, width);
+    }
+    // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.
+    function kitchenNoticeHtml(order){
+      const qty = (order.items || []).reduce((s, i) => s + Number(i.qty || 0), 0);
+      const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+      const rows = (order.items || []).map(i => `<tr><td class="q">${Number(i.qty || 0)}x</td><td>${escapeHtml(i.name)}</td></tr>`).join('') || '<tr><td colspan="2">Sin productos</td></tr>';
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Aviso cocina</title><style>
+        body{font-family:Arial,sans-serif;width:280px;margin:0;padding:8px;font-size:12px;color:#000}
+        .box{border:2px dashed #000;border-radius:10px;padding:10px;text-align:center}
+        .big{font-size:18px;font-weight:900;letter-spacing:.02em}
+        h2{margin:4px 0;font-size:15px}
+        table{width:100%;font-size:12px;margin:6px 0;border-collapse:collapse}
+        td{padding:2px 0;text-align:left}.q{width:34px;font-weight:800}
+        .muted{color:#222;font-size:11px;margin-top:4px}
+        .line{border-top:1px dashed #000;margin:6px 0}
+      </style></head><body>
+        <div class="box">
+          <div class="big">&#128276; ENVIADO A COCINA</div>
+          <h2>${escapeHtml(order.tableName || 'Pedido')}</h2>
+          <div class="muted">${escapeHtml(order.type || 'Pedido')} &middot; ${time}</div>
+          <div class="line"></div>
+          <table>${rows}</table>
+          <div class="line"></div>
+          <div class="muted">${qty} producto(s) &middot; Mesero: ${escapeHtml(order.seller || '-')}</div>
+          <div class="muted">Copia para CAJA — la comanda salió en cocina.</div>
+        </div>
+      </body></html>`;
+    }
+    function maybePrintKitchenNoticeToCaja(order){
+      const pr = printingConfig();
+      // El aviso automático en caja sólo es posible con QZ Tray (impresión silenciosa).
+      if(pr.notifyCaja && pr.engine === 'qz' && printerNameForRole('caja')){
+        routePrint(kitchenNoticeHtml(order), 'caja', 300);
+      }
+    }
+
+    // ----- Modal de configuración de impresoras -----
+    function availablePrinterNames(){
+      const names = new Set();
+      (printerDraft.list || []).forEach(p => { if(p.name) names.add(p.name); });
+      (qzDetectedPrinters || []).forEach(n => { if(n) names.add(String(n)); });
+      return [...names];
+    }
+    function syncPrinterSelectsToDraft(){
+      printerDraft.cocina = byId('printerCocinaSelect') ? byId('printerCocinaSelect').value : printerDraft.cocina;
+      printerDraft.caja = byId('printerCajaSelect') ? byId('printerCajaSelect').value : printerDraft.caja;
+    }
+    function renderPrinterSelectsAndList(){
+      const names = availablePrinterNames();
+      [['printerCocinaSelect','cocina'],['printerCajaSelect','caja']].forEach(([id, role]) => {
+        const sel = byId(id); if(!sel) return;
+        const current = role === 'cocina' ? printerDraft.cocina : printerDraft.caja;
+        const opts = [`<option value="">— Sin asignar —</option>`].concat(names.map(n => `<option value="${escapeHtml(n)}" ${n === current ? 'selected' : ''}>${escapeHtml(n)}</option>`));
+        // si la asignada no está en la lista, agregarla para no perderla
+        if(current && !names.includes(current)) opts.push(`<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>`);
+        sel.innerHTML = opts.join('');
+      });
+      const box = byId('printerListBox');
+      if(box){
+        box.innerHTML = (printerDraft.list || []).length
+          ? printerDraft.list.map(p => `<div class="printer-list-item"><span class="pli-name">${escapeHtml(p.name)}</span><span class="pli-role ${p.role}">${escapeHtml(p.role)}</span><button type="button" class="btn btn-sm btn-outline-danger btn-pill" onclick="removePrinterProfile('${p.id}')"><i class="fa-solid fa-trash"></i></button></div>`).join('')
+          : '<div class="printer-list-empty">Aún no agregaste impresoras. Agrega al menos una de cocina y una de caja.</div>';
+      }
+    }
+    function openPrinterConfigModal(){
+      if(!requireAdmin('configurar impresoras')) return;
+      const pr = printingConfig();
+      printerDraft = { engine:pr.engine, cocina:pr.cocina, caja:pr.caja, notifyCaja:pr.notifyCaja !== false, list:(pr.list || []).map(x => ({ ...x })) };
+      document.querySelectorAll('input[name="printerEngine"]').forEach(r => { r.checked = (r.value === printerDraft.engine); });
+      if(byId('printerNotifyCaja')) byId('printerNotifyCaja').checked = printerDraft.notifyCaja;
+      byId('qzPanel')?.classList.toggle('d-none', printerDraft.engine !== 'qz');
+      renderPrinterSelectsAndList();
+      modals.printerConfig?.show();
+    }
+    function onPrinterEngineChange(){
+      const val = document.querySelector('input[name="printerEngine"]:checked')?.value || 'navegador';
+      syncPrinterSelectsToDraft();
+      printerDraft.engine = val;
+      byId('qzPanel')?.classList.toggle('d-none', val !== 'qz');
+    }
+    function addPrinterProfile(){
+      const name = String(byId('printerNewName')?.value || '').trim();
+      const role = byId('printerNewRole')?.value || 'otro';
+      if(!name){ toast('Escribe el nombre de la impresora', 'warning'); return; }
+      syncPrinterSelectsToDraft();
+      printerDraft.list.push({ id:uid(), name, role });
+      if(role === 'cocina' && !printerDraft.cocina) printerDraft.cocina = name;
+      if(role === 'caja' && !printerDraft.caja) printerDraft.caja = name;
+      setValue('printerNewName', '');
+      renderPrinterSelectsAndList();
+      toast('Impresora agregada', 'success');
+    }
+    function removePrinterProfile(id){
+      syncPrinterSelectsToDraft();
+      printerDraft.list = (printerDraft.list || []).filter(p => p.id !== id);
+      renderPrinterSelectsAndList();
+    }
+    function savePrinterConfig(){
+      syncPrinterSelectsToDraft();
+      printerDraft.notifyCaja = byId('printerNotifyCaja')?.checked !== false;
+      state.brand.printing = normalizePrinting(printerDraft);
+      persistAll();
+      modals.printerConfig?.hide();
+      toast('Configuración de impresoras guardada', 'success');
+    }
+
+    // ----- Promociones / combos especiales (modo administrador) -----
+    function openPromoModal(){
+      if(!requireAdmin('crear promociones')) return;
+      setValue('promoNameInput', '');
+      setValue('promoCategoryInput', 'Promociones');
+      setValue('promoPriceInput', '');
+      setValue('promoComparePriceInput', '');
+      setValue('promoStockInput', '');
+      setValue('promoItemsInput', '');
+      setValue('promoImageInput', '');
+      modals.promo?.show();
+    }
+    function savePromo(){
+      if(!requireAdmin('crear promociones')) return;
+      const name = String(byId('promoNameInput')?.value || '').trim();
+      const price = clampNumber(byId('promoPriceInput')?.value);
+      const compareAt = clampNumber(byId('promoComparePriceInput')?.value);
+      const category = normalizeCategory(byId('promoCategoryInput')?.value || 'Promociones');
+      const stock = clampNumber(byId('promoStockInput')?.value);
+      const items = String(byId('promoItemsInput')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+      const image = String(byId('promoImageInput')?.value || '').trim();
+      if(!name || price <= 0){ toast('Escribe el nombre y un precio mayor a cero', 'warning'); return; }
+      if(category && !state.categories.some(c => c.toLowerCase() === category.toLowerCase())) state.categories.push(category);
+      const description = (compareAt > price ? `Antes ${money(compareAt)} · ` : '') + (items.length ? `Incluye: ${items.join(', ')}` : 'Promoción especial');
+      state.products.push({
+        id:uid(), name, price, rappiPrice:price, didiPrice:price,
+        stock: stock || 0, minStock:0, category, description,
+        active:true, image, isCombo:true, comboItems:items, promoCompareAt: compareAt > price ? compareAt : 0
+      });
+      persistAll();
+      refreshCategories();
+      renderProducts();
+      if(byId('orderProductsGrid')) renderOrderProducts();
+      modals.promo?.hide();
+      toast('Promoción creada y disponible en el catálogo', 'success');
+    }
+
     function printKitchenTicket(order, type='COMANDA'){
       normalizeOrderContact(order);
       normalizeOrderPayments(order);
       const isTicket = ['TICKET','CORTESIA','CREDITO','CLIENTE','RESUMEN'].includes(type);
       if(isTicket){
         const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(type)}</title><style>${customerTicketPrintStyle()}</style></head><body>${customerTicketBodyHtml(order, type)}</body></html>`;
-        const printWin = window.open('', '_blank', 'width=420,height=700');
-        if(!printWin){ toast('El navegador bloqueó la ventana de impresión', 'warning'); return; }
-        printWin.document.open(); printWin.document.write(html); printWin.document.close(); setTimeout(() => { printWin.focus(); printWin.print(); }, 450);
+        routePrint(html, 'caja', 420);
         return;
       }
       const itemRows = order.items.map(i => isTicket ? `
@@ -7960,9 +8385,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         : `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
       const style = `body{font-family:Arial,sans-serif;margin:0;padding:${isTicket ? '10px' : '6px'};width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}${totals}<div class="line"></div>${footer}</body></html>`;
-      const printWin = window.open('', '_blank', 'width=420,height=700');
-      if(!printWin){ toast('El navegador bloqueó la ventana de impresión', 'warning'); return; }
-      printWin.document.open(); printWin.document.write(html); printWin.document.close(); setTimeout(() => { printWin.focus(); printWin.print(); }, 450);
+      routePrint(html, 'cocina', 420);
+      if(type === 'COMANDA') maybePrintKitchenNoticeToCaja(order);
     }
 
     function isKitchenDisplayMode(){
@@ -8273,7 +8697,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function printCloseReport(record = currentCashRecord()){
       const detail = cashRecordDetailHtml(record);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de caja</title><style>${cashReportPrintStyle()}</style></head><body>${detail}</body></html>`;
-      const w = window.open('', '_blank', 'width=720,height=900'); if(!w){ toast('El navegador bloqueó la impresión del cierre', 'warning'); return; } w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 450);
+      routePrint(html, 'caja', 720);
     }
     function cashReportPrintStyle(){
       return `body{font-family:Arial,sans-serif;margin:0;padding:12px 10px;color:#111;background:#fff;font-size:15px;line-height:1.42}
@@ -8505,9 +8929,7 @@ tr.total-row td,tr td b{font-weight:800}
           <tr class="total-row"><td><b>Saldo efectivo en caja</b></td><td class="right"><b>${money(report.final)}</b></td></tr>
         </tbody></table>`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pago de nómina</title><style>${cashReportPrintStyle()}</style></head><body>${content}</body></html>`;
-      const w = window.open('', '_blank', 'width=720,height=900');
-      if(!w){ toast('El navegador bloqueó la impresión del comprobante de nómina', 'warning'); return; }
-      w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 450);
+      routePrint(html, 'caja', 720);
     }
     function renderCashView(){
       const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date()), to = endOfDay(new Date());
@@ -9070,7 +9492,7 @@ tr.total-row td,tr td b{font-weight:800}
     function printInventoryReport(){
       const rows = state.products.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(normalizeCategory(p.category))}</td><td class="right">${isStockManaged(p) ? Number(p.stock || 0) : 'Sin conteo'}</td><td class="right">${Number(p.minStock || 0)}</td><td>${escapeHtml(stockStatusText(p))}</td></tr>`).join('');
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inventario</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:6px;border-bottom:1px solid #eee;text-align:left}.right{text-align:right}</style></head><body><h2>${escapeHtml(state.brand.name)}</h2><p>Inventario · ${formatDate()}</p><table><thead><tr><th>Producto</th><th>Categoria</th><th class="right">Stock</th><th class="right">Mínimo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
-      const w = window.open('', '_blank', 'width=900,height=900'); if(!w){ toast('El navegador bloqueó la impresión de inventario', 'warning'); return; } w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 450);
+      routePrint(html, 'caja', 900);
     }
     function expenseSourceLabel(source){
       switch(source){

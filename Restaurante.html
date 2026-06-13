@@ -258,6 +258,80 @@
       box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 8px 22px rgba(15,23,42,.06);
     }
     .search-input::placeholder{ color:var(--muted); }
+    /* ===== Barra superior (sesión verde): logo a la izquierda, usuario a la derecha ===== */
+    .app-topbar{
+      display:flex;
+      align-items:center;
+      gap:16px;
+      flex-wrap:wrap;
+      padding:12px 18px;
+      border-radius:22px;
+      background:linear-gradient(135deg, var(--primary), var(--primary-dark));
+      box-shadow:0 16px 36px rgba(var(--primary-rgb),.30);
+      border:1px solid rgba(255,255,255,.12);
+      position:sticky;
+      top:12px;
+      z-index:650;
+    }
+    .app-topbar-left{ display:flex; align-items:center; gap:12px; flex:0 0 auto; }
+    .app-topbar-toggle{
+      width:44px; height:44px; border-radius:14px; flex:0 0 auto;
+      border:1px solid rgba(255,255,255,.30);
+      background:rgba(255,255,255,.16);
+      color:#fff; font-size:1.05rem;
+      display:grid; place-items:center; cursor:pointer;
+      transition:transform .16s ease, background .16s ease;
+    }
+    .app-topbar-toggle:hover{ background:rgba(255,255,255,.30); transform:translateY(-1px); }
+    .app-topbar-toggle:active{ transform:translateY(0); }
+    .app-topbar-brand{ display:flex; align-items:center; gap:11px; }
+    .app-topbar-logo{
+      width:46px; height:46px; border-radius:15px; flex:0 0 auto;
+      display:grid; place-items:center; overflow:hidden;
+      background:rgba(255,255,255,.92);
+      color:var(--primary-dark);
+      border:1px solid rgba(255,255,255,.55);
+      box-shadow:0 8px 20px rgba(0,0,0,.14);
+      font-size:1.15rem; font-weight:900;
+    }
+    .app-topbar-logo img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:inherit; }
+    .app-topbar-logo .brand-logo-text{ color:var(--primary-dark); }
+    .app-topbar-brand-name{ color:#fff; font-weight:900; font-size:1.05rem; letter-spacing:.01em; white-space:nowrap; }
+    .app-topbar-search{ position:relative; flex:1 1 300px; min-width:180px; display:flex; align-items:center; }
+    .app-topbar-search-icon{ position:absolute; left:15px; color:var(--muted); pointer-events:none; font-size:.92rem; }
+    .app-topbar-search .search-input{ width:100%; padding-left:40px; min-height:46px; border-color:transparent; }
+    .app-topbar-right{ display:flex; align-items:center; gap:10px; flex:0 0 auto; flex-wrap:wrap; justify-content:flex-end; }
+    /* Indicador de nube sobre fondo verde */
+    .app-topbar .cloud-indicator{ background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.32); color:#fff; }
+    .app-topbar .cloud-indicator .cloud-dot{ background:#fff; }
+    .app-topbar .cloud-indicator:hover{ background:rgba(255,255,255,.28); }
+    .app-topbar .cloud-indicator.cloud-live,
+    .app-topbar .cloud-indicator.cloud-syncing,
+    .app-topbar .cloud-indicator.cloud-offline{ color:#fff; border-color:rgba(255,255,255,.45); background:rgba(255,255,255,.2); }
+    .app-topbar .cloud-indicator.cloud-live .cloud-dot{ background:#eafff5; box-shadow:0 0 0 0 rgba(255,255,255,.65); }
+    .app-topbar .cloud-indicator.cloud-syncing .cloud-dot{ background:#fde68a; }
+    .app-topbar .cloud-indicator.cloud-offline .cloud-dot{ background:#fecaca; }
+    /* Badge "CAJA ABIERTA POR" y acciones de caja sobre verde */
+    .app-topbar .cash-open-badge{
+      width:auto; min-height:44px; background:rgba(255,255,255,.96); color:var(--primary-dark);
+      border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 22px rgba(0,0,0,.14);
+    }
+    .app-topbar #topCashActionArea .btn-success{ background:#fff; color:var(--primary-dark); border-color:#fff; }
+    .app-topbar #topCashActionArea .btn-success:hover{ background:#eafff4; color:var(--primary-dark); border-color:#eafff4; }
+    .app-topbar #topCashActionArea .btn-outline-danger{ background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.6); }
+    .app-topbar #topCashActionArea .btn-outline-danger:hover{ background:#fff; color:#dc2626; border-color:#fff; }
+    /* Menú de usuario dentro de la barra verde */
+    .app-topbar .user-menu{ width:auto; position:relative; }
+    .app-topbar .user-menu-trigger{ background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.30); color:#fff; transition:background .16s ease, transform .16s ease; }
+    .app-topbar .user-menu-trigger:hover{ background:rgba(255,255,255,.28); transform:translateY(-1px); }
+    .app-topbar .user-menu-trigger .user-avatar{ background:#fff; color:var(--primary-dark); }
+    .app-topbar .user-menu-id .small{ color:rgba(255,255,255,.85) !important; }
+    .app-topbar .user-menu-caret{ color:rgba(255,255,255,.9); }
+    @media (max-width: 992px){
+      .app-topbar{ gap:10px; }
+      .app-topbar-brand-name{ display:none; }
+      .app-topbar-search{ order:3; flex:1 1 100%; }
+    }
     .section-title{ font-size:1.05rem; font-weight:800; margin:0; }
     .section-subtitle{ color:var(--muted); font-size:.9rem; margin:0; }
     .stat-card{
@@ -326,27 +400,27 @@
     .kpi-card .stat-value{ font-size:1.42rem; }
     .goal-kpi{
       align-items:center;
-      gap:14px;
-      border-radius:8px;
-      min-height:92px;
+      gap:16px;
+      border-radius:16px;
+      min-height:132px;
     }
     .goal-ring{
-      width:56px;
-      height:56px;
+      width:84px;
+      height:84px;
       border-radius:50%;
       display:grid;
       place-items:center;
-      flex:0 0 56px;
+      flex:0 0 84px;
       background:conic-gradient(var(--goal-color, var(--primary)) var(--goal-progress, 0%), rgba(148,163,184,.20) 0);
       color:#64748b;
       font-weight:900;
-      font-size:.72rem;
+      font-size:.9rem;
       position:relative;
     }
     .goal-ring::after{
       content:'';
       position:absolute;
-      inset:6px;
+      inset:8px;
       border-radius:50%;
       background:var(--card);
       box-shadow:inset 0 0 0 1px var(--border);
@@ -354,10 +428,10 @@
     .goal-ring{ isolation:isolate; }
     .goal-ring::before{ content:attr(data-label); position:relative; z-index:1; }
     .goal-ring{ font-size:0; }
-    .goal-ring::before{ font-size:.72rem; color:var(--goal-color, var(--primary)); font-weight:900; }
+    .goal-ring::before{ font-size:.92rem; line-height:1; white-space:nowrap; text-align:center; color:var(--goal-color, var(--primary)); font-weight:900; }
     body.dark-mode .goal-ring::before{ color:var(--goal-color, var(--primary)); }
     .goal-copy{ min-width:0; flex:1; text-align:right; }
-    .goal-copy .stat-value{ font-size:1rem; color:var(--primary); }
+    .goal-copy .stat-value{ font-size:1.2rem; color:var(--primary); }
     .goal-copy small{ color:var(--muted); font-size:.72rem; }
     .metric-list{ display:grid; gap:10px; }
     .metric-row{
@@ -664,9 +738,9 @@
     body.cash-closed-lock #view-caja .cash-history-fullscreen{ display:block !important; min-height:calc(100vh - 170px); }
     body.cash-closed-lock .sidebar{ display:none !important; }
     body.cash-closed-lock .main-content{ margin-left:0 !important; }
-    body.cash-closed-lock .topbar .sidebar-toggle-button,
-    body.cash-closed-lock .topbar .search-input,
-    body.cash-closed-lock .topbar button[onclick="openLicenseConfigModal()"]{ display:none !important; }
+    body.cash-closed-lock .app-topbar .app-topbar-toggle,
+    body.cash-closed-lock .app-topbar .app-topbar-search,
+    body.cash-closed-lock .app-topbar #cloudTopIndicator{ display:none !important; }
     body.cash-closed-lock .nav-pill[data-view]:not([data-view="caja"]){ pointer-events:none; opacity:.45; }
     .category-manager{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .status-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
@@ -1334,8 +1408,14 @@
         max-height:none;
       }
       .order-action-dock{
-        grid-template-columns:1fr;
-        bottom:-1px;
+        grid-template-columns:repeat(3, minmax(0,1fr));
+        gap:8px;
+        padding:10px 12px;
+      }
+      .order-action-dock .btn{
+        min-height:48px;
+        font-size:.8rem;
+        padding:.45rem .35rem;
       }
     }
 
@@ -1373,26 +1453,37 @@
       margin-bottom:0 !important;
       flex:1 1 auto;
     }
+    #orderModal .modal-content{ display:flex; flex-direction:column; height:100vh; }
+    #orderModal .modal-body{ flex:1 1 auto; max-height:none; min-height:0; overflow:auto; }
     .order-action-dock{
-      position:sticky;
-      bottom:-1px;
+      flex:0 0 auto;
       z-index:25;
       display:grid;
       grid-template-columns:repeat(3, minmax(0,1fr));
-      gap:10px;
-      padding:12px 0 0;
-      margin-top:14px;
+      gap:12px;
+      padding:14px clamp(16px, 3vw, 30px);
       border-top:1px solid var(--border);
-      background:linear-gradient(180deg, rgba(255,255,255,.74), rgba(255,255,255,.98) 34%);
-      box-shadow:0 -16px 30px rgba(15,23,42,.08);
-      backdrop-filter:blur(10px);
+      background:var(--card);
+      box-shadow:0 -18px 38px rgba(15,23,42,.12);
     }
     .order-action-dock .btn{
-      min-height:48px;
+      min-height:54px;
       white-space:normal;
       line-height:1.12;
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      transition:transform .15s ease, box-shadow .15s ease, filter .15s ease, background .15s ease, border-color .15s ease, color .15s ease;
     }
-    body.dark-mode .order-action-dock{ background:rgba(15,23,42,.95); }
+    .order-action-dock .btn:hover{
+      transform:translateY(-2px);
+      box-shadow:0 14px 28px rgba(15,23,42,.18);
+      filter:brightness(1.03);
+    }
+    .order-action-dock .btn:active{ transform:translateY(0); box-shadow:0 8px 16px rgba(15,23,42,.14); }
+    body.dark-mode .order-action-dock{ background:var(--card); box-shadow:0 -18px 38px rgba(0,0,0,.4); }
     .invoice-panel{
       position:sticky;
       top:10px;
@@ -1688,7 +1779,7 @@
       .sidebar-footer .cash-mini{ display:none !important; }
       .sidebar-footer .btn{ width:auto !important; margin:0 !important; }
       .sidebar-close-button{ display:none !important; }
-      .sidebar-toggle-button{ display:none !important; }
+      .sidebar-toggle-button, .app-topbar-toggle{ display:none !important; }
       .main-content{ margin-left:0 !important; padding-top:18px; }
       .sidebar-backdrop{ display:none !important; }
     }
@@ -2185,50 +2276,50 @@
           <div><span>Cierres</span><strong id="cashCloseCount">0</strong></div>
           <div><span>Caja</span><strong id="cashEstimated">$0</strong></div>
         </div>
-        <div class="user-menu">
-          <button class="user-menu-trigger" type="button" onclick="toggleUserMenu()" title="Usuario activo">
-            <div class="user-avatar"><i class="fa-solid fa-user"></i></div>
-            <div class="user-menu-id">
-              <span class="fw-bold" id="currentUserLabel">-</span>
-              <span class="small text-secondary">Usuario activo</span>
-            </div>
-            <i class="fa-solid fa-chevron-down user-menu-caret"></i>
-          </button>
-          <div class="user-menu-dropdown d-none" id="userMenuDropdown">
-            <div class="user-menu-head">
-              <span class="badge text-bg-success" id="currentRoleLabel">-</span>
-              <div class="small text-secondary" id="currentShiftLabel">Turno: -</div>
-            </div>
-            <a class="user-menu-item" id="adminWhatsappMenu" href="#" onclick="event.preventDefault(); closeUserMenu(); openSupportChat();"><i class="fa-brands fa-whatsapp"></i> WhatsApp / Soporte</a>
-            <button class="user-menu-item" type="button" onclick="closeUserMenu(); toggleTheme();"><i class="fa-solid fa-moon"></i> Modo claro / oscuro</button>
-            <button class="user-menu-item danger" type="button" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>
-          </div>
-        </div>
       </div>
     </aside>
 
     <main class="main-content">
-      <div class="topbar mb-4">
-        <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
-          <div class="topbar-title-wrap">
-            <button class="btn btn-primary-soft btn-pill sidebar-toggle-button" type="button" onclick="toggleSidebar()" title="Mostrar u ocultar menu">
-              <i class="fa-solid fa-bars"></i>
-            </button>
-            <div>
-              <p class="section-subtitle mb-1">Combatti PUB · POS Restaurante</p>
-              <h3 class="section-title" id="topTitle">Dashboard general</h3>
-            </div>
-          </div>
-          <div class="d-flex gap-2 align-items-center flex-wrap">
-            <input id="globalSearch" type="text" class="form-control search-input" style="min-width:280px;" placeholder="Buscar producto, mesa o pedido..." oninput="globalSearch()" onkeydown="if(event.key==='Enter') openOrderFromSearch()">
-            <button id="cloudTopIndicator" class="btn btn-pill cloud-indicator cloud-off" type="button" onclick="openLicenseConfigModal()" title="Estado de la sincronizacion en la nube">
-              <span class="cloud-dot"></span><i class="fa-solid fa-cloud"></i><span id="cloudTopIndicatorText" class="cloud-indicator-text">Local</span>
-            </button>
-            <button class="btn btn-outline-secondary btn-pill" type="button" onclick="openLicenseConfigModal()"><i class="fa-solid fa-key me-2"></i>Licencia</button>
-            <div id="topCashActionArea"><button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button></div>
+      <header class="app-topbar mb-4">
+        <div class="app-topbar-left">
+          <button class="app-topbar-toggle" type="button" onclick="toggleSidebar()" title="Mostrar u ocultar menu" aria-label="Mostrar u ocultar menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="app-topbar-brand">
+            <div class="app-topbar-logo" id="topbarBrandLogo" data-brand-logo><i class="fa-solid fa-utensils"></i></div>
+            <span class="app-topbar-brand-name" id="topbarBrandName">Combatti PUB</span>
           </div>
         </div>
-      </div>
+        <div class="app-topbar-search">
+          <i class="fa-solid fa-magnifying-glass app-topbar-search-icon"></i>
+          <input id="globalSearch" type="text" class="form-control search-input" placeholder="Buscar producto, mesa o pedido..." oninput="globalSearch()" onkeydown="if(event.key==='Enter') openOrderFromSearch()">
+        </div>
+        <div class="app-topbar-right">
+          <button id="cloudTopIndicator" class="btn btn-pill cloud-indicator cloud-off" type="button" onclick="openLicenseConfigModal()" title="Estado de la sincronizacion en la nube">
+            <span class="cloud-dot"></span><i class="fa-solid fa-cloud"></i><span id="cloudTopIndicatorText" class="cloud-indicator-text">Local</span>
+          </button>
+          <div id="topCashActionArea"><button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button></div>
+          <div class="user-menu" id="topUserMenu">
+            <button class="user-menu-trigger" type="button" onclick="toggleUserMenu()" title="Usuario activo">
+              <div class="user-avatar"><i class="fa-solid fa-user"></i></div>
+              <div class="user-menu-id">
+                <span class="fw-bold" id="currentUserLabel">-</span>
+                <span class="small">Usuario activo</span>
+              </div>
+              <i class="fa-solid fa-chevron-down user-menu-caret"></i>
+            </button>
+            <div class="user-menu-dropdown d-none" id="userMenuDropdown">
+              <div class="user-menu-head">
+                <span class="badge text-bg-success" id="currentRoleLabel">-</span>
+                <div class="small text-secondary" id="currentShiftLabel">Turno: -</div>
+              </div>
+              <a class="user-menu-item" id="adminWhatsappMenu" href="#" onclick="event.preventDefault(); closeUserMenu(); openSupportChat();"><i class="fa-brands fa-whatsapp"></i> WhatsApp / Soporte</a>
+              <button class="user-menu-item" type="button" onclick="closeUserMenu(); toggleTheme();"><i class="fa-solid fa-moon"></i> Modo claro / oscuro</button>
+              <button class="user-menu-item danger" type="button" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <section id="view-dashboard" class="view active">
         <div class="dashboard-hero mb-4">
@@ -2835,15 +2926,12 @@
               </div>
 
               <hr>
-              <h6 class="fw-bold mb-2"><i class="fa-solid fa-file-invoice me-2"></i>Facturación electrónica</h6>
-              <p class="section-subtitle mb-3">Datos del negocio que aparecen en la factura. La numeración es consecutiva automática.</p>
-              <div class="row g-2 mb-3">
-                <div class="col-md-6"><label class="form-label">NIT / Documento</label><input id="brandNitInput" class="form-control" placeholder="901.234.567-8"></div>
-                <div class="col-md-6"><label class="form-label">Teléfono fiscal</label><input id="brandFiscalPhoneInput" class="form-control" placeholder="320 000 0000"></div>
-                <div class="col-12"><label class="form-label">Dirección fiscal</label><input id="brandFiscalAddressInput" class="form-control" placeholder="Cra 00 # 00-00, Ciudad"></div>
-                <div class="col-md-6"><label class="form-label">Régimen</label><input id="brandFiscalRegimeInput" class="form-control" placeholder="No responsable de IVA"></div>
-                <div class="col-md-6"><label class="form-label">Prefijo factura</label><input id="brandInvoicePrefixInput" class="form-control" placeholder="FE-"></div>
-                <div class="col-12"><label class="form-label">Resolución DIAN (opcional)</label><input id="brandInvoiceResolutionInput" class="form-control" placeholder="Resolución DIAN No. ... de ..."></div>
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                  <h6 class="fw-bold mb-1"><i class="fa-solid fa-file-invoice me-2"></i>Facturación electrónica</h6>
+                  <p class="section-subtitle mb-0">Datos fiscales del negocio que aparecen en la factura. La numeración es consecutiva automática.</p>
+                </div>
+                <button class="btn btn-outline-success btn-pill flex-shrink-0" type="button" onclick="openInvoiceConfigModal()"><i class="fa-solid fa-sliders me-2"></i>Configurar facturación</button>
               </div>
 
               <hr>
@@ -2862,10 +2950,7 @@
                   <input class="form-check-input" type="checkbox" id="brandEmailEnabledInput">
                   <label class="form-check-label" for="brandEmailEnabledInput">Enviar correo automático al cerrar caja</label>
                 </div>
-                <div class="col-12"><small class="text-secondary">Envío automático con adjuntos vía EmailJS (opcional). Si no lo configuras, se abre tu correo con el resumen listo para enviar.</small></div>
-                <div class="col-md-4"><label class="form-label">EmailJS Service ID</label><input id="brandEmailServiceInput" class="form-control" placeholder="service_xxx"></div>
-                <div class="col-md-4"><label class="form-label">EmailJS Template ID</label><input id="brandEmailTemplateInput" class="form-control" placeholder="template_xxx"></div>
-                <div class="col-md-4"><label class="form-label">EmailJS Public Key</label><input id="brandEmailKeyInput" class="form-control" placeholder="public_key"></div>
+                <div class="col-12"><small class="text-secondary"><i class="fa-solid fa-circle-check me-1 text-success"></i>El envío automático por EmailJS ya viene configurado en el sistema. No necesitas llenar ningún dato. Si el envío automático está desactivado, se abrirá tu correo con el resumen listo para enviar.</small></div>
               </div>
 
               <div class="d-grid gap-2">
@@ -3286,11 +3371,11 @@
               </div>
             </div>
           </div>
-          <div class="order-action-dock" id="orderActionDock">
-            <button class="btn btn-success btn-pill" onclick="saveOrder(true)"><i class="fa-solid fa-eye me-2"></i>Guardar y previsualizar comanda</button>
-            <button class="btn btn-primary-soft btn-pill" id="btnPrintCustomerTicket" onclick="printCurrentCustomerTicket()"><i class="fa-solid fa-receipt me-2"></i>Imprimir Ticket Cliente</button>
-            <button class="btn btn-outline-primary btn-pill" id="btnPayCurrentOrder" onclick="payCurrentOrder()"><i class="fa-solid fa-credit-card me-2"></i>Pagar</button>
-          </div>
+        </div>
+        <div class="order-action-dock" id="orderActionDock">
+          <button class="btn btn-success btn-pill" onclick="saveOrder(true)"><i class="fa-solid fa-eye me-2"></i>Guardar y previsualizar comanda</button>
+          <button class="btn btn-primary-soft btn-pill" id="btnPrintCustomerTicket" onclick="printCurrentCustomerTicket()"><i class="fa-solid fa-receipt me-2"></i>Imprimir Ticket Cliente</button>
+          <button class="btn btn-outline-primary btn-pill" id="btnPayCurrentOrder" onclick="payCurrentOrder()"><i class="fa-solid fa-credit-card me-2"></i>Pagar</button>
         </div>
       </div>
     </div>
@@ -3473,15 +3558,16 @@
       <div class="modal-content">
         <div class="modal-header">
           <div>
-            <h5 class="modal-title">Conexión de licencia remota</h5>
-            <small class="text-secondary">Usa la URL e ID creados en ADMIN LICENCIAS.html.</small>
+            <h5 class="modal-title" id="licenseConfigTitle">Conexión de licencia remota</h5>
+            <small class="text-secondary" id="licenseConfigSubtitle">Usa la URL e ID creados en ADMIN LICENCIAS.html.</small>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div class="alert alert-info border rounded-4 mb-3" id="licenseCountdownInfo">Licencia: revisando estado...</div>
-          <div class="alert alert-light border rounded-4 small mb-3"><i class="fa-solid fa-cloud me-1"></i>Lo que configures aquí se guarda y se sincroniza automáticamente en todos los dispositivos.</div>
-          <div class="row g-3">
+          <div class="alert alert-light border rounded-4 small mb-3 d-none" id="licenseUserNote"><i class="fa-solid fa-circle-info me-1"></i>Solo el administrador del sistema puede modificar la licencia. Aquí solo puedes ver el estado y el tiempo restante de tu licencia.</div>
+          <div class="alert alert-light border rounded-4 small mb-3" id="licenseConfigEditNote"><i class="fa-solid fa-cloud me-1"></i>Lo que configures aquí se guarda y se sincroniza automáticamente en todos los dispositivos.</div>
+          <div class="row g-3" id="licenseAdminFields">
             <div class="col-md-4">
               <label class="form-label">Fecha de corte</label>
               <input id="licenseCutoffInput" type="date" class="form-control">
@@ -3540,6 +3626,34 @@
     </div>
   </div>
 
+  <div class="modal fade" id="invoiceConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title"><i class="fa-solid fa-file-invoice me-2"></i>Facturación electrónica</h5>
+            <small class="text-secondary">Datos del negocio que aparecen en la factura. La numeración es consecutiva automática.</small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">NIT / Documento</label><input id="brandNitInput" class="form-control" placeholder="901.234.567-8"></div>
+            <div class="col-md-6"><label class="form-label">Teléfono fiscal</label><input id="brandFiscalPhoneInput" class="form-control" placeholder="320 000 0000"></div>
+            <div class="col-12"><label class="form-label">Dirección fiscal</label><input id="brandFiscalAddressInput" class="form-control" placeholder="Cra 00 # 00-00, Ciudad"></div>
+            <div class="col-md-6"><label class="form-label">Régimen</label><input id="brandFiscalRegimeInput" class="form-control" placeholder="No responsable de IVA"></div>
+            <div class="col-md-6"><label class="form-label">Prefijo factura</label><input id="brandInvoicePrefixInput" class="form-control" placeholder="FE-"></div>
+            <div class="col-12"><label class="form-label">Resolución DIAN (opcional)</label><input id="brandInvoiceResolutionInput" class="form-control" placeholder="Resolución DIAN No. ... de ..."></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-success btn-pill" type="button" onclick="saveInvoiceConfig()"><i class="fa-solid fa-floppy-disk me-2"></i>Guardar facturación</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Chat de soporte por WhatsApp -->
   <button id="supportChatLauncher" class="support-chat-launcher" type="button" onclick="toggleSupportChat()" title="Soporte por WhatsApp" aria-label="Soporte por WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
   <div id="supportChatPanel" class="support-chat-panel d-none">
@@ -3579,6 +3693,15 @@
     const DB_STORE = 'app_state';
     const DB_STATE_KEY = 'main';
     let dbReady = false;
+    // ===== EmailJS (configuración automática) =====
+    // Credenciales del servicio de correo de cierre de caja. Se aplican solas:
+    // el usuario NO debe escribir nada en la interfaz. Si algún día necesitas
+    // cambiarlas, edítalas únicamente aquí (un solo lugar).
+    const EMAILJS_DEFAULTS = {
+      serviceId: 'service_xxx',
+      templateId: 'template_xxx',
+      publicKey: ''
+    };
     const SALES_CHANNELS = [
       { key:'Local', label:'Local' },
       { key:'Rappi', label:'Rappi' },
@@ -4375,6 +4498,8 @@
       modals.ticketPreview = modalFor(document.getElementById('ticketPreviewModal'));
       modals.movement = modalFor(document.getElementById('movementModal'));
       modals.licenseConfig = modalFor(document.getElementById('licenseConfigModal'));
+      modals.invoiceConfig = modalFor(document.getElementById('invoiceConfigModal'));
+      document.getElementById('licenseConfigModal')?.addEventListener('hidden.bs.modal', stopLicenseCountdownTimer);
       modals.confirm = modalFor(document.getElementById('confirmModal'));
       document.getElementById('orderModal').addEventListener('hidden.bs.modal', cleanupEmptyCurrentOrder);
       document.addEventListener('click', ev => {
@@ -4764,9 +4889,9 @@
         adminEmail: brand.adminEmail || 'faninhergo@gmail.com',
         fromEmail: brand.fromEmail || 'isdaavigar@gmail.com',
         emailEnabled: brand.emailEnabled !== false,
-        emailjsPublicKey: brand.emailjsPublicKey || '',
-        emailjsServiceId: brand.emailjsServiceId || '',
-        emailjsTemplateId: brand.emailjsTemplateId || ''
+        emailjsPublicKey: brand.emailjsPublicKey || EMAILJS_DEFAULTS.publicKey,
+        emailjsServiceId: brand.emailjsServiceId || EMAILJS_DEFAULTS.serviceId,
+        emailjsTemplateId: brand.emailjsTemplateId || EMAILJS_DEFAULTS.templateId
       };
     }
     function tableSize(table){
@@ -4997,7 +5122,8 @@
       applyBrandPalette();
       document.getElementById('brandTitle').textContent = state.brand.name || 'Combatti PUB';
       setText('loginBrandName', state.brand.name || 'Combatti PUB');
-      document.getElementById('topTitle').textContent = currentViewTitle(currentView);
+      setText('topbarBrandName', state.brand.name || 'Combatti PUB');
+      setText('topTitle', currentViewTitle(currentView));
       document.getElementById('brandNameInput').value = state.brand.name || 'Combatti PUB';
       document.getElementById('brandColorInput').value = state.brand.color || '#19c37d';
       document.getElementById('brandLogoInput').value = state.brand.logo || '';
@@ -5134,6 +5260,18 @@
       panel.classList.toggle('d-none', !willShow);
       if(willShow) setTimeout(() => byId('supportChatInput')?.focus(), 120);
     }
+    function openWhatsappTab(url){
+      // Abre WhatsApp en una pestaña nueva mediante un click real (gesto del usuario),
+      // así NUNCA se redirige ni se pierde la sesión del POS actual.
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => link.remove(), 0);
+    }
     function sendSupportChat(){
       const input = byId('supportChatInput');
       const text = String(input?.value || '').trim();
@@ -5146,13 +5284,13 @@
         body.appendChild(bubble);
         const reply = document.createElement('div');
         reply.className = 'support-bubble bot';
-        reply.textContent = 'Te estamos conectando por WhatsApp...';
+        reply.textContent = 'Mensaje enviado a soporte por WhatsApp. Sigues en el POS, escribe otro mensaje cuando lo necesites.';
         body.appendChild(reply);
         body.scrollTop = body.scrollHeight;
       }
-      if(input) input.value = '';
-      const url = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}`;
-      setTimeout(() => { try{ window.open(url, '_blank'); }catch(_){ location.href = url; } }, 200);
+      if(input){ input.value = ''; input.focus(); }
+      // Se abre en pestaña nueva, sin redirigir la página actual.
+      openWhatsappTab(`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}`);
     }
     function toggleUserMenu(){
       const menu = byId('userMenuDropdown');
@@ -5260,6 +5398,28 @@
         unlockBtn.title = 'Solo administrador del sistema';
       }
     }
+    let licenseCountdownTimer = null;
+    function applyLicenseConfigVisibility(){
+      const admin = isSystemAdmin();
+      byId('licenseAdminFields')?.classList.toggle('d-none', !admin);
+      byId('licenseConfigEditNote')?.classList.toggle('d-none', !admin);
+      byId('licenseUserNote')?.classList.toggle('d-none', admin);
+      byId('btnSaveLicenseLocal')?.classList.toggle('d-none', !admin);
+      if(!admin) byId('btnUnlockLicenseConfig')?.classList.add('d-none');
+      setText('licenseConfigTitle', admin ? 'Conexión de licencia remota' : 'Estado de tu licencia');
+      setText('licenseConfigSubtitle', admin
+        ? 'Usa la URL e ID creados en ADMIN LICENCIAS.html.'
+        : 'Solo el administrador del sistema puede editar la licencia.');
+    }
+    function startLicenseCountdownTimer(){
+      clearInterval(licenseCountdownTimer);
+      renderLicenseCountdown();
+      licenseCountdownTimer = setInterval(renderLicenseCountdown, 1000);
+    }
+    function stopLicenseCountdownTimer(){
+      clearInterval(licenseCountdownTimer);
+      licenseCountdownTimer = null;
+    }
     function openLicenseConfigModal(){
       licenseState.editUnlocked = false;
       setValue('licenseDbUrl', licenseState.local.databaseUrl || '');
@@ -5269,6 +5429,8 @@
       setValue('licenseWarningInput', licenseState.local.warningDays || LICENSE_DEFAULTS.warningDays);
       setValue('licenseNequiInput', licenseState.local.adminNequi || '');
       setValue('licenseWhatsappInput', licenseState.local.adminWhatsapp || '');
+      applyLicenseConfigVisibility();
+      startLicenseCountdownTimer();
       modals.licenseConfig?.show();
     }
     // "Pagar Suscripción": si la licencia está vencida/bloqueada, muestra la
@@ -5463,7 +5625,7 @@
       document.getElementById(`view-${view}`)?.classList.add('active');
       document.querySelectorAll('.nav-pill').forEach(n => n.classList.remove('active'));
       document.querySelector(`.nav-pill[data-view="${view}"]`)?.classList.add('active');
-      document.getElementById('topTitle').textContent = currentViewTitle(view);
+      setText('topTitle', currentViewTitle(view));
       if(isCompactLayout()) toggleSidebar(false);
       if(view === 'dashboard') renderDashboard();
       if(view === 'mesas') renderTables();
@@ -8787,12 +8949,29 @@ tr.total-row td,tr td b{font-weight:800}
       setValue('brandFromEmailInput', state.brand.fromEmail || '');
       const emailEnabledEl = byId('brandEmailEnabledInput');
       if(emailEnabledEl) emailEnabledEl.checked = state.brand.emailEnabled === true;
-      setValue('brandEmailServiceInput', state.brand.emailjsServiceId || '');
-      setValue('brandEmailTemplateInput', state.brand.emailjsTemplateId || '');
-      setValue('brandEmailKeyInput', state.brand.emailjsPublicKey || '');
       updateBrandLogoPreview();
       renderBrandGalleryInputs();
       if(byId('userPermissionGrid') && !byId('userPermissionGrid').children.length) renderUserPermissionGrid(permissionsForRole('Administrador'));
+    }
+    function openInvoiceConfigModal(){
+      setValue('brandNitInput', state.brand.nit || '');
+      setValue('brandFiscalPhoneInput', state.brand.fiscalPhone || '');
+      setValue('brandFiscalAddressInput', state.brand.fiscalAddress || '');
+      setValue('brandFiscalRegimeInput', state.brand.fiscalRegime || '');
+      setValue('brandInvoicePrefixInput', state.brand.invoicePrefix || 'FE-');
+      setValue('brandInvoiceResolutionInput', state.brand.invoiceResolution || '');
+      modals.invoiceConfig?.show();
+    }
+    function saveInvoiceConfig(){
+      state.brand.nit = byId('brandNitInput')?.value.trim() || '';
+      state.brand.fiscalPhone = byId('brandFiscalPhoneInput')?.value.trim() || '';
+      state.brand.fiscalAddress = byId('brandFiscalAddressInput')?.value.trim() || '';
+      state.brand.fiscalRegime = byId('brandFiscalRegimeInput')?.value.trim() || '';
+      state.brand.invoicePrefix = byId('brandInvoicePrefixInput')?.value.trim() || 'FE-';
+      state.brand.invoiceResolution = byId('brandInvoiceResolutionInput')?.value.trim() || '';
+      persistAll();
+      modals.invoiceConfig?.hide();
+      toast('Datos de facturación guardados', 'success');
     }
     function saveBrand(){
       state.brand.name = document.getElementById('brandNameInput').value.trim() || 'Combatti PUB';
@@ -8821,9 +9000,10 @@ tr.total-row td,tr td b{font-weight:800}
       state.brand.adminEmail = byId('brandAdminEmailInput')?.value.trim() || '';
       state.brand.fromEmail = byId('brandFromEmailInput')?.value.trim() || '';
       state.brand.emailEnabled = byId('brandEmailEnabledInput')?.checked === true;
-      state.brand.emailjsServiceId = byId('brandEmailServiceInput')?.value.trim() || '';
-      state.brand.emailjsTemplateId = byId('brandEmailTemplateInput')?.value.trim() || '';
-      state.brand.emailjsPublicKey = byId('brandEmailKeyInput')?.value.trim() || '';
+      // EmailJS automático: las credenciales no se editan en la interfaz.
+      state.brand.emailjsServiceId = state.brand.emailjsServiceId || EMAILJS_DEFAULTS.serviceId;
+      state.brand.emailjsTemplateId = state.brand.emailjsTemplateId || EMAILJS_DEFAULTS.templateId;
+      state.brand.emailjsPublicKey = state.brand.emailjsPublicKey || EMAILJS_DEFAULTS.publicKey;
       persistAll();
       applyTheme();
       toast('Marca guardada correctamente', 'success');

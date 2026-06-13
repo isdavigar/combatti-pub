@@ -3870,7 +3870,7 @@
               <div><i class="fa-solid fa-plug me-1"></i><span id="qzStatusText">QZ Tray: sin conectar.</span></div>
               <button type="button" class="btn btn-sm btn-primary-soft btn-pill" onclick="connectQzAndList()"><i class="fa-solid fa-rotate me-1"></i>Conectar / Detectar</button>
             </div>
-            <div class="mt-2">Instala <strong>QZ Tray</strong> (gratis, en <strong>qz.io</strong>) en este equipo y déjalo abierto. Luego presiona “Conectar / Detectar” para listar tus impresoras.</div>
+            <div class="mt-2">Instala <strong>QZ Tray</strong> (gratis, descárgalo en <strong>qz.io</strong>) en este equipo y déjalo abierto. Luego presiona <strong>"Conectar / Detectar"</strong> y tus impresoras aparecerán automáticamente en la lista de abajo. Solo elige cuál es de cocina y cuál de caja.</div>
           </div>
           <div class="row g-3 mb-3">
             <div class="col-md-6">
@@ -3888,13 +3888,16 @@
           </div>
           <hr>
           <h6 class="fw-bold mb-1">Mis impresoras</h6>
-          <p class="section-subtitle mb-2">Agrega cada impresora con un nombre y su uso. Si usas QZ Tray, escribe el nombre exacto del sistema (o detéctalas arriba).</p>
-          <div class="row g-2 align-items-end mb-2">
-            <div class="col-md-6"><label class="form-label">Nombre de la impresora</label><input id="printerNewName" class="form-control" placeholder="Ej. EPSON TM-T20 Cocina"></div>
-            <div class="col-md-4"><label class="form-label">Uso</label><select id="printerNewRole" class="form-select"><option value="cocina">Cocina</option><option value="caja">Caja</option><option value="otro">Otro</option></select></div>
-            <div class="col-md-2"><button type="button" class="btn btn-success btn-pill w-100" onclick="addPrinterProfile()" title="Agregar impresora"><i class="fa-solid fa-plus"></i></button></div>
-          </div>
+          <p class="section-subtitle mb-2">Al detectar, se agregan automáticamente. Solo elige si cada una es de <strong>Cocina</strong> o de <strong>Caja</strong>.</p>
           <div id="printerListBox" class="printer-list"></div>
+          <div class="mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-pill" onclick="showManualPrinterAdd()"><i class="fa-solid fa-plus me-1"></i>Agregar manualmente</button>
+            <div id="manualPrinterAddRow" class="row g-2 align-items-end mt-2 d-none">
+              <div class="col-md-6"><input id="printerNewName" class="form-control form-control-sm" placeholder="Nombre exacto de la impresora"></div>
+              <div class="col-md-4"><select id="printerNewRole" class="form-select form-select-sm"><option value="cocina">🍳 Cocina</option><option value="caja">💵 Caja</option><option value="otro">📎 Otro</option></select></div>
+              <div class="col-md-2"><button type="button" class="btn btn-sm btn-success btn-pill w-100" onclick="addPrinterProfile()"><i class="fa-solid fa-plus"></i></button></div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
@@ -8176,9 +8179,17 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         await ensureQz();
         let printers = await qz.printers.find();
         qzDetectedPrinters = Array.isArray(printers) ? printers : [printers].filter(Boolean);
-        setText('qzStatusText', `QZ Tray conectado. ${qzDetectedPrinters.length} impresora(s) detectada(s).`);
+        // Auto-agregar impresoras detectadas a la lista (sin duplicar)
+        const existing = new Set((printerDraft.list || []).map(p => p.name.toLowerCase()));
+        qzDetectedPrinters.forEach(name => {
+          if(!existing.has(String(name).toLowerCase())){
+            printerDraft.list.push({ id:uid(), name:String(name), role:'otro' });
+            existing.add(String(name).toLowerCase());
+          }
+        });
+        setText('qzStatusText', `QZ Tray conectado. ${qzDetectedPrinters.length} impresora(s) detectada(s) y agregada(s) a la lista. Asigna el uso de cada una.`);
         renderPrinterSelectsAndList();
-        toast('QZ Tray conectado', 'success');
+        toast(`${qzDetectedPrinters.length} impresora(s) detectada(s)`, 'success');
       }catch(e){
         qzConnected = false;
         console.warn('QZ connect', e);
@@ -8255,15 +8266,38 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         const sel = byId(id); if(!sel) return;
         const current = role === 'cocina' ? printerDraft.cocina : printerDraft.caja;
         const opts = [`<option value="">— Sin asignar —</option>`].concat(names.map(n => `<option value="${escapeHtml(n)}" ${n === current ? 'selected' : ''}>${escapeHtml(n)}</option>`));
-        // si la asignada no está en la lista, agregarla para no perderla
         if(current && !names.includes(current)) opts.push(`<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>`);
         sel.innerHTML = opts.join('');
       });
       const box = byId('printerListBox');
       if(box){
         box.innerHTML = (printerDraft.list || []).length
-          ? printerDraft.list.map(p => `<div class="printer-list-item"><span class="pli-name">${escapeHtml(p.name)}</span><span class="pli-role ${p.role}">${escapeHtml(p.role)}</span><button type="button" class="btn btn-sm btn-outline-danger btn-pill" onclick="removePrinterProfile('${p.id}')"><i class="fa-solid fa-trash"></i></button></div>`).join('')
-          : '<div class="printer-list-empty">Aún no agregaste impresoras. Agrega al menos una de cocina y una de caja.</div>';
+          ? printerDraft.list.map(p => `<div class="printer-list-item">
+              <span class="pli-name">${escapeHtml(p.name)}</span>
+              <select class="form-select form-select-sm pli-role-select" style="width:auto;min-width:100px" onchange="changePrinterRole('${p.id}', this.value)">
+                <option value="cocina" ${p.role==='cocina'?'selected':''}>🍳 Cocina</option>
+                <option value="caja" ${p.role==='caja'?'selected':''}>💵 Caja</option>
+                <option value="otro" ${p.role==='otro'?'selected':''}>📎 Otro</option>
+              </select>
+              <button type="button" class="btn btn-sm btn-outline-danger btn-pill" onclick="removePrinterProfile('${p.id}')" title="Quitar"><i class="fa-solid fa-trash"></i></button>
+            </div>`).join('')
+          : '<div class="printer-list-empty"><i class="fa-solid fa-info-circle me-1"></i>Toca "Conectar / Detectar" para que aparezcan tus impresoras automáticamente.</div>';
+      }
+    }
+    function changePrinterRole(id, newRole){
+      const item = (printerDraft.list || []).find(p => p.id === id);
+      if(item){
+        item.role = newRole;
+        // Auto-asignar: si es la primera con ese rol, ponerla como predeterminada.
+        syncPrinterSelectsToDraft();
+        if(newRole === 'cocina' && !printerDraft.cocina) printerDraft.cocina = item.name;
+        if(newRole === 'caja' && !printerDraft.caja) printerDraft.caja = item.name;
+        // Si solo hay una con ese rol, asignarla automáticamente.
+        const cocinaItems = printerDraft.list.filter(p => p.role === 'cocina');
+        const cajaItems = printerDraft.list.filter(p => p.role === 'caja');
+        if(cocinaItems.length === 1) printerDraft.cocina = cocinaItems[0].name;
+        if(cajaItems.length === 1) printerDraft.caja = cajaItems[0].name;
+        renderPrinterSelectsAndList();
       }
     }
     function openPrinterConfigModal(){
@@ -8293,6 +8327,9 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       setValue('printerNewName', '');
       renderPrinterSelectsAndList();
       toast('Impresora agregada', 'success');
+    }
+    function showManualPrinterAdd(){
+      byId('manualPrinterAddRow')?.classList.toggle('d-none');
     }
     function removePrinterProfile(id){
       syncPrinterSelectsToDraft();

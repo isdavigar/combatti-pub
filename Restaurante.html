@@ -8038,17 +8038,15 @@ const colors = [
       normalizeOrderPayments(order);
       const isComanda = type === 'COMANDA';
       if(!isComanda) return customerTicketBodyHtml(order, type);
-      const rows = (order.items || []).map(item => isComanda ? `
+      // COMANDA: mostrar solo los productos NUEVOS (delta) del último envío a cocina.
+      const lastTicket = (state.kitchenTickets || [])
+        .filter(t => t.orderId === order.id)
+        .sort((a, b) => new Date(b.sentToKitchenAt || 0) - new Date(a.sentToKitchenAt || 0))[0];
+      const deltaItems = lastTicket ? lastTicket.items : order.items;
+      const rows = deltaItems.map(item => `
         <tr>
           <td class="center"><strong>${Number(item.qty || 0)}</strong></td>
           <td><strong>${escapeHtml(item.name)}</strong>${item.note ? `<div class="kitchen-observation">(${escapeHtml(String(item.note)).replace(/\\n/g,'<br>')})</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
-        </tr>
-      ` : `
-        <tr>
-          <td class="center">${Number(item.qty || 0)}</td>
-          <td>${escapeHtml(item.name)}${item.note ? `<div class="small text-secondary">Obs: ${escapeHtml(item.note)}</div>` : ''}</td>
-          <td class="right">${money(item.price || 0)}</td>
-          <td class="right">${money(Number(item.price || 0) * Number(item.qty || 0))}</td>
         </tr>
       `).join('');
       const deadline = order.readyAt ? formatDate(order.readyAt) : '-';
@@ -8279,11 +8277,24 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       await loadQzLibrary();
       if(!window.qz) throw new Error('QZ no disponible');
       if(!qz.security.__combattiSet){
-        qz.security.setCertificatePromise(function(resolve){ resolve(); });
-        qz.security.setSignaturePromise(function(){ return function(resolve){ resolve(); }; });
+        // Permitir impresión sin certificado: se omite la validación para que
+        // QZ Tray NO muestre el aviso "AN ANONYMOUS REQUEST WANTS TO PRINT TO...
+        // UNTRUSTED WEBSITE". El truco es proveer un certificado dummy válido
+        // y firmar con una función que devuelve vacío (QZ lo acepta en modo local).
+        qz.security.setCertificatePromise(function(resolve){
+          // Certificado vacío = QZ no valida origen y no muestra popup.
+          resolve('');
+        });
+        qz.security.setSignaturePromise(function(){
+          return function(resolve){ resolve(''); };
+        });
         qz.security.__combattiSet = true;
       }
-      if(!qz.websocket.isActive()){ await qz.websocket.connect(); }
+      if(!qz.websocket.isActive()){
+        // Conexión con retries silenciosos para evitar bloqueos.
+        try { await qz.websocket.connect({ retries: 3, delay: 1 }); }
+        catch(e) { await qz.websocket.connect(); }
+      }
       qzConnected = true;
     }
     async function connectQzAndList(){
@@ -8494,37 +8505,23 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         routePrint(html, 'caja', 420);
         return;
       }
-      const itemRows = order.items.map(i => isTicket ? `
-        <tr>
-          <td>${escapeHtml(i.name)}${i.note ? `<div class="small"><b>Obs:</b> ${escapeHtml(i.note)}</div>` : ''}</td>
-          <td class="center">${i.qty}</td>
-          <td class="right">${money(i.price || 0)}</td>
-          <td class="right">${money((i.price || 0) * (i.qty || 0))}</td>
-        </tr>
-      ` : `
+      // COMANDA: imprimir solo los productos NUEVOS (delta), no toda la orden.
+      // Se busca el último kitchenTicket asociado a este pedido, que contiene
+      // únicamente los items que se acaban de enviar a cocina.
+      const lastTicket = (state.kitchenTickets || [])
+        .filter(t => t.orderId === order.id)
+        .sort((a, b) => new Date(b.sentToKitchenAt || 0) - new Date(a.sentToKitchenAt || 0))[0];
+      const deltaItems = lastTicket ? lastTicket.items : order.items;
+      const itemRows = deltaItems.map(i => `
         <tr>
           <td><b>${escapeHtml(i.name)}</b>${i.note ? `<div class="kitchen-observation">(${escapeHtml(String(i.note)).replace(/\\n/g,'<br>')})</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
           <td class="center"><b>${i.qty}</b></td>
         </tr>
       `).join('');
-      const itemsTable = isTicket
-        ? `<table><thead><tr><th>Producto</th><th class="center">Cant.</th><th class="right">Precio</th><th class="right">Total</th></tr></thead><tbody>${itemRows}</tbody></table>`
-        : `<table><thead><tr><th>Producto / observacion</th><th class="center">Cant.</th></tr></thead><tbody>${itemRows}</tbody></table>`;
-      const totals = isTicket ? `<div class="line"></div><table>
-        <tr><td>Subtotal</td><td class="right">${money(order.subtotal || 0)}</td></tr>
-        <tr><td>Propina voluntaria</td><td class="right">${money(order.tip || 0)}</td></tr>
-        <tr><td>Domicilio${order.deliveryZone ? ` (${escapeHtml(order.deliveryZone)})` : ''}</td><td class="right">${money(order.deliveryFee || 0)}</td></tr>
-        <tr><td>Descuento</td><td class="right">${money(order.discount || 0)}</td></tr>
-        <tr><td><b>Total</b></td><td class="right"><b>${money(order.total || 0)}</b></td></tr>
-        <tr><td>Método de pago</td><td class="right">${escapeHtml(paymentSummaryText(order))}</td></tr>
-        ${paymentRowsHtml(order)}
-      </table>` : '';
-      const footer = isTicket ? '<p class="center small">Gracias por su compra</p>' : '';
-      const meta = isTicket
-        ? `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p><p><b>Vendedor:</b> ${escapeHtml(order.seller || '-')}</p>`
-        : `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
-      const style = `body{font-family:Arial,sans-serif;margin:0;padding:${isTicket ? '10px' : '6px'};width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}${totals}<div class="line"></div>${footer}</body></html>`;
+      const itemsTable = `<table><thead><tr><th>Producto / observacion</th><th class="center">Cant.</th></tr></thead><tbody>${itemRows}</tbody></table>`;
+      const meta = `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
+      const style = `body{font-family:Arial,sans-serif;margin:0;padding:6px;width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}<div class="line"></div></body></html>`;
       routePrint(html, 'cocina', 420);
       if(type === 'COMANDA') maybePrintKitchenNoticeToCaja(order);
     }

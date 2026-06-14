@@ -2804,22 +2804,22 @@
             <div class="glass-card p-4">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                 <div>
-                  <h5 class="section-title mb-1"><i class="fa-solid fa-calendar-plus me-2 text-success"></i>Registrar ventas históricas</h5>
-                  <p class="section-subtitle mb-0">Ingresa ventas generales de meses anteriores para alimentar las gráficas y tener un panorama completo.</p>
+                  <h5 class="section-title mb-1"><i class="fa-solid fa-calendar-plus me-2 text-success"></i>Registrar ventas manuales</h5>
+                  <p class="section-subtitle mb-0">Ingresa ventas generales de un rango de días (meses anteriores, semanas, etc.) para alimentar las gráficas.</p>
                 </div>
               </div>
               <div class="row g-3 mb-3">
                 <div class="col-md-3">
-                  <label class="form-label">Mes</label>
-                  <input id="histSalesMonth" type="month" class="form-control">
+                  <label class="form-label">Desde</label>
+                  <input id="histSalesFrom" type="date" class="form-control">
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">Total ventas del mes</label>
+                  <label class="form-label">Hasta</label>
+                  <input id="histSalesTo" type="date" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Total ventas del período</label>
                   <input id="histSalesAmount" type="text" inputmode="numeric" data-money-input="1" class="form-control" placeholder="1.500.000">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Pedidos (opcional)</label>
-                  <input id="histSalesOrders" type="number" class="form-control" placeholder="120">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                   <button class="btn btn-success btn-pill w-100" onclick="addHistoricalSale()"><i class="fa-solid fa-plus me-2"></i>Registrar</button>
@@ -10472,35 +10472,28 @@ function parseMoneyValue(value){
     }
 
     // =====================================================================
-    // VENTAS HISTÓRICAS: registrar ventas de meses anteriores para gráficas
+    // VENTAS HISTÓRICAS: registrar ventas de rangos de días para gráficas
     // =====================================================================
     function getHistoricalSales(){
       if(!Array.isArray(state.historicalSales)) state.historicalSales = [];
       return state.historicalSales;
     }
     function addHistoricalSale(){
-      const monthInput = byId('histSalesMonth');
+      const fromInput = byId('histSalesFrom');
+      const toInput = byId('histSalesTo');
       const amountInput = byId('histSalesAmount');
-      const ordersInput = byId('histSalesOrders');
-      const month = monthInput?.value || '';
+      const fromDate = fromInput?.value || '';
+      const toDate = toInput?.value || '';
       const amount = clampNumber(amountInput?.value || 0);
-      const orders = Number(ordersInput?.value || 0);
-      if(!month){ toast('Selecciona un mes', 'warning'); return; }
+      if(!fromDate || !toDate){ toast('Selecciona la fecha de inicio y fin', 'warning'); return; }
+      if(fromDate > toDate){ toast('La fecha "Desde" debe ser anterior o igual a "Hasta"', 'warning'); return; }
       if(amount <= 0){ toast('Ingresa un monto de ventas mayor a cero', 'warning'); return; }
       if(!Array.isArray(state.historicalSales)) state.historicalSales = [];
-      // Si ya existe un registro para ese mes, se actualiza
-      const existing = state.historicalSales.find(h => h.month === month);
-      if(existing){
-        existing.amount = amount;
-        existing.orders = orders || existing.orders;
-        existing.updatedAt = new Date().toISOString();
-      } else {
-        state.historicalSales.push({ id:uid(), month, amount, orders, createdAt:new Date().toISOString() });
-      }
+      state.historicalSales.push({ id:uid(), fromDate, toDate, amount, createdAt:new Date().toISOString() });
       persistAll(false);
       setValue('histSalesAmount', '');
-      setValue('histSalesOrders', '');
-      toast(`Ventas de ${month} registradas: ${money(amount)}`, 'success');
+      const label = formatHistoricalRange(fromDate, toDate);
+      toast(`Ventas registradas (${label}): ${money(amount)}`, 'success');
       renderDashboard();
     }
     function removeHistoricalSale(id){
@@ -10510,21 +10503,36 @@ function parseMoneyValue(value){
       renderDashboard();
       toast('Registro eliminado', 'info');
     }
+    function formatHistoricalRange(from, to){
+      const f = parseLocalDate(from);
+      const t = parseLocalDate(to);
+      if(!f || !t) return `${from} a ${to}`;
+      const opts = { day:'2-digit', month:'short', year:'numeric' };
+      return `${f.toLocaleDateString('es-CO', opts)} – ${t.toLocaleDateString('es-CO', opts)}`;
+    }
     function renderHistoricalSalesList(){
       const list = byId('histSalesList');
       if(!list) return;
-      const sales = getHistoricalSales().slice().sort((a,b) => b.month.localeCompare(a.month));
+      const sales = getHistoricalSales().slice().sort((a,b) => (b.fromDate || b.month || '').localeCompare(a.fromDate || a.month || ''));
       if(!sales.length){
-        list.innerHTML = '<div class="text-secondary p-2">No hay ventas históricas registradas.</div>';
+        list.innerHTML = '<div class="text-secondary p-2">No hay ventas manuales registradas.</div>';
         return;
       }
       list.innerHTML = sales.map(h => {
-        const [year, mon] = h.month.split('-');
-        const label = new Date(Number(year), Number(mon) - 1).toLocaleDateString('es-CO', { month:'long', year:'numeric' });
+        let label;
+        if(h.fromDate && h.toDate){
+          label = formatHistoricalRange(h.fromDate, h.toDate);
+        } else if(h.month){
+          // Compatibilidad con registros antiguos por mes
+          const [year, mon] = h.month.split('-');
+          label = new Date(Number(year), Number(mon) - 1).toLocaleDateString('es-CO', { month:'long', year:'numeric' });
+        } else {
+          label = 'Sin fecha';
+        }
         return `<div class="metric-row">
           <span>${escapeHtml(label)}</span>
           <div class="d-flex align-items-center gap-3">
-            <strong>${money(h.amount)}${h.orders ? ` · ${h.orders} pedidos` : ''}</strong>
+            <strong>${money(h.amount)}</strong>
             <button class="btn btn-sm btn-outline-danger btn-pill" onclick="removeHistoricalSale('${h.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>`;
@@ -10534,13 +10542,29 @@ function parseMoneyValue(value){
     function historicalSalesInRange(from, to){
       if(!Array.isArray(state.historicalSales)) return 0;
       return state.historicalSales.reduce((sum, h) => {
-        const [year, mon] = (h.month || '').split('-').map(Number);
-        if(!year || !mon) return sum;
-        const monthStart = new Date(year, mon - 1, 1);
-        const monthEnd = new Date(year, mon, 0, 23, 59, 59, 999);
-        // Si el mes histórico cae dentro del rango, sumar
-        if(monthEnd >= from && monthStart <= to) return sum + Number(h.amount || 0);
-        return sum;
+        let hStart, hEnd;
+        if(h.fromDate && h.toDate){
+          hStart = startOfDay(parseLocalDate(h.fromDate));
+          hEnd = endOfDay(parseLocalDate(h.toDate));
+        } else if(h.month){
+          // Compatibilidad con formato antiguo (mes)
+          const [year, mon] = (h.month || '').split('-').map(Number);
+          if(!year || !mon) return sum;
+          hStart = new Date(year, mon - 1, 1);
+          hEnd = new Date(year, mon, 0, 23, 59, 59, 999);
+        } else {
+          return sum;
+        }
+        if(!hStart || !hEnd) return sum;
+        // Si el rango histórico se solapa con el rango consultado, sumar
+        // proporcionalmente los días que caen dentro del rango.
+        const overlapStart = new Date(Math.max(from.getTime(), hStart.getTime()));
+        const overlapEnd = new Date(Math.min(to.getTime(), hEnd.getTime()));
+        if(overlapEnd < overlapStart) return sum;
+        const totalDays = Math.max(1, Math.round((hEnd - hStart) / 86400000) + 1);
+        const overlapDays = Math.round((overlapEnd - overlapStart) / 86400000) + 1;
+        const proportion = overlapDays / totalDays;
+        return sum + Math.round(Number(h.amount || 0) * proportion);
       }, 0);
     }
 

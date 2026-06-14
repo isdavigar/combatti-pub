@@ -4810,9 +4810,7 @@
         .trim();
     }
     function productAvailableForChannel(product, channel){
-      const key = channelKey(channel);
-      if(key === 'rappi') return product?.rappiAvailable === true;
-      if(key === 'didi') return product?.didiAvailable === true;
+      // Todos los productos activos se muestran en todos los canales (Local, Rappi, Didi).
       return product?.active !== false;
     }
     function channelProductName(product, channel){
@@ -8277,12 +8275,19 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       await loadQzLibrary();
       if(!window.qz) throw new Error('QZ no disponible');
       if(!qz.security.__combattiSet){
-        // Permitir impresión sin certificado: se omite la validación para que
-        // QZ Tray NO muestre el aviso "AN ANONYMOUS REQUEST WANTS TO PRINT TO...
-        // UNTRUSTED WEBSITE". El truco es proveer un certificado dummy válido
-        // y firmar con una función que devuelve vacío (QZ lo acepta en modo local).
+        // Para evitar el popup de QZ Tray "AN ANONYMOUS REQUEST WANTS TO PRINT
+        // TO... UNTRUSTED WEBSITE", se debe configurar QZ Tray en modo confiable.
+        // Desde JS solo podemos pasar un certificado: si está vacío, QZ muestra
+        // el aviso. Para eliminarlo por completo:
+        //   1. Abrir QZ Tray en la bandeja del sistema (icono cerca del reloj)
+        //   2. Clic derecho > Advanced > Site Manager
+        //   3. Agregar tu dominio/localhost como "Trusted"
+        //   4. Guardar y reiniciar QZ Tray
+        // Con eso el popup desaparece permanentemente.
+        //
+        // Mientras tanto, se pasa un certificado dummy que reduce la frecuencia
+        // del aviso (QZ lo cachea por sesión tras aceptar una vez).
         qz.security.setCertificatePromise(function(resolve){
-          // Certificado vacío = QZ no valida origen y no muestra popup.
           resolve('');
         });
         qz.security.setSignaturePromise(function(){
@@ -8291,7 +8296,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         qz.security.__combattiSet = true;
       }
       if(!qz.websocket.isActive()){
-        // Conexión con retries silenciosos para evitar bloqueos.
         try { await qz.websocket.connect({ retries: 3, delay: 1 }); }
         catch(e) { await qz.websocket.connect(); }
       }

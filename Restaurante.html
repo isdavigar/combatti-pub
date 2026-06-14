@@ -6204,7 +6204,8 @@
       if(view === 'movimientos') renderMovements();
       if(view === 'marca'){ applyTheme(); renderUsers(); }
     }
-    function renderAll(){ renderDashboard(); renderTables(); renderProducts(); renderInventory(); renderSupplies(); renderCashView(); renderBrandInputs(); renderUsers(); renderSoldByCategoryReport(); renderOrderHistory(); renderDeliveryZones(); updateShiftUI(); applyPermissions(); updateBadges(); updateSidebarCash(); updateCashActionButtons(); if(currentOrderTableId) renderOrderModalContent(); }
+    let _isRemoteRender = false;
+    function renderAll(){ renderDashboard(); renderTables(); renderProducts(); renderInventory(); renderSupplies(); renderCashView(); renderBrandInputs(); renderUsers(); renderSoldByCategoryReport(); renderOrderHistory(); renderDeliveryZones(); updateShiftUI(); applyPermissions(); updateBadges(); updateSidebarCash(); updateCashActionButtons(); if(currentOrderTableId && !_isRemoteRender) renderOrderModalContent(); }
     function updateBadges(){
       setText('badgeTables', `${state.tables.length} ${state.tables.length === 1 ? 'mesa' : 'mesas'}`);
       setText('badgeOrders', `${state.orders.filter(o => o.status === 'Abierto').length} pedidos abiertos`);
@@ -7820,7 +7821,32 @@ const colors = [
       order.kitchenSentSnapshot = delta.snapshot;
       (order.items || []).forEach(item => { item.kitchenSent = true; });
       order.printed = true;
+      // Emitir sonido de alerta (beep) cuando se envía un pedido a cocina.
+      playKitchenBeep();
       return true;
+    }
+    // Beep sonoro usando Web Audio API: suena en todos los dispositivos sin
+    // necesidad de archivos externos ni plugins. Ideal para alertar al cocinero.
+    function playKitchenBeep(){
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if(!AudioCtx) return;
+        const ctx = new AudioCtx();
+        // Doble beep: bip-bip para que sea distinguible
+        [0, 0.18].forEach(delay => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'square';
+          osc.frequency.value = 1200;
+          gain.gain.value = 0.4;
+          osc.start(ctx.currentTime + delay);
+          osc.stop(ctx.currentTime + delay + 0.12);
+        });
+        // Cerrar el contexto después del sonido
+        setTimeout(() => { try { ctx.close(); } catch(_){} }, 600);
+      } catch(_){}
     }
     function kitchenDisplayUrl(){
       return `${location.href.split('#')[0]}${KITCHEN_HASH}`;
@@ -8536,6 +8562,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(!seenKitchenTicketIds.size){ seenKitchenTicketIds = ids; return; }
       const fresh = orders.filter(order => !seenKitchenTicketIds.has(order.id));
       seenKitchenTicketIds = ids;
+      if(fresh.length){
+        // Sonar beep de alerta en la pantalla de cocina cuando llega un pedido nuevo
+        playKitchenBeep();
+      }
       fresh.forEach(order => {
         const qty = (order.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
         toast(`Nuevo producto agregado en pantalla cocina: ${order.tableName || 'Pedido'} (${qty} producto${qty === 1 ? '' : 's'})`, 'success');
@@ -11445,7 +11475,11 @@ function scheduleRemoteApply() {
     relinkCurrentOrder();
     syncAllTableOrderSnapshots();
     saveStateToDatabase(appStateSnapshot());
+    // No re-renderizar el modal de pedido durante sync remota para evitar
+    // que los productos se actualicen mientras el usuario está en un pedido.
+    _isRemoteRender = true;
     renderAll();
+    _isRemoteRender = false;
     if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
   }, 140);
 }

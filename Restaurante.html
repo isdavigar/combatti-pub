@@ -6102,11 +6102,14 @@
     }
     // Cuando la nube indica que la caja pasó a ABIERTA (otro dispositivo la abrió)
     // y este equipo estaba esperando en la vista de caja, entra al software normal.
-    function reactToCashStateForSync(){
-      if(cashGateView && currentUser && state.cash.open){
+     function reactToCashStateForSync(){
+      if(currentUser && state.cash.open && cashGateView){
         cashGateView = false;
         openView(firstAllowedView());
+        renderAll();
       }
+      updateCashActionButtons();
+      renderCashView();
     }
     function logout(){ localStorage.removeItem(STORAGE.session); currentUser = null; location.reload(); }
     function applyPermissions(){
@@ -8693,6 +8696,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // Importante: usar persistAll para que la caja ABIERTA se suba a la nube.
       // Si solo se guardara en IndexedDB, al recargar la nube traeria la caja
       // cerrada y la cerraria de nuevo.
+       await pushIncremental(true);
       persistAll(false);
       modals.cashOpen?.hide?.();
       setValue('cashOpenAmount', '');
@@ -11000,6 +11004,7 @@ function applyConfigRemote(data) {
     tableLayoutVersion: state.tableLayoutVersion || '',
     license: licenseConfigForSync()
   });
+  if(typeof updateCashActionButtons === 'function') updateCashActionButtons();
 }
 
 function saveFirebaseConfig() {

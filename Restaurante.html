@@ -2229,35 +2229,69 @@
       body.sidebar-open .sidebar{ transform:translateX(0); }
       .sidebar-backdrop{ z-index:1250; }
       body.sidebar-open .sidebar-backdrop{ display:block; }
-      /* La marca y el botón de cerrar se ven dentro del menú deslizable */
       .sidebar .brand-badge{ display:flex !important; }
       .sidebar .brand-sub{ display:block !important; }
       .sidebar-close-button{ display:grid !important; }
-      /* Opciones del menú en columna, a lo ancho y cómodas de tocar */
       .sidebar > .d-grid{ display:grid !important; grid-template-columns:1fr; gap:8px !important; }
       .sidebar .nav-pill{ width:100%; padding:13px 14px; font-size:.98rem; border-radius:14px; }
       .sidebar-footer{ margin-top:auto !important; padding-top:12px !important; border-top:1px solid var(--border) !important; display:block; }
       .sidebar-footer .cash-mini{ display:grid !important; }
       .main-content{ margin-left:0 !important; }
 
-      /* Barra verde superior: compacta y ordenada */
-      .app-topbar{ padding:10px 14px; gap:8px 10px; }
+      /* ===== Modales: llenan la pantalla completa sin cortar el blanco ===== */
+      .modal-dialog{
+        margin:0 !important;
+        max-width:100% !important;
+        width:100% !important;
+        min-height:100vh !important;
+        min-height:100dvh !important;
+        display:flex !important;
+        align-items:stretch !important;
+      }
+      .modal-dialog-centered{ align-items:stretch !important; }
+      .modal-content{
+        min-height:100vh !important;
+        min-height:100dvh !important;
+        width:100% !important;
+        border-radius:0 !important;
+        display:flex !important;
+        flex-direction:column !important;
+      }
+      .modal-body{
+        flex:1 1 auto !important;
+        overflow-y:auto !important;
+        -webkit-overflow-scrolling:touch;
+      }
+      .modal-footer{
+        position:sticky;
+        bottom:0;
+        background:var(--card);
+        border-top:1px solid var(--border);
+        z-index:5;
+      }
+
+      /* Barra verde superior: todo en una sola línea, solo la caja abajo */
+      .app-topbar{ padding:10px 14px; gap:0; flex-wrap:nowrap; }
+      .app-topbar-left{ gap:8px; }
       .app-topbar-brand-name{ display:none; }
-      .app-topbar-right{ gap:8px; row-gap:8px; }
-      /* La acción de caja pasa a su propia fila a lo ancho para no amontonar */
-      .app-topbar-right #topCashActionArea{ order:5; flex:1 1 100%; }
+      .app-topbar-right{ gap:8px; flex-wrap:wrap; margin-left:auto; }
+      .app-topbar-right > #cloudTopIndicator,
+      .app-topbar-right > #themeToggleBtn,
+      .app-topbar-right > #topUserMenu{ flex:0 0 auto; }
+      .app-topbar-right #topCashActionArea{ order:5; flex:1 1 100%; margin-top:6px; }
       .app-topbar-right #topCashActionArea > .btn,
-      .app-topbar .cash-open-badge{ width:100%; justify-content:center; min-height:42px; }
+      .app-topbar .cash-open-badge{ width:100%; justify-content:center; min-height:40px; font-size:.82rem; }
     }
     @media (max-width: 576px){
-      .app-topbar{ padding:9px 12px; gap:8px; }
-      .app-topbar-logo{ width:40px; height:40px; }
-      .app-topbar-icon-btn{ width:40px; height:40px; }
-      /* En pantallas muy pequeñas el usuario queda solo como avatar */
+      .app-topbar{ padding:8px 10px; }
+      .app-topbar-logo{ width:36px; height:36px; }
+      .app-topbar-icon-btn{ width:36px; height:36px; font-size:.9rem; }
+      .app-topbar .cloud-indicator{ padding:.4rem .6rem; font-size:.72rem; }
+      .app-topbar .cloud-indicator-text{ display:none; }
       .app-topbar .user-menu-id{ display:none; }
       .app-topbar .user-menu-caret{ display:none; }
-      .app-topbar .user-menu-trigger{ padding:6px; gap:0; }
-      .app-topbar .cash-open-badge{ font-size:.78rem; }
+      .app-topbar .user-menu-trigger{ padding:5px; gap:0; border-radius:50%; }
+      .app-topbar .cash-open-badge{ font-size:.72rem; min-height:36px; }
     }
     </style>
 </head>
@@ -10874,15 +10908,17 @@ function cashChangeTime(cash) {
 }
 function applyConfigRemote(data) {
   if (!data) return;
-  // Caja: NO permitimos que una lectura vieja de la nube cierre una caja que
-  // localmente esta abierta mas recientemente (esto evitaba que al recargar la
-  // pagina se cerrara la caja). Solo aplicamos la caja remota si es igual o
-  // mas reciente que la local.
+  // Caja: siempre gana la versión MÁS RECIENTE (la última apertura o cierre).
+  // Así se evita que cada dispositivo mantenga su propia caja y haya "2 cajas abiertas".
   let keptLocalCash = false;
   if (data.cash != null) {
-    if (state.cash && cashChangeTime(state.cash) > cashChangeTime(data.cash)) {
+    const remoteTime = cashChangeTime(data.cash);
+    const localTime = cashChangeTime(state.cash);
+    if (localTime > remoteTime) {
+      // Lo local es más reciente → conservar y dejar que el próximo push suba lo local.
       keptLocalCash = true;
     } else {
+      // La nube es igual o más reciente → aplicarla (fuente de verdad).
       state.cash = data.cash;
     }
   }

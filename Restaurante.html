@@ -88,7 +88,8 @@
     .bg-success{ background-color:var(--primary) !important; }
     .border-success{ border-color:var(--primary) !important; }
     .text-success{ color:var(--primary) !important; }
-    .app-shell{ min-height:100vh; }
+    .app-shell{ min-height:100vh; overflow-x:hidden; }
+    body{ overflow-x:hidden; }
     .sidebar{
       width:278px;
       position:fixed;
@@ -2270,28 +2271,78 @@
         z-index:5;
       }
 
-      /* Barra verde superior: todo en una sola línea, solo la caja abajo */
-      .app-topbar{ padding:10px 14px; gap:0; flex-wrap:nowrap; }
-      .app-topbar-left{ gap:8px; }
+      /* Barra verde superior: logo, nube, tema y avatar en UNA sola fila */
+      .app-topbar{
+        padding:10px 12px;
+        gap:0;
+        flex-wrap:nowrap !important;
+        overflow:hidden;
+      }
+      .app-topbar-left{
+        gap:8px;
+        flex:0 0 auto;
+        min-width:0;
+      }
+      .app-topbar-brand{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        min-width:0;
+      }
       .app-topbar-brand-name{ display:none; }
-      .app-topbar-right{ gap:8px; flex-wrap:wrap; margin-left:auto; }
+      .app-topbar-logo{ width:36px; height:36px; border-radius:12px; font-size:.9rem; }
+      .app-topbar-right{
+        gap:6px;
+        flex-wrap:nowrap !important;
+        margin-left:auto;
+        flex:0 0 auto;
+      }
+      /* Cloud, theme y avatar NUNCA envuelven: quedan en línea con el logo */
       .app-topbar-right > #cloudTopIndicator,
       .app-topbar-right > #themeToggleBtn,
       .app-topbar-right > #topUserMenu{ flex:0 0 auto; }
-      .app-topbar-right #topCashActionArea{ order:5; flex:1 1 100%; margin-top:6px; }
+      /* La caja va en fila aparte a lo ancho */
+      .app-topbar-right > #topCashActionArea{
+        position:absolute;
+        left:12px; right:12px;
+        bottom:-44px;
+        z-index:1099;
+      }
       .app-topbar-right #topCashActionArea > .btn,
-      .app-topbar .cash-open-badge{ width:100%; justify-content:center; min-height:40px; font-size:.82rem; }
+      .app-topbar .cash-open-badge{
+        width:100%;
+        justify-content:center;
+        min-height:38px;
+        font-size:.8rem;
+        border-radius:0 0 16px 16px;
+        box-shadow:0 8px 18px rgba(0,0,0,.12);
+      }
+      /* Espacio para la caja debajo de la topbar */
+      .app-topbar{ position:relative; margin-bottom:48px; }
+
+      /* Menú lateral móvil: eliminar scroll horizontal y centrar opciones */
+      .sidebar .d-grid{ overflow-x:hidden !important; }
+      .sidebar .nav-pill{
+        width:100% !important;
+        margin-left:0 !important;
+        margin-right:0 !important;
+        text-align:left;
+      }
     }
     @media (max-width: 576px){
       .app-topbar{ padding:8px 10px; }
-      .app-topbar-logo{ width:36px; height:36px; }
-      .app-topbar-icon-btn{ width:36px; height:36px; font-size:.9rem; }
-      .app-topbar .cloud-indicator{ padding:.4rem .6rem; font-size:.72rem; }
+      .app-topbar-toggle{ width:36px; height:36px; border-radius:10px; font-size:.9rem; }
+      .app-topbar-logo{ width:32px; height:32px; border-radius:10px; font-size:.8rem; }
+      .app-topbar-icon-btn{ width:34px; height:34px; font-size:.85rem; border-radius:10px; }
+      .app-topbar .cloud-indicator{ padding:.35rem .5rem; font-size:.7rem; border-radius:10px; }
       .app-topbar .cloud-indicator-text{ display:none; }
       .app-topbar .user-menu-id{ display:none; }
       .app-topbar .user-menu-caret{ display:none; }
-      .app-topbar .user-menu-trigger{ padding:5px; gap:0; border-radius:50%; }
-      .app-topbar .cash-open-badge{ font-size:.72rem; min-height:36px; }
+      .app-topbar .user-menu-trigger{ padding:4px; gap:0; border-radius:50%; }
+      .app-topbar .user-avatar{ width:32px; height:32px; }
+      .app-topbar .cash-open-badge{ font-size:.72rem; min-height:34px; }
+      .app-topbar-right > #topCashActionArea{ bottom:-40px; left:10px; right:10px; }
+      .app-topbar{ margin-bottom:44px; }
     }
     </style>
 </head>
@@ -10908,19 +10959,10 @@ function cashChangeTime(cash) {
 }
 function applyConfigRemote(data) {
   if (!data) return;
-  // Caja: siempre gana la versión MÁS RECIENTE (la última apertura o cierre).
-  // Así se evita que cada dispositivo mantenga su propia caja y haya "2 cajas abiertas".
-  let keptLocalCash = false;
+  // Caja: SIEMPRE aplicamos lo que viene de la nube. La nube es la fuente de verdad.
+  // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
   if (data.cash != null) {
-    const remoteTime = cashChangeTime(data.cash);
-    const localTime = cashChangeTime(state.cash);
-    if (localTime > remoteTime) {
-      // Lo local es más reciente → conservar y dejar que el próximo push suba lo local.
-      keptLocalCash = true;
-    } else {
-      // La nube es igual o más reciente → aplicarla (fuente de verdad).
-      state.cash = data.cash;
-    }
+    state.cash = data.cash;
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
@@ -10939,7 +10981,7 @@ function applyConfigRemote(data) {
   // reciente, dejamos el shadow con la caja remota para que el siguiente push
   // suba la caja correcta (abierta) y la nube quede sincronizada.
   cloudConfigShadow = cloudConfigKey({
-    cash: keptLocalCash ? (data.cash ?? null) : (state.cash ?? null),
+    cash: state.cash ?? null,
     brand: state.brand ?? null,
     shift: normalizeShift(state.shift),
     categories: state.categories || [],

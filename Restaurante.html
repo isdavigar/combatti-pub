@@ -5327,7 +5327,6 @@
       };
     }
     function normalizePrinting(p = {}){
-    function normalizePrinting(p = {}){
       const list = Array.isArray(p && p.list) ? p.list.filter(x => x && x.name).map(x => ({
         id: x.id || uid(),
         name: String(x.name).trim(),

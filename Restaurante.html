@@ -4011,9 +4011,17 @@
               <select id="printerCajaSelect" class="form-select"></select>
             </div>
           </div>
+          <div class="form-check form-switch mb-3" style="border:2px solid rgba(var(--primary-rgb),.3);border-radius:14px;padding:14px;">
+            <input class="form-check-input" type="checkbox" id="printStationToggle" onchange="togglePrintStation()">
+            <label class="form-check-label fw-bold" for="printStationToggle">
+              <i class="fa-solid fa-tower-broadcast me-1 text-success"></i>Estación de impresión remota
+            </label>
+            <div class="section-subtitle mt-1" id="printStationLabel">Inactiva — no recibe trabajos remotos</div>
+            <div class="section-subtitle mt-1">Activa esto SOLO en el dispositivo que tiene la impresora física. Los demás dispositivos (celular, tablet) enviarán sus impresiones aquí automáticamente.</div>
+          </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="printerNotifyCaja">
-            <label class="form-check-label" for="printerNotifyCaja">Cuando se envía una comanda a cocina, imprimir también un aviso pequeño en caja (requiere QZ Tray)</label>
+            <label class="form-check-label" for="printerNotifyCaja">Cuando se envía una comanda a cocina, imprimir también un aviso en caja</label>
           </div>
           <hr>
           <h6 class="fw-bold mb-1">Mis impresoras</h6>
@@ -4346,6 +4354,10 @@
       ensureLoginCarouselTimer();
       initLicenseSystem();
       autoStartCloudSync();
+      // Iniciar cola de impresión remota si este dispositivo es estación
+      loadPrintStationFlag();
+      if(isPrintStation) setTimeout(() => startPrintQueueListener(), 3000);
+      setInterval(cleanOldPrintJobs, 600000); // limpiar cada 10 min
     });
 
     function getProductAvatar(productName){
@@ -8332,10 +8344,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       return role === 'cocina' ? pr.cocina : pr.caja;
     }
     function openBrowserPrint(html, width = 420){
-      // Impresión silenciosa usando iframe oculto: no abre ventana nueva,
-      // muestra directamente el diálogo de imprimir del navegador.
-      // El navegador RECUERDA la última impresora usada por sitio web,
-      // así que después de la primera impresión no hay que configurar de nuevo.
+      // Impresión directa usando iframe oculto.
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:0;visibility:hidden;';
       document.body.appendChild(iframe);
@@ -8346,18 +8355,106 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
         } catch(_){}
-        // Limpiar iframe después de un tiempo prudente
         setTimeout(() => { try { document.body.removeChild(iframe); } catch(_){} }, 3000);
       }, 400);
       return true;
     }
-    // Enruta un documento HTML a la impresora del rol indicado.
-    // La configuración de impresoras se comparte entre dispositivos vía Firebase
-    // (state.brand.printing). El navegador recuerda la última impresora usada
-    // por sitio, así que no hay que configurar en cada dispositivo una vez que
-    // se imprime la primera vez.
+
+    // =====================================================================
+    // COLA DE IMPRESIÓN REMOTA: permite imprimir desde cualquier dispositivo
+    // (celular, tablet) usando el dispositivo principal como impresora.
+    // =====================================================================
+    const PRINT_QUEUE_KEY = 'combatti_is_print_station';
+    let isPrintStation = false;
+    let printQueueUnsub = null;
+
+    // ¿Este dispositivo es la estación de impresión?
+    function loadPrintStationFlag(){
+      try { isPrintStation = localStorage.getItem(PRINT_QUEUE_KEY) === 'true'; } catch(_){}
+    }
+    function setPrintStation(enabled){
+      isPrintStation = !!enabled;
+      try { localStorage.setItem(PRINT_QUEUE_KEY, isPrintStation ? 'true' : 'false'); } catch(_){}
+      if(isPrintStation) startPrintQueueListener();
+      else stopPrintQueueListener();
+      toast(isPrintStation ? 'Este dispositivo es ahora la ESTACIÓN DE IMPRESIÓN. Recibirá trabajos de otros dispositivos.' : 'Este dispositivo ya no es estación de impresión.', 'info');
+    }
+    function togglePrintStation(){
+      setPrintStation(!isPrintStation);
+      renderPrintStationUI();
+    }
+    function renderPrintStationUI(){
+      const el = byId('printStationToggle');
+      if(el) el.checked = isPrintStation;
+      const label = byId('printStationLabel');
+      if(label) label.textContent = isPrintStation ? 'ACTIVA — imprime trabajos de otros dispositivos' : 'Inactiva — no recibe trabajos remotos';
+    }
+
+    // Encolar un trabajo de impresión en Firebase para que lo recoja la estación.
+    async function enqueuePrintJob(html, role){
+      if(!firebaseDb) return false;
+      try {
+        await restaurantRoot().collection('printQueue').add({
+          html,
+          role: role || 'cocina',
+          createdAt: new Date().toISOString(),
+          device: CLOUD_DEVICE_ID,
+          printed: false
+        });
+        return true;
+      } catch(e){
+        console.warn('Error encolando impresión:', e);
+        return false;
+      }
+    }
+
+    // La estación de impresión escucha la cola y ejecuta los trabajos nuevos.
+    function startPrintQueueListener(){
+      if(!firebaseDb || printQueueUnsub) return;
+      const queueRef = restaurantRoot().collection('printQueue');
+      printQueueUnsub = queueRef.where('printed', '==', false).onSnapshot(snap => {
+        snap.docChanges().forEach(change => {
+          if(change.type !== 'added') return;
+          const job = change.doc.data();
+          // No imprimir nuestros propios trabajos (ya los imprimimos localmente)
+          if(job.device === CLOUD_DEVICE_ID) return;
+          // Imprimir el trabajo
+          openBrowserPrint(job.html, 420);
+          playKitchenBeep();
+          // Marcar como impreso
+          change.doc.ref.update({ printed: true, printedAt: new Date().toISOString(), printedBy: CLOUD_DEVICE_ID }).catch(()=>{});
+        });
+      }, err => console.warn('printQueue listener:', err));
+    }
+    function stopPrintQueueListener(){
+      if(printQueueUnsub){ printQueueUnsub(); printQueueUnsub = null; }
+    }
+
+    // Limpiar trabajos viejos (más de 1 hora) para no acumular basura.
+    async function cleanOldPrintJobs(){
+      if(!firebaseDb) return;
+      try {
+        const cutoff = new Date(Date.now() - 3600000).toISOString();
+        const old = await restaurantRoot().collection('printQueue').where('createdAt', '<', cutoff).get();
+        if(old.empty) return;
+        const batch = firebaseDb.batch();
+        old.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      } catch(_){}
+    }
+
+    // Enruta un documento HTML a imprimir.
+    // Si este dispositivo tiene impresora (estación), imprime directo.
+    // Si NO es estación, encola el trabajo en Firebase para que la estación lo imprima.
     async function routePrint(html, role, width = 420){
+      // Siempre intentar imprimir localmente
       openBrowserPrint(html, width);
+      // Además, si hay nube activa, encolar para que la estación de impresión
+      // también lo reciba (útil cuando imprimes desde el celular y la impresora
+      // está en otro dispositivo).
+      if(firebaseDb && cloudSyncEnabled && !isPrintStation){
+        enqueuePrintJob(html, role);
+      }
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.
     function kitchenNoticeHtml(order){
@@ -8443,6 +8540,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(byId('printerNotifyCaja')) byId('printerNotifyCaja').checked = printerDraft.notifyCaja;
       byId('qzPanel')?.classList.toggle('d-none', printerDraft.engine !== 'qz');
       renderPrinterSelectsAndList();
+      renderPrintStationUI();
       modals.printerConfig?.show();
     }
     function onPrinterEngineChange(){

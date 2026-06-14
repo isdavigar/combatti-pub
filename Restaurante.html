@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1022,7 +1023,6 @@
       display:grid;
       grid-template-columns:1fr;
       gap:10px;
-      margin-bottom:16px;
     }
     .list-panel{
       background:var(--card); border:1px solid var(--border);
@@ -3671,6 +3671,7 @@
           </div>
         </div>
         <div class="modal-footer">
+          <button class="btn btn-outline-danger btn-pill me-auto" type="button" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>
           <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
           <button class="btn btn-success btn-pill" onclick="openCash()">Abrir caja</button>
         </div>
@@ -6183,7 +6184,7 @@
       return activeCashUserName();
     }
 
-    function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';             const openActionsHtml = `<div class="d-grid gap-2">${openBtnHtml}${logoutBtnHtml}</div>`;       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openActionsHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="d-grid gap-2"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button>></div>`;     }      function salesBetween(fromDate, toDate){
+    function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const logoutBtnHtml = '<button class="btn btn-outline-danger btn-pill" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>';       const openActionsHtml = `<div class="d-flex gap-2 flex-wrap align-items-center">${openBtnHtml}${logoutBtnHtml}</div>`;       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openActionsHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="d-grid gap-2"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button><button class="btn btn-outline-danger btn-pill w-100" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button></div>`;     }      function salesBetween(fromDate, toDate){
       return state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
     }
     function movementsBetween(type, fromDate, toDate){

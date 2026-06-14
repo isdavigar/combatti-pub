@@ -4969,11 +4969,17 @@
     }
 
     function cleanupEmptyCurrentOrder(){
-      if(!currentOrder || currentOrder.items.length) return;
-      const table = state.tables.find(t => t.id === currentOrder.tableId);
-      state.orders = state.orders.filter(o => o.id !== currentOrder.id);
-      if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
-      else if(table){ table.status = 'Disponible'; table.orderId = null; }
+      if(!currentOrder) return;
+      // Si el pedido no fue guardado (nunca se marcó como printed ni se envió
+      // a cocina), eliminar el pedido completo y liberar la mesa.
+      const wasNeverSaved = !currentOrder.printed && !currentOrder.sentToKitchenAt && !currentOrder.paidAt;
+      const isEmpty = !currentOrder.items.length;
+      if(isEmpty || wasNeverSaved){
+        const table = state.tables.find(t => t.id === currentOrder.tableId);
+        state.orders = state.orders.filter(o => o.id !== currentOrder.id);
+        if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
+        else if(table){ table.status = 'Disponible'; table.orderId = null; }
+      }
       currentOrder = null; currentOrderTableId = null;
       persistAll();
     }
@@ -6305,10 +6311,10 @@
       document.getElementById('statSales7').textContent = money(sales7);
       setText('statSales30', money(sales30));
       setText('statSalesYear', money(salesYear));
-      setSalesGoalCard('Today', todaySales, 100000);
-      setSalesGoalCard('7', sales7, 700000);
-      setSalesGoalCard('30', sales30, 3000000);
-      setSalesGoalCard('Year', salesYear, 36500000);
+      setSalesGoalCard('Today', todaySales, 500000);
+      setSalesGoalCard('7', sales7, 3500000);
+      setSalesGoalCard('30', sales30, 15000000);
+      setSalesGoalCard('Year', salesYear, 180000000);
       document.getElementById('occupiedCount').textContent = openTables;
       setText('freeTablesCount', freeTables);
       setText('pendingOrders', pendingOrders);
@@ -8292,91 +8298,26 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       return role === 'cocina' ? pr.cocina : pr.caja;
     }
     function openBrowserPrint(html, width = 420){
-      const w = window.open('', '_blank', `width=${width},height=760`);
-      if(!w){ toast('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.', 'warning'); return false; }
-      w.document.open(); w.document.write(html); w.document.close();
-      setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 450);
+      // Impresión silenciosa usando iframe oculto: no abre ventana nueva,
+      // muestra directamente el diálogo de imprimir del navegador.
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:0;visibility:hidden;';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch(_){}
+        // Limpiar iframe después de un tiempo prudente
+        setTimeout(() => { try { document.body.removeChild(iframe); } catch(_){} }, 3000);
+      }, 400);
       return true;
     }
-    function loadQzLibrary(){
-      return new Promise((resolve, reject) => {
-        if(window.qz){ return resolve(); }
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/qz-tray@2/qz-tray.js';
-        s.onload = () => resolve();
-        s.onerror = () => reject(new Error('No se pudo cargar la librería de QZ Tray'));
-        document.head.appendChild(s);
-      });
-    }
-    async function ensureQz(){
-      await loadQzLibrary();
-      if(!window.qz) throw new Error('QZ no disponible');
-      if(!qz.security.__combattiSet){
-        // Para evitar el popup de QZ Tray "AN ANONYMOUS REQUEST WANTS TO PRINT
-        // TO... UNTRUSTED WEBSITE", se debe configurar QZ Tray en modo confiable.
-        // Desde JS solo podemos pasar un certificado: si está vacío, QZ muestra
-        // el aviso. Para eliminarlo por completo:
-        //   1. Abrir QZ Tray en la bandeja del sistema (icono cerca del reloj)
-        //   2. Clic derecho > Advanced > Site Manager
-        //   3. Agregar tu dominio/localhost como "Trusted"
-        //   4. Guardar y reiniciar QZ Tray
-        // Con eso el popup desaparece permanentemente.
-        //
-        // Mientras tanto, se pasa un certificado dummy que reduce la frecuencia
-        // del aviso (QZ lo cachea por sesión tras aceptar una vez).
-        qz.security.setCertificatePromise(function(resolve){
-          resolve('');
-        });
-        qz.security.setSignaturePromise(function(){
-          return function(resolve){ resolve(''); };
-        });
-        qz.security.__combattiSet = true;
-      }
-      if(!qz.websocket.isActive()){
-        try { await qz.websocket.connect({ retries: 3, delay: 1 }); }
-        catch(e) { await qz.websocket.connect(); }
-      }
-      qzConnected = true;
-    }
-    async function connectQzAndList(){
-      setText('qzStatusText', 'QZ Tray: conectando...');
-      try{
-        await ensureQz();
-        let printers = await qz.printers.find();
-        qzDetectedPrinters = Array.isArray(printers) ? printers : [printers].filter(Boolean);
-        // Auto-agregar impresoras detectadas a la lista (sin duplicar)
-        const existing = new Set((printerDraft.list || []).map(p => p.name.toLowerCase()));
-        qzDetectedPrinters.forEach(name => {
-          if(!existing.has(String(name).toLowerCase())){
-            printerDraft.list.push({ id:uid(), name:String(name), role:'otro' });
-            existing.add(String(name).toLowerCase());
-          }
-        });
-        setText('qzStatusText', `QZ Tray conectado. ${qzDetectedPrinters.length} impresora(s) detectada(s) y agregada(s) a la lista. Asigna el uso de cada una.`);
-        renderPrinterSelectsAndList();
-        toast(`${qzDetectedPrinters.length} impresora(s) detectada(s)`, 'success');
-      }catch(e){
-        qzConnected = false;
-        console.warn('QZ connect', e);
-        setText('qzStatusText', 'No se pudo conectar a QZ Tray. ¿Está instalado y abierto?');
-        toast('No se pudo conectar a QZ Tray', 'warning');
-      }
-    }
-    async function qzPrintHtml(printerName, html){
-      await ensureQz();
-      const cfg = qz.configs.create(printerName, { rasterize:true, scaleContent:true });
-      await qz.print(cfg, [{ type:'pixel', format:'html', flavor:'plain', data: html }]);
-    }
-    // Enruta un documento HTML a la impresora del rol indicado ('cocina' | 'caja').
+    // Enruta un documento HTML a la impresora del rol indicado.
+    // Ya NO usa QZ Tray: imprime directamente con el diálogo del navegador.
     async function routePrint(html, role, width = 420){
-      const pr = printingConfig();
-      if(pr.engine === 'qz'){
-        const printer = printerNameForRole(role);
-        if(printer){
-          try{ await qzPrintHtml(printer, html); toast(`Enviado a impresora de ${role}`, 'success'); return; }
-          catch(e){ console.warn('QZ print fail', e); toast('Falló la impresión automática; abriendo el cuadro de impresión.', 'warning'); }
-        }
-      }
       openBrowserPrint(html, width);
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.
@@ -8398,8 +8339,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
     function maybePrintKitchenNoticeToCaja(order){
       const pr = printingConfig();
-      // El aviso automático en caja sólo es posible con QZ Tray (impresión silenciosa).
-      if(pr.notifyCaja && pr.engine === 'qz' && printerNameForRole('caja')){
+      // Imprime el aviso de cocina en caja si está habilitado.
+      if(pr.notifyCaja){
         routePrint(kitchenNoticeHtml(order), 'caja', 300);
       }
     }

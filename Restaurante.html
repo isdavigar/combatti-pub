@@ -2798,6 +2798,38 @@
           </div>
         </div>
 
+        <!-- Ventas históricas: ingresar ventas de meses anteriores -->
+        <div class="row g-3 mb-4" data-admin-only>
+          <div class="col-12">
+            <div class="glass-card p-4">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <div>
+                  <h5 class="section-title mb-1"><i class="fa-solid fa-calendar-plus me-2 text-success"></i>Registrar ventas históricas</h5>
+                  <p class="section-subtitle mb-0">Ingresa ventas generales de meses anteriores para alimentar las gráficas y tener un panorama completo.</p>
+                </div>
+              </div>
+              <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                  <label class="form-label">Mes</label>
+                  <input id="histSalesMonth" type="month" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Total ventas del mes</label>
+                  <input id="histSalesAmount" type="text" inputmode="numeric" data-money-input="1" class="form-control" placeholder="1.500.000">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Pedidos (opcional)</label>
+                  <input id="histSalesOrders" type="number" class="form-control" placeholder="120">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                  <button class="btn btn-success btn-pill w-100" onclick="addHistoricalSale()"><i class="fa-solid fa-plus me-2"></i>Registrar</button>
+                </div>
+              </div>
+              <div id="histSalesList" class="metric-list"></div>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <section id="view-mesas" class="view">
@@ -4566,6 +4598,7 @@
         users:state.users, tables:state.tables, products:state.products, orders:state.orders,
         movements:state.movements, cash:state.cash, brand:state.brand, categories:state.categories || [],
         supplies:state.supplies || [], deliveryZones:state.deliveryZones || [], kitchenTickets:state.kitchenTickets || [], deletedOrders:state.deletedOrders || [],
+        historicalSales:state.historicalSales || [],
         layoutVersion:DATA_VERSION, dataVersion:DATA_VERSION, tableLayoutVersion:state.tableLayoutVersion || TABLE_LAYOUT_VERSION, theme:state.theme, shift:normalizeShift(state.shift)
       };
     }
@@ -5133,6 +5166,7 @@
       const deliveryZones = saved?.deliveryZones || legacy?.deliveryZones || [];
       const kitchenTickets = saved?.kitchenTickets || [];
       const deletedOrders = saved?.deletedOrders || legacy?.deletedOrders || [];
+      const historicalSales = saved?.historicalSales || [];
       const dataVersion = saved?.dataVersion || saved?.layoutVersion || legacy?.dataVersion;
       const tableLayoutVersion = saved?.tableLayoutVersion || legacy?.tableLayoutVersion || '';
       const theme = saved?.theme || legacy?.theme || 'light';
@@ -5158,6 +5192,7 @@
         state.movements = movements || [];
         state.kitchenTickets = Array.isArray(kitchenTickets) ? kitchenTickets : [];
         state.deletedOrders = Array.isArray(deletedOrders) ? deletedOrders : [];
+        state.historicalSales = Array.isArray(historicalSales) ? historicalSales : [];
         state.cash = cash || { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
         state.categories = Array.isArray(categories) ? categories : [];
         state.supplies = Array.isArray(supplies) ? supplies.map(normalizeSupply) : [];
@@ -6199,7 +6234,9 @@
     }
 
     function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const logoutBtnHtml = '<button class="btn btn-outline-danger btn-pill" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>';       const openActionsHtml = `<div class="d-flex gap-2 flex-wrap align-items-center">${openBtnHtml}${logoutBtnHtml}</div>`;       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openActionsHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="d-grid gap-2"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button><button class="btn btn-outline-danger btn-pill w-100" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button></div>`;     }      function salesBetween(fromDate, toDate){
-      return state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
+      const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
+      const historical = historicalSalesInRange(fromDate, toDate);
+      return orderSales + historical;
     }
     function movementsBetween(type, fromDate, toDate){
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
@@ -8043,7 +8080,7 @@ const colors = [
       const deltaItems = lastTicket ? lastTicket.items : order.items;
       const rows = deltaItems.map(item => `
         <tr>
-          <td class="center"><strong>${Number(item.qty || 0)}</strong></td>
+          <td class="center"><strong style="font-size:1.1rem">${Number(item.qty || 0)}</strong></td>
           <td><strong>${escapeHtml(item.name)}</strong>${item.note ? `<div class="kitchen-observation">(${escapeHtml(String(item.note)).replace(/\\n/g,'<br>')})</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
         </tr>
       `).join('');
@@ -8518,11 +8555,11 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const deltaItems = lastTicket ? lastTicket.items : order.items;
       const itemRows = deltaItems.map(i => `
         <tr>
+          <td class="center"><b style="font-size:16px">${Number(i.qty || 0)}</b></td>
           <td><b>${escapeHtml(i.name)}</b>${i.note ? `<div class="kitchen-observation">(${escapeHtml(String(i.note)).replace(/\\n/g,'<br>')})</div>` : '<div class="kitchen-observation is-empty">Sin observaciones</div>'}</td>
-          <td class="center"><b>${i.qty}</b></td>
         </tr>
       `).join('');
-      const itemsTable = `<table><thead><tr><th>Producto / observacion</th><th class="center">Cant.</th></tr></thead><tbody>${itemRows}</tbody></table>`;
+      const itemsTable = `<table><thead><tr><th class="center" style="width:50px">Cant.</th><th>Producto / observacion</th></tr></thead><tbody>${itemRows}</tbody></table>`;
       const meta = `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
       const style = `body{font-family:Arial,sans-serif;margin:0;padding:6px;width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}<div class="line"></div></body></html>`;
@@ -10431,6 +10468,80 @@ function parseMoneyValue(value){
       updateChart('ordersByHourChart', 'bar', hours.map(h => `${h}:00`), ordersByHour, 'Pedidos', false, { color:'#2563eb' });
       updateIncomeExpenseChart(incomeExpenseTotals.income, incomeExpenseTotals.expense);
       updateTopProductsPie(topLabels.length ? topLabels : ['Sin ventas'], topQty.length ? topQty : [1]);
+      renderHistoricalSalesList();
+    }
+
+    // =====================================================================
+    // VENTAS HISTÓRICAS: registrar ventas de meses anteriores para gráficas
+    // =====================================================================
+    function getHistoricalSales(){
+      if(!Array.isArray(state.historicalSales)) state.historicalSales = [];
+      return state.historicalSales;
+    }
+    function addHistoricalSale(){
+      const monthInput = byId('histSalesMonth');
+      const amountInput = byId('histSalesAmount');
+      const ordersInput = byId('histSalesOrders');
+      const month = monthInput?.value || '';
+      const amount = clampNumber(amountInput?.value || 0);
+      const orders = Number(ordersInput?.value || 0);
+      if(!month){ toast('Selecciona un mes', 'warning'); return; }
+      if(amount <= 0){ toast('Ingresa un monto de ventas mayor a cero', 'warning'); return; }
+      if(!Array.isArray(state.historicalSales)) state.historicalSales = [];
+      // Si ya existe un registro para ese mes, se actualiza
+      const existing = state.historicalSales.find(h => h.month === month);
+      if(existing){
+        existing.amount = amount;
+        existing.orders = orders || existing.orders;
+        existing.updatedAt = new Date().toISOString();
+      } else {
+        state.historicalSales.push({ id:uid(), month, amount, orders, createdAt:new Date().toISOString() });
+      }
+      persistAll(false);
+      setValue('histSalesAmount', '');
+      setValue('histSalesOrders', '');
+      toast(`Ventas de ${month} registradas: ${money(amount)}`, 'success');
+      renderDashboard();
+    }
+    function removeHistoricalSale(id){
+      if(!Array.isArray(state.historicalSales)) return;
+      state.historicalSales = state.historicalSales.filter(h => h.id !== id);
+      persistAll(false);
+      renderDashboard();
+      toast('Registro eliminado', 'info');
+    }
+    function renderHistoricalSalesList(){
+      const list = byId('histSalesList');
+      if(!list) return;
+      const sales = getHistoricalSales().slice().sort((a,b) => b.month.localeCompare(a.month));
+      if(!sales.length){
+        list.innerHTML = '<div class="text-secondary p-2">No hay ventas históricas registradas.</div>';
+        return;
+      }
+      list.innerHTML = sales.map(h => {
+        const [year, mon] = h.month.split('-');
+        const label = new Date(Number(year), Number(mon) - 1).toLocaleDateString('es-CO', { month:'long', year:'numeric' });
+        return `<div class="metric-row">
+          <span>${escapeHtml(label)}</span>
+          <div class="d-flex align-items-center gap-3">
+            <strong>${money(h.amount)}${h.orders ? ` · ${h.orders} pedidos` : ''}</strong>
+            <button class="btn btn-sm btn-outline-danger btn-pill" onclick="removeHistoricalSale('${h.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    // Incluye ventas históricas en salesBetween para que las gráficas las reflejen
+    function historicalSalesInRange(from, to){
+      if(!Array.isArray(state.historicalSales)) return 0;
+      return state.historicalSales.reduce((sum, h) => {
+        const [year, mon] = (h.month || '').split('-').map(Number);
+        if(!year || !mon) return sum;
+        const monthStart = new Date(year, mon - 1, 1);
+        const monthEnd = new Date(year, mon, 0, 23, 59, 59, 999);
+        // Si el mes histórico cae dentro del rango, sumar
+        if(monthEnd >= from && monthStart <= to) return sum + Number(h.amount || 0);
+        return sum;
+      }, 0);
     }
 
     function chartTextColor(){ return getComputedStyle(document.body).getPropertyValue('--text').trim() || '#18212f'; }
@@ -10844,7 +10955,7 @@ function parseMoneyValue(value){
 // que tendría un único documento con todo el estado.
 // =====================================================
 // Colecciones del negocio que se guardan documento por documento.
-const CLOUD_COLLECTIONS = ['users','tables','products','orders','movements','supplies','deliveryZones','kitchenTickets','deletedOrders'];
+const CLOUD_COLLECTIONS = ['users','tables','products','orders','movements','supplies','deliveryZones','kitchenTickets','deletedOrders','historicalSales'];
 // Campos internos de sincronización (no forman parte del negocio).
 const CLOUD_META_FIELDS = ['_device','_seq','_updatedAt'];
 const CLOUD_DEVICE_KEY = 'combatti_cloud_device_id_v1';

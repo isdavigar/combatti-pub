@@ -5960,11 +5960,24 @@
       localStorage.setItem(STORAGE.session, JSON.stringify({ ...currentUser, shift:state.shift }));
       showApp();
     }
-    function handleLogin(){
+    async function handleLogin(){
       const user = document.getElementById('loginUser').value.trim();
       const pass = document.getElementById('loginPass').value.trim();
       const shift = normalizeShift(byId('loginShift')?.value || 'Dia');
       if(!user || !pass){ toast('Completa usuario y contraseña', 'warning'); return; }
+      // Si la nube aún no terminó la primera sincronización, esperar hasta 4s
+      // para que los usuarios de la nube estén disponibles antes de validar.
+      if(!cloudInitialSyncDone && cloudSyncEnabled){
+        const btn = document.querySelector('#loginScreen .btn-success.btn-pill.w-100');
+        const origText = btn ? btn.textContent : '';
+        if(btn){ btn.disabled = true; btn.textContent = 'Conectando…'; }
+        let waited = 0;
+        while(!cloudInitialSyncDone && waited < 4000){
+          await new Promise(r => setTimeout(r, 200));
+          waited += 200;
+        }
+        if(btn){ btn.disabled = false; btn.textContent = origText; }
+      }
       const userKey = user.toLowerCase();
       const matches = state.users.filter(u => u.active !== false && u.username.toLowerCase() === userKey);
       const found = matches.find(u => u.password === pass);
@@ -8678,7 +8691,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const finalAfterDelivery = final - deliveryFees;
       return { orders, movements, sales, tips, deliveryFees, finalAfterDelivery, methodTotals, cashPayments, transferPayments, cardPayments, creditSales, courtesyTotal, income, expense, cashExpense, creditCardExpense, final };
     }
-    function openCash(){
+    async function openCash(){
       const amount = clampNumber(byId('cashOpenAmount')?.value || 0);
       state.cash = state.cash || { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
       state.shift = normalizeShift(byId('cashOpenShiftInput')?.value || state.shift);
@@ -8693,11 +8706,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       state.cash.openedByUser = currentUser?.username || 'Sin usuario';
       state.cash.history = Array.isArray(state.cash.history) ? state.cash.history : [];
       state.cash.history.push({ id:uid(), responsible: currentUser?.username || 'Sin usuario', shift:state.shift, openingAmount: amount, openedAt: state.cash.openedAt, closedAt:null, status:'Abierta', sales:0, income:0, expense:0, final:amount, orders:[], movementsHistory:[], expenseHistory:[] });
-      // Importante: usar persistAll para que la caja ABIERTA se suba a la nube.
-      // Si solo se guardara en IndexedDB, al recargar la nube traeria la caja
-      // cerrada y la cerraria de nuevo.
-       await pushIncremental(true);
+      // Importante: forzar push inmediato a la nube para que la caja ABIERTA
+      // se vea en todos los dispositivos en tiempo real, sin esperar el debounce.
       persistAll(false);
+      await pushIncremental(true);
       modals.cashOpen?.hide?.();
       setValue('cashOpenAmount', '');
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
@@ -8810,7 +8822,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       updateCloseDiscrepancy();
       modals.cashClose.show();
     }
-    function closeCash(){
+    async function closeCash(){
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
       // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
       const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
@@ -8835,13 +8847,19 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       }
       // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
       // los movimientos, para que el informe incluya ingresos/egresos del turno.
-      persistAll();
+      persistAll(false);
+      // Forzar push inmediato a la nube para que el cierre se vea en todos los
+      // dispositivos en tiempo real, sin esperar el debounce ni que isApplyingRemoteState
+      // lo bloquee.
+      await pushIncremental(true);
       modals.cashClose.hide();
       exportDailyCloseExcel(true, lastHistory);
       printCloseReport(lastHistory);
       sendCashCloseEmail(lastHistory);
       state.movements = [];
-      persistAll();
+      persistAll(false);
+      // Segundo push para subir los movimientos ya vaciados.
+      await pushIncremental(true);
       toast('Caja cerrada e informe generado', 'success');
       renderCashView();
       if(currentView === 'movimientos') renderMovements();
@@ -11538,7 +11556,7 @@ window.addEventListener('online', () => {
   if (cloudSyncEnabled) { reconnectCloud(false); pushIncremental(); }
 });
 window.addEventListener('offline', () => { cloudConnected = false; updateCloudStatus(); });
-setTimeout(() => { if (typeof autoStartCloudSync === 'function') autoStartCloudSync(); }, 200);
+// autoStartCloudSync ya se llama desde DOMContentLoaded; no se duplica aqui.
 
   </script>
 </body>

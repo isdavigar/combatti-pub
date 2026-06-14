@@ -8692,6 +8692,13 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
     function showCloseCashModal(){
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
+      // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
+      const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
+      const me = String(currentUser?.username || '').toLowerCase();
+      if(opener && me && opener !== me && !isSystemAdmin()){
+        toast(`Solo ${state.cash.openedByUser || state.cash.openedBy} (quien abrió la caja) o el administrador del sistema pueden cerrarla.`, 'warning');
+        return;
+      }
       if(!requireNoActiveOrders('cerrar caja')) return;
       const report = buildCashReport(cashPeriodStart(), new Date());
       const methodRows = PAYMENT_METHODS.map(method => `<div class="list-group-item d-flex justify-content-between"><span>${method}</span><strong>${money(report.methodTotals?.[method] || 0)}</strong></div>`).join('');
@@ -8704,6 +8711,13 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
     function closeCash(){
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
+      // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
+      const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
+      const me = String(currentUser?.username || '').toLowerCase();
+      if(opener && me && opener !== me && !isSystemAdmin()){
+        toast(`Solo ${state.cash.openedByUser || state.cash.openedBy} (quien abrió la caja) o el administrador del sistema pueden cerrarla.`, 'warning');
+        return;
+      }
       if(!requireNoActiveOrders('cerrar caja')) return;
       const closedAt = new Date().toISOString();
       const report = buildCashReport(cashPeriodStart(), new Date(closedAt));
@@ -10881,6 +10895,9 @@ function applyConfigRemote(data) {
   if (data.license && typeof data.license === 'object') {
     saveLicenseLocalSettings(data.license);
     if (typeof renderLicenseUi === 'function') renderLicenseUi();
+    // Si la URL de la base de datos o el clientId cambiaron, refrescar el estado
+    // de la licencia remota para que este dispositivo use la nueva conexión.
+    if (typeof refreshLicenseStatus === 'function') refreshLicenseStatus(false);
   }
   // El "shadow" refleja lo que HAY en la nube. Si conservamos una caja local mas
   // reciente, dejamos el shadow con la caja remota para que el siguiente push

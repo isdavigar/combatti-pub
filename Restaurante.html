@@ -2276,7 +2276,7 @@
         padding:10px 12px;
         gap:0;
         flex-wrap:nowrap !important;
-        overflow:hidden;
+        overflow:visible;
       }
       .app-topbar-left{
         gap:8px;
@@ -2301,24 +2301,35 @@
       .app-topbar-right > #cloudTopIndicator,
       .app-topbar-right > #themeToggleBtn,
       .app-topbar-right > #topUserMenu{ flex:0 0 auto; }
-      /* La caja va en fila aparte a lo ancho */
+      /* Menú de usuario: abre hacia ABAJO (no se corta) */
+      .app-topbar .user-menu-dropdown{
+        top:calc(100% + 6px) !important;
+        bottom:auto !important;
+        right:0 !important;
+        left:auto !important;
+        max-height:calc(100vh - 90px);
+        overflow-y:auto;
+        z-index:2300 !important;
+      }
+      /* La caja va como banner VISIBLE debajo de la barra verde */
+      .app-topbar{ margin-bottom:48px; }
       .app-topbar-right > #topCashActionArea{
         position:absolute;
-        left:12px; right:12px;
-        bottom:-44px;
+        left:0; right:0;
+        top:100%;
         z-index:1099;
       }
       .app-topbar-right #topCashActionArea > .btn,
       .app-topbar .cash-open-badge{
         width:100%;
+        display:flex !important;
         justify-content:center;
-        min-height:38px;
-        font-size:.8rem;
+        align-items:center;
+        min-height:40px;
+        font-size:.82rem;
         border-radius:0 0 16px 16px;
         box-shadow:0 8px 18px rgba(0,0,0,.12);
       }
-      /* Espacio para la caja debajo de la topbar */
-      .app-topbar{ position:relative; margin-bottom:48px; }
 
       /* Menú lateral móvil: eliminar scroll horizontal y centrar opciones */
       .sidebar .d-grid{ overflow-x:hidden !important; }
@@ -2341,7 +2352,7 @@
       .app-topbar .user-menu-trigger{ padding:4px; gap:0; border-radius:50%; }
       .app-topbar .user-avatar{ width:32px; height:32px; }
       .app-topbar .cash-open-badge{ font-size:.72rem; min-height:34px; }
-      .app-topbar-right > #topCashActionArea{ bottom:-40px; left:10px; right:10px; }
+      .app-topbar-right > #topCashActionArea{ top:100%; left:0; right:0; }
       .app-topbar{ margin-bottom:44px; }
     }
     </style>

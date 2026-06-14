@@ -8444,16 +8444,25 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
 
     // Enruta un documento HTML a imprimir.
-    // Si este dispositivo tiene impresora (estación), imprime directo.
-    // Si NO es estación, encola el trabajo en Firebase para que la estación lo imprima.
+    // - Si este dispositivo ES la estación de impresión: imprime directamente aquí.
+    // - Si NO es estación (celular, tablet, etc.): envía el trabajo a la estación
+    //   de impresión vía Firebase. NO abre el diálogo de imprimir local.
     async function routePrint(html, role, width = 420){
-      // Siempre intentar imprimir localmente
-      openBrowserPrint(html, width);
-      // Además, si hay nube activa, encolar para que la estación de impresión
-      // también lo reciba (útil cuando imprimes desde el celular y la impresora
-      // está en otro dispositivo).
-      if(firebaseDb && cloudSyncEnabled && !isPrintStation){
-        enqueuePrintJob(html, role);
+      if(isPrintStation){
+        // Estación: imprimir directo aquí (tiene la impresora física)
+        openBrowserPrint(html, width);
+      } else if(firebaseDb && cloudSyncEnabled){
+        // Celular/tablet: encolar en Firebase para que la estación lo imprima
+        const queued = await enqueuePrintJob(html, role);
+        if(queued){
+          toast('Impresión enviada a la estación de impresión', 'success');
+        } else {
+          // Fallback: si no se pudo encolar, intentar imprimir localmente
+          openBrowserPrint(html, width);
+        }
+      } else {
+        // Sin nube: imprimir localmente como fallback
+        openBrowserPrint(html, width);
       }
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.

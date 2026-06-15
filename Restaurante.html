@@ -2595,12 +2595,19 @@
             <div class="chart-box chart-tall">
               <div class="chart-head">
                 <div>
-                  <h5 class="section-title mb-1">Ventas de los últimos 7 dias</h5>
-                  <p class="section-subtitle mb-0">Ventas cobradas por día (gráfico de barras).</p>
+                  <h5 class="section-title mb-1">Ventas por período</h5>
+                  <p class="section-subtitle mb-0">Ventas cobradas (gráfico de barras).</p>
                 </div>
-                <div class="chart-kpis">
-                  <div class="chart-kpi"><span>Promedio</span><strong id="salesAverage30">$0</strong></div>
-                  <div class="chart-kpi"><span>Mejor dia</span><strong id="salesBestDay">$0</strong></div>
+                <div class="d-flex flex-column align-items-end gap-2">
+                  <div class="d-flex gap-1 flex-wrap">
+                    <button class="btn btn-sm btn-pill" id="chartPeriodWeek" onclick="setSalesChartPeriod('week')">Semanal</button>
+                    <button class="btn btn-sm btn-pill" id="chartPeriodMonth" onclick="setSalesChartPeriod('month')">Mensual</button>
+                    <button class="btn btn-sm btn-pill" id="chartPeriodYear" onclick="setSalesChartPeriod('year')">Anual</button>
+                  </div>
+                  <div class="chart-kpis">
+                    <div class="chart-kpi"><span>Promedio</span><strong id="salesAverage30">$0</strong></div>
+                    <div class="chart-kpi"><span>Mejor</span><strong id="salesBestDay">$0</strong></div>
+                  </div>
                 </div>
               </div>
               <canvas id="salesByDayChart"></canvas>
@@ -3823,6 +3830,10 @@
               <option value="BOLD">Bold</option>
               <option value="TARJETA_CREDITO">Tarjeta de credito - Jesús</option>
             </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Fecha (opcional — si es de otro día)</label>
+            <input id="movementDateInput" type="date" class="form-control">
           </div>
           <input type="hidden" id="movementTypeInput" value="Egreso">
         </div>
@@ -8604,7 +8615,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       `).join('');
       const itemsTable = `<table><thead><tr><th class="center" style="width:50px">Cant.</th><th>Producto / observacion</th></tr></thead><tbody>${itemRows}</tbody></table>`;
       const meta = `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
-      const style = `body{font-family:Arial,sans-serif;margin:0;padding:6px;width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
+      const style = `body{font-family:Arial,sans-serif;margin:0 auto;padding:6px;width:300px;font-size:12px;line-height:1.16;text-align:center;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px;text-align:left}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}<div class="line"></div></body></html>`;
       // Imprimir simultáneamente: cocina (detallado) y caja (aviso simple).
       // Se envían ambos con un pequeño delay para que no colisionen.
@@ -8947,27 +8958,26 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       routePrint(html, 'caja', 720);
     }
     function cashReportPrintStyle(){
-      return `body{font-family:Arial,sans-serif;margin:0;padding:12px 10px;color:#111;background:#fff;font-size:15px;line-height:1.42}
-h2{font-size:23px;margin:0 0 6px;font-weight:800}
-h3,h5{font-size:18px;margin:16px 0 6px;font-weight:800}
-p{margin:0 0 4px;font-size:14px}
+      return `body{font-family:Arial,sans-serif;margin:0 auto;padding:14px 12px;color:#111;background:#fff;font-size:18px;line-height:1.5;width:380px;}
+h2{font-size:26px;margin:0 0 8px;font-weight:800;text-align:center}
+h3,h5{font-size:20px;margin:18px 0 8px;font-weight:800}
+p{margin:0 0 5px;font-size:16px}
 .muted{color:#555}
 .center{text-align:center}
 .right{text-align:right}
-.row{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 14px}
-.col-md-3{flex:1 1 130px}
-.mini-table{border:1px solid #e5e7eb;border-radius:10px;padding:9px 11px}
-.mini-table span{display:block;font-size:12.5px;color:#666;margin-bottom:2px}
-.mini-table strong{font-size:15.5px}
-table{width:100%;border-collapse:collapse;font-size:14.5px;margin-bottom:12px}
-th,td{padding:7px 6px;text-align:left;vertical-align:top;border-bottom:1px solid #e5e7eb}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 16px}
+.col-md-3{flex:1 1 140px}
+.mini-table{border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px}
+.mini-table span{display:block;font-size:14px;color:#666;margin-bottom:3px}
+.mini-table strong{font-size:18px}
+table{width:100%;border-collapse:collapse;font-size:16px;margin-bottom:14px}
+th,td{padding:8px 6px;text-align:left;vertical-align:top;border-bottom:1px solid #e5e7eb}
 th{font-weight:800}
 table .right,td.right{text-align:right}
 tr.total-row td,tr td b{font-weight:800}
-/* compatibilidad con estilos antiguos */
-.daily-report{width:100%;max-width:380px;margin:0 auto;font-size:14px;line-height:1.35}
-.daily-report h2,.daily-report h3,.daily-report p{margin:0 0 4px}
-.daily-report .section-title{text-align:center;font-weight:800;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:8px 0;margin:10px 0 6px}
+.daily-report{width:100%;max-width:380px;margin:0 auto;font-size:16px;line-height:1.4}
+.daily-report h2,.daily-report h3,.daily-report p{margin:0 0 5px}
+.daily-report .section-title{text-align:center;font-weight:800;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:8px 0;margin:12px 0 8px}
 @media print{body{padding:0}}`;
     }
     function printCurrentCashReport(){ printCloseReport(currentCashRecord()); }
@@ -8986,8 +8996,23 @@ tr.total-row td,tr td b{font-weight:800}
       { role:'Mesero', label:'Meseros', icon:'fa-person-walking' },
       { role:'Cajero', label:'Cajeros', icon:'fa-cash-register' }
     ];
-    // Saldo disponible por cuenta en el periodo de caja actual.
+    // Saldo disponible por cuenta de la ÚLTIMA CAJA CERRADA.
     function payrollAccountBalances(){
+      ensureCashHistory();
+      // Buscar el último registro cerrado en el historial
+      const lastClosed = [...(state.cash.history || [])].reverse().find(r => r.status === 'Cerrada' && r.closedAt);
+      if(lastClosed && lastClosed.methodTotals){
+        const expenseBySource = src => (lastClosed.expenseHistory || lastClosed.movementsHistory || [])
+          .filter(m => m.type === 'Egreso' && (m.source || 'EFECTIVO') === src)
+          .reduce((a, b) => a + Number(b.amount || 0), 0);
+        return {
+          EFECTIVO: Number(lastClosed.final || 0),
+          BANCOLOMBIA: Number(lastClosed.methodTotals.BANCOLOMBIA || 0) - expenseBySource('BANCOLOMBIA'),
+          NEQUI: Number(lastClosed.methodTotals.NEQUI || 0) - expenseBySource('NEQUI'),
+          BOLD: Number(lastClosed.methodTotals.BOLD || 0) - expenseBySource('BOLD')
+        };
+      }
+      // Fallback: usar período actual
       const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
       const to = new Date();
       const report = buildCashReport(from, to);
@@ -9139,11 +9164,31 @@ tr.total-row td,tr td b{font-weight:800}
           persistAll();
           modals.payroll.hide();
           printPayrollReport(selections);
+          exportPayrollExcel(selections);
           renderCashView();
           if(currentView === 'movimientos') renderMovements();
           toast(`Nómina pagada: ${money(total)} a ${selections.length} empleado(s)`, 'success');
         }
       });
+    }
+    function exportPayrollExcel(selections){
+      if(typeof XLSX === 'undefined') return;
+      const balances = payrollAccountBalances();
+      const total = selections.reduce((a, b) => a + b.amount, 0);
+      const totalBySource = {};
+      selections.forEach(s => { totalBySource[s.source] = (totalBySource[s.source] || 0) + s.amount; });
+      const rows = selections.map(s => ({ Empleado:s.name, Rol:s.role, Medio:expenseSourceLabel(s.source), Valor:s.amount }));
+      rows.push({ Empleado:'', Rol:'', Medio:'TOTAL NÓMINA', Valor:total });
+      rows.push({});
+      rows.push({ Empleado:'SALDO DESPUÉS DE NÓMINA', Rol:'', Medio:'', Valor:'' });
+      PAYROLL_SOURCES.forEach(s => {
+        const pagado = totalBySource[s.key] || 0;
+        rows.push({ Empleado: s.label, Rol: `Pagado: ${money(pagado)}`, Medio: 'Saldo restante:', Valor: (balances[s.key] || 0) - pagado });
+      });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Nómina');
+      XLSX.writeFile(wb, `nomina_${dateTimeStamp()}.xlsx`);
     }
     function printPayrollReport(selections){
       const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
@@ -9759,17 +9804,18 @@ tr.total-row td,tr td b{font-weight:800}
     }
     function renderMovementItem(m){ return `<div class="list-group-item d-flex justify-content-between align-items-start gap-2"><div><div class="fw-bold">${escapeHtml(m.concept || '')}</div><div class="small text-secondary">${formatDate(m.date)}</div>${m.type === 'Egreso' ? `<div class="small text-secondary">${escapeHtml(expenseSourceLabel(m.source))}</div>` : ''}</div><div class="text-end d-flex flex-column align-items-end gap-1"><span class="badge text-bg-${m.type === 'Ingreso' ? 'success' : 'danger'}">${m.type}</span><div class="fw-bold">${money(m.amount)}</div>${isAdmin() ? `<button class="btn btn-sm btn-outline-danger rounded-pill" onclick="deleteMovement('${m.id}')" title="Eliminar movimiento"><i class="fa-solid fa-trash"></i></button>` : ''}</div></div>`; }
     function openMovementModal(type = 'Egreso'){
-      if(!requireCashOpen('registrar ingresos o egresos')) return;
+      // Permitir registrar gastos/ingresos con caja cerrada (para dias anteriores)
       type = type === 'Ingreso' ? 'Ingreso' : 'Egreso';
       document.getElementById('movementModalTitle').textContent = `Registrar ${type.toLowerCase()}`;
       document.getElementById('movementTypeInput').value = type;
       document.getElementById('movementConceptInput').value = '';
       document.getElementById('movementAmountInput').value = '';
+      if(byId('movementDateInput')) byId('movementDateInput').value = '';
       byId('movementExpenseSourceRow')?.classList.toggle('d-none', type !== 'Egreso');
       setValue('movementExpenseSourceInput', 'EFECTIVO');
       modals.movement.show();
     }
-    function saveMovement(){ const type = document.getElementById('movementTypeInput').value; const concept = document.getElementById('movementConceptInput').value.trim(); const amount = clampNumber(document.getElementById('movementAmountInput').value || 0); if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; } const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : ''; state.movements.push({ id:uid(), type, concept, amount, source, date:new Date().toISOString() }); persistAll(); modals.movement.hide(); toast(`${type} guardado`, 'success'); renderCashView(); renderMovements(); }
+    function saveMovement(){ const type = document.getElementById('movementTypeInput').value; const concept = document.getElementById('movementConceptInput').value.trim(); const amount = clampNumber(document.getElementById('movementAmountInput').value || 0); if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; } const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : ''; const customDate = byId('movementDateInput')?.value; const date = customDate ? new Date(customDate + 'T12:00:00').toISOString() : new Date().toISOString(); state.movements.push({ id:uid(), type, concept, amount, source, date }); persistAll(); modals.movement.hide(); toast(`${type} guardado`, 'success'); renderCashView(); renderMovements(); }
     function deleteMovement(id){
       if(!requireAdmin('eliminar movimientos')) return;
       const movement = state.movements.find(m => m.id === id);
@@ -10479,13 +10525,46 @@ function parseMoneyValue(value){
       return `${dateStamp()}_${String(d.getHours()).padStart(2,'0')}-${String(d.getMinutes()).padStart(2,'0')}`;
     }
 
+    let salesChartPeriod = 'week';
+    function setSalesChartPeriod(period){
+      salesChartPeriod = period;
+      renderDashboardCharts();
+    }
+
     function renderDashboardCharts(range = selectedDashboardRange()){
       const now = new Date();
-      const days = Array.from({length:7}, (_,i) => { const d = new Date(); d.setDate(d.getDate()-6+i); return d; });
-      const labels7 = days.map(d => d.toLocaleDateString('es-CO', { weekday:'short', day:'2-digit' }));
-      const sales7Data = days.map(d => salesBetween(startOfDay(d), endOfDay(d)));
-      const avgSales = sales7Data.reduce((a,b) => a + b, 0) / Math.max(1, sales7Data.filter(Boolean).length || 7);
-      const bestSales = Math.max(0, ...sales7Data);
+
+      // Toggle activo
+      ['week','month','year'].forEach(p => {
+        const btn = byId(`chartPeriod${p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Year'}`);
+        if(btn){
+          btn.className = `btn btn-sm btn-pill ${salesChartPeriod === p ? 'btn-success' : 'btn-outline-secondary'}`;
+        }
+      });
+
+      let salesLabels, salesData;
+      if(salesChartPeriod === 'year'){
+        // Anual: 12 meses del año actual
+        salesLabels = Array.from({length:12}, (_,i) => new Date(now.getFullYear(), i).toLocaleDateString('es-CO', { month:'short' }));
+        salesData = Array.from({length:12}, (_,i) => salesBetween(new Date(now.getFullYear(), i, 1), new Date(now.getFullYear(), i + 1, 0, 23, 59, 59, 999)));
+      } else if(salesChartPeriod === 'month'){
+        // Mensual: últimas 4 semanas
+        salesLabels = [];
+        salesData = [];
+        for(let w = 3; w >= 0; w--){
+          const end = new Date(now); end.setDate(end.getDate() - w * 7);
+          const start = new Date(end); start.setDate(start.getDate() - 6);
+          salesLabels.push(`Sem ${4 - w}`);
+          salesData.push(salesBetween(startOfDay(start), endOfDay(end)));
+        }
+      } else {
+        // Semanal: últimos 7 días
+        const days = Array.from({length:7}, (_,i) => { const d = new Date(); d.setDate(d.getDate()-6+i); return d; });
+        salesLabels = days.map(d => d.toLocaleDateString('es-CO', { weekday:'short', day:'2-digit' }));
+        salesData = days.map(d => salesBetween(startOfDay(d), endOfDay(d)));
+      }
+      const avgSales = salesData.reduce((a,b) => a + b, 0) / Math.max(1, salesData.filter(Boolean).length || 1);
+      const bestSales = Math.max(0, ...salesData);
       setText('salesAverage30', money(Math.round(avgSales)));
       setText('salesBestDay', money(bestSales));
 
@@ -10512,7 +10591,7 @@ function parseMoneyValue(value){
       const topQty = topProducts.map(x => x[1]);
       setText('topProductName', topProducts[0]?.[0] || '-');
 
-      updateChart('salesByDayChart', 'bar', labels7, sales7Data, 'Ventas', false, { money:true, color:brandPrimaryColor() });
+      updateChart('salesByDayChart', 'bar', salesLabels, salesData, 'Ventas', false, { money:true, color:brandPrimaryColor() });
       updatePaymentMethodsChart(paymentEntries.map(x => x[0]), paymentEntries.map(x => x[1]));
       updateChart('ordersByHourChart', 'bar', hours.map(h => `${h}:00`), ordersByHour, 'Pedidos', false, { color:'#2563eb' });
       updateIncomeExpenseChart(incomeExpenseTotals.income, incomeExpenseTotals.expense);
@@ -10546,6 +10625,7 @@ function parseMoneyValue(value){
       renderDashboard();
     }
     function removeHistoricalSale(id){
+      if(!isSystemAdmin()){ toast('Solo el administrador del sistema puede eliminar ventas históricas', 'warning'); return; }
       if(!Array.isArray(state.historicalSales)) return;
       state.historicalSales = state.historicalSales.filter(h => h.id !== id);
       persistAll(false);

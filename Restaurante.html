@@ -2643,11 +2643,17 @@
             <div class="chart-box pie h-100">
               <div class="chart-head">
                 <div>
-                  <h5 class="section-title mb-1">Productos más vendidos del mes</h5>
-                  <p class="section-subtitle mb-0">Participacion por cantidad.</p>
+                  <h5 class="section-title mb-1">Productos más vendidos</h5>
+                  <p class="section-subtitle mb-0">Participación por cantidad vendida.</p>
                 </div>
-                <div class="chart-kpis">
-                  <div class="chart-kpi"><span>Top del mes</span><strong id="topProductName">-</strong></div>
+                <div class="d-flex flex-column align-items-end gap-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <input id="topProductsDateFilter" type="date" class="form-control form-control-sm" style="width:auto;min-width:140px;" onchange="updateTopProductsByDate()">
+                    <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="clearTopProductsFilter()">Mes</button>
+                  </div>
+                  <div class="chart-kpis">
+                    <div class="chart-kpi"><span>Top</span><strong id="topProductName">-</strong></div>
+                  </div>
                 </div>
               </div>
               <canvas id="topProductsChart"></canvas>
@@ -3225,6 +3231,7 @@
                   <p class="section-subtitle mb-0">Separa qué imprime cada impresora: las comandas en cocina y los tickets de cliente, domicilios y cierre en caja.</p>
                 </div>
                 <button class="btn btn-outline-success btn-pill flex-shrink-0" type="button" onclick="openPrinterConfigModal()"><i class="fa-solid fa-sliders me-2"></i>Configurar impresoras</button>
+                <button class="btn btn-outline-secondary btn-pill flex-shrink-0" type="button" onclick="showSupportAssistant()"><i class="fa-solid fa-comment-dots me-2"></i>Mostrar asistente</button>
               </div>
 
               <hr>
@@ -4086,6 +4093,7 @@
 
   <!-- Asistente / chatbot de soporte (responde dentro del mismo chat) -->
   <button id="supportChatLauncher" class="support-chat-launcher" type="button" onclick="toggleSupportChat()" title="Asistente Combatti" aria-label="Abrir asistente Combatti"><i class="fa-solid fa-comment-dots"></i></button>
+  <button id="supportChatHideBtn" class="support-chat-launcher" type="button" onclick="hideSupportAssistant()" title="Ocultar asistente" aria-label="Ocultar asistente" style="right:80px;background:#64748b;"><i class="fa-solid fa-eye-slash"></i></button>
   <div id="supportChatPanel" class="support-chat-panel d-none">
     <div class="support-chat-head">
       <div class="d-flex align-items-center gap-2">
@@ -4362,10 +4370,10 @@
       ensureLoginCarouselTimer();
       initLicenseSystem();
       autoStartCloudSync();
-      // Iniciar cola de impresión remota si este dispositivo es estación
       loadPrintStationFlag();
       if(isPrintStation) setTimeout(() => startPrintQueueListener(), 3000);
-      setInterval(cleanOldPrintJobs, 600000); // limpiar cada 10 min
+      setInterval(cleanOldPrintJobs, 600000);
+      initSupportVisibility();
     });
 
     function getProductAvatar(productName){
@@ -5724,6 +5732,33 @@
     }
     const SUPPORT_WHATSAPP = '573043596351';
     function openSupportChat(){ toggleSupportChat(true); }
+    function hideSupportAssistant(){
+      const launcher = byId('supportChatLauncher');
+      const hideBtn = byId('supportChatHideBtn');
+      if(launcher) launcher.style.display = 'none';
+      if(hideBtn) hideBtn.style.display = 'none';
+      toggleSupportChat(false);
+      try { localStorage.setItem('combatti_support_hidden', 'true'); } catch(_){}
+      toast('Asistente oculto. Para mostrarlo de nuevo, ve a Marca > Configuración.', 'info');
+    }
+    function showSupportAssistant(){
+      const launcher = byId('supportChatLauncher');
+      const hideBtn = byId('supportChatHideBtn');
+      if(launcher) launcher.style.display = '';
+      if(hideBtn) hideBtn.style.display = '';
+      try { localStorage.removeItem('combatti_support_hidden'); } catch(_){}
+      toast('Asistente visible de nuevo', 'success');
+    }
+    function initSupportVisibility(){
+      try {
+        if(localStorage.getItem('combatti_support_hidden') === 'true'){
+          const launcher = byId('supportChatLauncher');
+          const hideBtn = byId('supportChatHideBtn');
+          if(launcher) launcher.style.display = 'none';
+          if(hideBtn) hideBtn.style.display = 'none';
+        }
+      } catch(_){}
+    }
     function toggleSupportChat(show){
       const panel = byId('supportChatPanel');
       if(!panel) return;
@@ -11163,6 +11198,27 @@ function parseMoneyValue(value){
         formatCenter:() => (labels.length ? safeData.reduce((a,b)=>a + Number(b||0), 0) : 0),
         tooltip:item => `${item.label}: ${item.raw} (${Math.round((Number(item.raw || 0) / total) * 100)}%)`
       });
+    }
+    function updateTopProductsByDate(){
+      const dateVal = byId('topProductsDateFilter')?.value;
+      const date = dateVal ? parseLocalDate(dateVal) : null;
+      let orders;
+      if(date){
+        orders = paidOrdersRange(startOfDay(date), endOfDay(date));
+      } else {
+        orders = paidOrdersRange(startOfMonth(new Date()), endOfDay(new Date()));
+      }
+      const productMap = new Map();
+      orders.forEach(o => (o.items || []).forEach(it => productMap.set(it.name, (productMap.get(it.name) || 0) + Number(it.qty || 0))));
+      const topProducts = [...productMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+      const topLabels = topProducts.map(x => x[0]);
+      const topQty = topProducts.map(x => x[1]);
+      setText('topProductName', topProducts[0]?.[0] || '-');
+      updateTopProductsPie(topLabels.length ? topLabels : ['Sin ventas'], topQty.length ? topQty : [1]);
+    }
+    function clearTopProductsFilter(){
+      setValue('topProductsDateFilter', '');
+      updateTopProductsByDate();
     }
     function updateTopProductsPie(labels, data){
       const canvas = document.getElementById('topProductsChart');

@@ -6412,7 +6412,7 @@
       const cashTotal = (state.cash.open ? state.cash.openingAmount : 0) + todayReport.cashPayments + movementsBetween('Ingreso', turnoStart, new Date()) - movementsBetween('Egreso', turnoStart, new Date());
 
       setText('dashDateLabel', range.label);
-      setText('heroSalesToday', money(rangeSales));
+      setText('heroSalesToday', money(todaySales));
       setText('heroActiveOrders', pendingOrders);
       setText('heroCashValue', money(cashTotal));
       document.getElementById('statSalesToday').textContent = money(todaySales);

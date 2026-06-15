@@ -4018,6 +4018,20 @@
             </label>
             <div class="section-subtitle mt-1">Activa esto SOLO en el PC/dispositivo donde están conectadas las impresoras de cocina y caja. Los celulares y tablets enviarán las impresiones aquí automáticamente sin abrir diálogo.</div>
           </div>
+          <div style="border:2px solid rgba(var(--primary-rgb),.3);border-radius:14px;padding:14px;margin-bottom:14px;">
+            <h6 class="fw-bold mb-2"><i class="fa-brands fa-bluetooth-b me-1 text-primary"></i>Impresoras Bluetooth (impresión directa sin diálogo)</h6>
+            <p class="section-subtitle mb-3">Conecta tus impresoras térmicas por Bluetooth. Una vez conectadas, los pedidos se envían directamente sin preguntar — automático.</p>
+            <div class="d-flex gap-3 flex-wrap mb-2">
+              <div class="flex-grow-1">
+                <button class="btn btn-outline-success btn-pill w-100" onclick="connectBluetoothPrinter('cocina')"><i class="fa-solid fa-utensils me-2"></i>Conectar impresora COCINA</button>
+                <div class="small text-center mt-1" id="btCocinaStatus">No conectada</div>
+              </div>
+              <div class="flex-grow-1">
+                <button class="btn btn-outline-primary btn-pill w-100" onclick="connectBluetoothPrinter('caja')"><i class="fa-solid fa-cash-register me-2"></i>Conectar impresora CAJA</button>
+                <div class="small text-center mt-1" id="btCajaStatus">No conectada</div>
+              </div>
+            </div>
+          </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="printerNotifyCaja">
             <label class="form-check-label" for="printerNotifyCaja">Cuando se envía una comanda a cocina, imprimir también un aviso en caja</label>
@@ -8341,7 +8355,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       return role === 'cocina' ? pr.cocina : pr.caja;
     }
     function openBrowserPrint(html, width = 420){
-      // Fallback: impresión con diálogo del navegador (solo si WebUSB no disponible)
+      // Fallback: impresión con diálogo del navegador
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:0;visibility:hidden;';
       document.body.appendChild(iframe);
@@ -8355,13 +8369,129 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
 
     // =====================================================================
-    // IMPRESIÓN DIRECTA SIN DIÁLOGO: usa iframe con auto-print.
-    // Para que NO pregunte impresora en Chrome:
-    //   1. Configura la impresora deseada como PREDETERMINADA del sistema.
-    //   2. En Chrome: Configuración > Impresión > desactiva "Preguntar siempre".
-    //   O abre Chrome con: chrome --kiosk-printing
-    // En Android: usa la app de la impresora (Bluetooth/WiFi) y configúrala
-    // como predeterminada en Ajustes > Impresión.
+    // IMPRESIÓN DIRECTA SIN DIÁLOGO via Web Bluetooth ESC/POS
+    // Permite enviar datos directamente a impresoras térmicas Bluetooth
+    // sin ningún diálogo de impresión. Solo pide permiso Bluetooth 1 vez.
+    // =====================================================================
+    const BT_PRINTER_KEY_COCINA = 'combatti_bt_printer_cocina';
+    const BT_PRINTER_KEY_CAJA = 'combatti_bt_printer_caja';
+    let btPrinterCocina = null; // { device, server, characteristic }
+    let btPrinterCaja = null;
+    const BT_SERVICE_UUID = '000018f0-0000-1000-8000-00805f9b34fb';
+    const BT_CHAR_UUID = '00002af1-0000-1000-8000-00805f9b34fb';
+
+    // Conectar una impresora Bluetooth para un rol específico
+    async function connectBluetoothPrinter(role){
+      if(!navigator.bluetooth){ toast('Tu navegador no soporta Bluetooth. Usa Chrome.', 'warning'); return false; }
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [BT_SERVICE_UUID] }],
+          optionalServices: [BT_SERVICE_UUID]
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(BT_SERVICE_UUID);
+        const characteristic = await service.getCharacteristic(BT_CHAR_UUID);
+        const printer = { device, server, characteristic, name: device.name || 'Impresora' };
+        if(role === 'cocina') btPrinterCocina = printer;
+        else btPrinterCaja = printer;
+        try { localStorage.setItem(role === 'cocina' ? BT_PRINTER_KEY_COCINA : BT_PRINTER_KEY_CAJA, device.name || ''); } catch(_){}
+        toast(`Impresora de ${role} conectada: ${printer.name}`, 'success');
+        return true;
+      } catch(e){
+        // Si el usuario cancela o la impresora no se encuentra con el UUID estándar,
+        // intentar con filtro aceptar todos los dispositivos Bluetooth
+        try {
+          const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [BT_SERVICE_UUID] });
+          const server = await device.gatt.connect();
+          let characteristic;
+          try {
+            const service = await server.getPrimaryService(BT_SERVICE_UUID);
+            characteristic = await service.getCharacteristic(BT_CHAR_UUID);
+          } catch(_){
+            // Fallback: buscar cualquier servicio/característica escribible
+            const services = await server.getPrimaryServices();
+            for(const svc of services){
+              try {
+                const chars = await svc.getCharacteristics();
+                for(const ch of chars){ if(ch.properties.write || ch.properties.writeWithoutResponse){ characteristic = ch; break; } }
+                if(characteristic) break;
+              } catch(_){}
+            }
+          }
+          if(!characteristic){ toast('No se encontró una característica escribible en la impresora', 'danger'); return false; }
+          const printer = { device, server, characteristic, name: device.name || 'Impresora' };
+          if(role === 'cocina') btPrinterCocina = printer;
+          else btPrinterCaja = printer;
+          try { localStorage.setItem(role === 'cocina' ? BT_PRINTER_KEY_COCINA : BT_PRINTER_KEY_CAJA, device.name || ''); } catch(_){}
+          toast(`Impresora de ${role} conectada: ${printer.name}`, 'success');
+          return true;
+        } catch(e2){
+          console.warn('BT connect:', e2);
+          toast('No se pudo conectar la impresora Bluetooth', 'danger');
+          return false;
+        }
+      }
+    }
+
+    // Enviar texto plano como ESC/POS a la impresora Bluetooth
+    async function btPrint(role, text){
+      const printer = role === 'cocina' ? btPrinterCocina : btPrinterCaja;
+      if(!printer || !printer.characteristic){
+        // Si no hay impresora BT conectada, usar fallback
+        return false;
+      }
+      // Verificar conexión
+      if(!printer.device.gatt.connected){
+        try { await printer.device.gatt.connect(); } catch(_){ return false; }
+      }
+      const encoder = new TextEncoder();
+      const ESC = '\x1B';
+      const GS = '\x1D';
+      // Comandos ESC/POS: inicializar + texto + cortar papel
+      const initCmd = ESC + '@';        // Inicializar impresora
+      const boldOn = ESC + 'E' + '\x01';
+      const boldOff = ESC + 'E' + '\x00';
+      const centerOn = ESC + 'a' + '\x01';
+      const leftAlign = ESC + 'a' + '\x00';
+      const cutPaper = GS + 'V' + '\x00'; // Corte total
+      const fullText = initCmd + text + '\n\n\n' + cutPaper;
+      const data = encoder.encode(fullText);
+      // Enviar en chunks de 512 bytes (límite BLE)
+      const chunkSize = 512;
+      for(let i = 0; i < data.length; i += chunkSize){
+        const chunk = data.slice(i, i + chunkSize);
+        try {
+          if(printer.characteristic.properties.writeWithoutResponse){
+            await printer.characteristic.writeValueWithoutResponse(chunk);
+          } else {
+            await printer.characteristic.writeValue(chunk);
+          }
+        } catch(e){ console.warn('BT write error:', e); return false; }
+        // Pequeño delay entre chunks para no saturar el BLE
+        if(i + chunkSize < data.length) await new Promise(r => setTimeout(r, 30));
+      }
+      return true;
+    }
+
+    // Convierte HTML simple a texto plano para ESC/POS
+    function htmlToPlainText(html){
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      // Reemplazar <br>, <p>, <div>, <tr> con saltos de línea
+      div.querySelectorAll('br, p, div, tr, h1, h2, h3, h4, h5, h6').forEach(el => {
+        el.insertAdjacentText('beforebegin', '\n');
+      });
+      div.querySelectorAll('td, th').forEach(el => {
+        el.insertAdjacentText('afterend', '  ');
+      });
+      let text = div.textContent || div.innerText || '';
+      // Limpiar múltiples líneas vacías
+      text = text.replace(/\n{3,}/g, '\n\n').trim();
+      return text;
+    }
+
+    // =====================================================================
+    // SISTEMA DE IMPRESIÓN UNIFICADO
     // =====================================================================
     const PRINT_QUEUE_KEY = 'combatti_is_print_station';
     let isPrintStation = false;
@@ -8379,11 +8509,15 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function togglePrintStation(){
       setPrintStation(!isPrintStation);
       renderPrintStationUI();
-      toast(isPrintStation ? 'Este dispositivo recibe e imprime automáticamente.' : 'Desactivado.', 'info');
+      toast(isPrintStation ? 'Estación activada.' : 'Desactivada.', 'info');
     }
     function renderPrintStationUI(){
       const el = byId('printStationToggle');
       if(el) el.checked = isPrintStation;
+      const cocina = byId('btCocinaStatus');
+      const caja = byId('btCajaStatus');
+      if(cocina) cocina.textContent = btPrinterCocina ? `✓ ${btPrinterCocina.name}` : 'No conectada';
+      if(caja) caja.textContent = btPrinterCaja ? `✓ ${btPrinterCaja.name}` : 'No conectada';
     }
     function startPrintQueueListener(){
       if(!firebaseDb || printQueueUnsub) return;
@@ -8394,8 +8528,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
             if(change.type !== 'added') return;
             const job = change.doc.data();
             if(job.device === CLOUD_DEVICE_ID) return;
-            openBrowserPrint(job.html, 420);
-            if(job.role === 'cocina') playKitchenBeep();
+            printToRole(job.html, job.role || 'cocina');
             change.doc.ref.update({ printed: true, printedAt: new Date().toISOString(), printedBy: CLOUD_DEVICE_ID }).catch(()=>{});
           });
         }, err => console.warn('printQueue listener:', err));
@@ -8426,21 +8559,35 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       } catch(_){}
     }
 
-    // routePrint: impresión automática sin preguntar impresora.
-    // - Si es estación (tiene impresora): imprime directo con iframe (auto-print).
-    // - Si NO es estación (celular): envía a Firebase → la estación lo imprime.
-    // El beep solo suena para trabajos de cocina.
+    // Imprimir en la impresora del rol correspondiente (cocina o caja)
+    async function printToRole(html, role){
+      const printer = role === 'cocina' ? btPrinterCocina : btPrinterCaja;
+      if(printer){
+        // Impresión directa via Bluetooth — SIN diálogo
+        const text = htmlToPlainText(html);
+        const ok = await btPrint(role, text);
+        if(ok){
+          if(role === 'cocina') playKitchenBeep();
+          return;
+        }
+      }
+      // Fallback: diálogo del navegador
+      openBrowserPrint(html, 420);
+      if(role === 'cocina') playKitchenBeep();
+    }
+
+    // routePrint: punto de entrada principal.
     async function routePrint(html, role, width = 420){
-      if(isPrintStation){
-        openBrowserPrint(html, width);
-        if(role === 'cocina') playKitchenBeep();
+      if(isPrintStation || btPrinterCocina || btPrinterCaja){
+        // Este dispositivo tiene impresoras: imprimir directo
+        await printToRole(html, role);
       } else if(firebaseDb && cloudSyncEnabled){
+        // Enviar a la cola remota para que la estación lo imprima
         const ok = await enqueuePrintJob(html, role);
         if(ok) toast('Enviado a imprimir', 'success');
-        else openBrowserPrint(html, width);
+        else await printToRole(html, role);
       } else {
-        openBrowserPrint(html, width);
-        if(role === 'cocina') playKitchenBeep();
+        await printToRole(html, role);
       }
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.

@@ -8997,34 +8997,46 @@ tr.total-row td,tr td b{font-weight:800}
       { role:'Cajero', label:'Cajeros', icon:'fa-cash-register' }
     ];
     // Saldo disponible por cuenta de la ÚLTIMA CAJA CERRADA.
+    // DESCUENTA los egresos de nómina y otros gastos ya registrados después del cierre.
     function payrollAccountBalances(){
       ensureCashHistory();
       // Buscar el último registro cerrado en el historial
       const lastClosed = [...(state.cash.history || [])].reverse().find(r => r.status === 'Cerrada' && r.closedAt);
+      let balances;
       if(lastClosed && lastClosed.methodTotals){
         const expenseBySource = src => (lastClosed.expenseHistory || lastClosed.movementsHistory || [])
           .filter(m => m.type === 'Egreso' && (m.source || 'EFECTIVO') === src)
           .reduce((a, b) => a + Number(b.amount || 0), 0);
-        return {
+        balances = {
           EFECTIVO: Number(lastClosed.final || 0),
           BANCOLOMBIA: Number(lastClosed.methodTotals.BANCOLOMBIA || 0) - expenseBySource('BANCOLOMBIA'),
           NEQUI: Number(lastClosed.methodTotals.NEQUI || 0) - expenseBySource('NEQUI'),
           BOLD: Number(lastClosed.methodTotals.BOLD || 0) - expenseBySource('BOLD')
         };
+      } else {
+        // Fallback: usar período actual
+        const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
+        const to = new Date();
+        const report = buildCashReport(from, to);
+        const expenseBySource = src => state.movements
+          .filter(m => m.type === 'Egreso' && (m.source || 'EFECTIVO') === src && m.date && new Date(m.date) >= from && new Date(m.date) <= to)
+          .reduce((a, b) => a + Number(b.amount || 0), 0);
+        balances = {
+          EFECTIVO: report.final,
+          BANCOLOMBIA: (report.methodTotals.BANCOLOMBIA || 0) - expenseBySource('BANCOLOMBIA'),
+          NEQUI: (report.methodTotals.NEQUI || 0) - expenseBySource('NEQUI'),
+          BOLD: (report.methodTotals.BOLD || 0) - expenseBySource('BOLD')
+        };
       }
-      // Fallback: usar período actual
-      const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
-      const to = new Date();
-      const report = buildCashReport(from, to);
-      const expenseBySource = src => state.movements
-        .filter(m => m.type === 'Egreso' && (m.source || 'EFECTIVO') === src && m.date && new Date(m.date) >= from && new Date(m.date) <= to)
-        .reduce((a, b) => a + Number(b.amount || 0), 0);
-      return {
-        EFECTIVO: report.final,
-        BANCOLOMBIA: (report.methodTotals.BANCOLOMBIA || 0) - expenseBySource('BANCOLOMBIA'),
-        NEQUI: (report.methodTotals.NEQUI || 0) - expenseBySource('NEQUI'),
-        BOLD: (report.methodTotals.BOLD || 0) - expenseBySource('BOLD')
-      };
+      // Descontar egresos de nómina y gastos registrados DESPUÉS del cierre de caja
+      const afterClose = lastClosed?.closedAt ? new Date(lastClosed.closedAt) : startOfDay(new Date());
+      state.movements
+        .filter(m => m.type === 'Egreso' && m.date && new Date(m.date) >= afterClose && !((lastClosed?.expenseHistory || []).some(e => e.id === m.id)))
+        .forEach(m => {
+          const src = m.source || 'EFECTIVO';
+          if(balances[src] !== undefined) balances[src] -= Number(m.amount || 0);
+        });
+      return balances;
     }
     function payrollEmployees(){
       return state.users
@@ -9831,7 +9843,7 @@ tr.total-row td,tr td b{font-weight:800}
     function renderMovements(){
       const grid = document.getElementById('movementsGrid'); const items = [...state.movements].reverse();
       const canDelete = isAdmin();
-      grid.innerHTML = items.length ? items.map(m => `<div class="col-md-6 col-xl-4"><div class="movement-card p-3 h-100 d-flex flex-column"><div class="d-flex justify-content-between align-items-start gap-2"><div><div class="fw-bold">${escapeHtml(m.concept || '')}</div><div class="small text-secondary">${formatDate(m.date)}</div>${m.type === 'Egreso' ? `<div class="small text-secondary">${escapeHtml(expenseSourceLabel(m.source))}</div>` : ''}</div><span class="badge text-bg-${m.type === 'Ingreso' ? 'success' : 'danger'}">${m.type}</span></div><div class="d-flex justify-content-between align-items-end gap-2 mt-3"><div class="fs-4 fw-bold ${m.type === 'Ingreso' ? 'text-success' : 'text-danger'}">${m.type === 'Egreso' ? '-' : '+'}${money(m.amount)}</div>${canDelete ? `<button class="btn btn-sm btn-outline-danger rounded-pill" onclick="deleteMovement('${m.id}')" title="Eliminar movimiento"><i class="fa-solid fa-trash"></i></button>` : ''}</div></div></div>`).join('') : '<div class="text-secondary p-3">No hay movimientos todavia.</div>';
+      grid.innerHTML = items.length ? items.map(m => `<div class="col-md-6 col-xl-4"><div class="movement-card p-3 h-100 d-flex flex-column"><div class="d-flex justify-content-between align-items-start gap-2"><div><div class="fw-bold">${escapeHtml(m.concept || '')}</div><div class="small text-secondary">${formatDate(m.date)}</div>${m.type === 'Egreso' ? `<div class="small text-secondary">${escapeHtml(expenseSourceLabel(m.source))}</div>` : ''}</div><span class="badge text-bg-${m.type === 'Ingreso' ? 'success' : 'danger'}">${m.type}</span></div><div class="d-flex justify-content-between align-items-end gap-2 mt-3"><div class="fs-4 fw-bold ${m.type === 'Ingreso' ? 'text-success' : 'text-danger'}">${m.type === 'Egreso' ? '-' : '+'}${money(m.amount)}</div><div class="d-flex gap-1">${canDelete ? `<button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="editMovement('${m.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button><button class="btn btn-sm btn-outline-danger rounded-pill" onclick="deleteMovement('${m.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : ''}</div></div></div></div>`).join('') : '<div class="text-secondary p-3">No hay movimientos todavia.</div>';
       setIndependentScroll(grid, items.length, 96);
     }
     function renderMovementItem(m){ return `<div class="list-group-item d-flex justify-content-between align-items-start gap-2"><div><div class="fw-bold">${escapeHtml(m.concept || '')}</div><div class="small text-secondary">${formatDate(m.date)}</div>${m.type === 'Egreso' ? `<div class="small text-secondary">${escapeHtml(expenseSourceLabel(m.source))}</div>` : ''}</div><div class="text-end d-flex flex-column align-items-end gap-1"><span class="badge text-bg-${m.type === 'Ingreso' ? 'success' : 'danger'}">${m.type}</span><div class="fw-bold">${money(m.amount)}</div>${isAdmin() ? `<button class="btn btn-sm btn-outline-danger rounded-pill" onclick="deleteMovement('${m.id}')" title="Eliminar movimiento"><i class="fa-solid fa-trash"></i></button>` : ''}</div></div>`; }
@@ -9848,6 +9860,32 @@ tr.total-row td,tr td b{font-weight:800}
       modals.movement.show();
     }
     function saveMovement(){ const type = document.getElementById('movementTypeInput').value; const concept = document.getElementById('movementConceptInput').value.trim(); const amount = clampNumber(document.getElementById('movementAmountInput').value || 0); if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; } const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : ''; const customDate = byId('movementDateInput')?.value; const date = customDate ? new Date(customDate + 'T12:00:00').toISOString() : new Date().toISOString(); state.movements.push({ id:uid(), type, concept, amount, source, date }); persistAll(); modals.movement.hide(); toast(`${type} guardado`, 'success'); renderCashView(); renderMovements(); }
+    function editMovement(id){
+      if(!requireAdmin('editar movimientos')) return;
+      const m = state.movements.find(x => x.id === id);
+      if(!m){ toast('Movimiento no encontrado', 'warning'); return; }
+      const newConcept = prompt('Concepto:', m.concept || '');
+      if(newConcept === null) return;
+      if(!newConcept.trim()){ toast('El concepto no puede estar vacío', 'warning'); return; }
+      const newAmount = prompt('Valor:', String(m.amount || 0));
+      if(newAmount === null) return;
+      const amount = clampNumber(newAmount);
+      if(amount <= 0){ toast('El valor debe ser mayor a cero', 'warning'); return; }
+      m.concept = newConcept.trim();
+      m.amount = amount;
+      if(m.type === 'Egreso'){
+        const sources = ['EFECTIVO','BANCOLOMBIA','NEQUI','BOLD','TARJETA_CREDITO'];
+        const currentIdx = sources.indexOf(m.source || 'EFECTIVO');
+        const newSource = prompt(`Medio de pago (${sources.join(', ')}):`, m.source || 'EFECTIVO');
+        if(newSource !== null && sources.includes(newSource.toUpperCase())){
+          m.source = newSource.toUpperCase();
+        }
+      }
+      persistAll();
+      renderMovements();
+      renderCashView();
+      toast('Movimiento actualizado', 'success');
+    }
     function deleteMovement(id){
       if(!requireAdmin('eliminar movimientos')) return;
       const movement = state.movements.find(m => m.id === id);

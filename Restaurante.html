@@ -6297,8 +6297,11 @@
     function renderDashboard(){
       const today = new Date();
       const range = selectedDashboardRange();
+      // Ventas del turno actual (desde apertura de caja) vs ventas del día completo
+      const turnoStart = state.cash.open ? cashPeriodStart() : startOfDay(today);
+      const turnoSales = salesBetween(turnoStart, endOfDay(today));
       const rangeSales = salesBetween(range.from, range.to);
-      const todaySales = salesBetween(startOfDay(today), endOfDay(today));
+      const todaySales = state.cash.open ? turnoSales : salesBetween(startOfDay(today), endOfDay(today));
       const sales7 = salesBetween(new Date(today.getTime() - 6*24*60*60*1000), endOfDay(today));
       const sales30 = salesBetween(new Date(today.getTime() - 29*24*60*60*1000), endOfDay(today));
       const salesYear = salesBetween(startOfYear(today), endOfDay(today));
@@ -8948,6 +8951,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       exportDailyCloseExcel(true, lastHistory);
       printCloseReport(lastHistory);
       sendCashCloseEmail(lastHistory);
+      // Guardar el turno en los movimientos del historial antes de limpiar
+      if(lastHistory){
+        lastHistory.shift = state.shift;
+      }
       state.movements = [];
       persistAll(false);
       // Segundo push para subir los movimientos ya vaciados.
@@ -10651,8 +10658,12 @@ function parseMoneyValue(value){
       setText('peakSalesHourBottom', peakHour);
 
       const rangeReport = buildCashReport(range.from, range.to);
+      // Si la caja está abierta, la gráfica de ingresos vs gastos muestra el turno actual
+      const ieFrom = state.cash.open ? cashPeriodStart() : range.from;
+      const ieTo = state.cash.open ? new Date() : range.to;
+      const ieReport = state.cash.open ? buildCashReport(ieFrom, ieTo) : rangeReport;
       const incomeExpenseTotals = {
-        income:Number(rangeReport.sales || 0) + Number(rangeReport.income || 0),
+        income:Number(ieReport.sales || 0) + Number(ieReport.income || 0),
         expense:Number(rangeReport.expense || 0)
       };
       const rangeOrders = paidOrdersRange(range.from, range.to);

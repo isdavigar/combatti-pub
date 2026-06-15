@@ -795,12 +795,7 @@
     body.cash-closed-lock #view-caja .products-layout > .col-lg-7 > .glass-card{ width:100%; }
     body.cash-closed-lock #view-caja .products-layout > .col-lg-7 > .glass-card:not(.cash-history-fullscreen){ display:none !important; }
     body.cash-closed-lock #view-caja .cash-history-fullscreen{ display:block !important; min-height:calc(100vh - 170px); }
-    body.cash-closed-lock .sidebar{ display:none !important; }
-    body.cash-closed-lock .main-content{ margin-left:0 !important; }
-    body.cash-closed-lock .app-topbar .app-topbar-toggle,
-    body.cash-closed-lock .app-topbar .app-topbar-search,
-    body.cash-closed-lock .app-topbar #cloudTopIndicator{ display:none !important; }
-    body.cash-closed-lock .nav-pill[data-view]:not([data-view="caja"]){ pointer-events:none; opacity:.45; }
+    body.cash-closed-lock .nav-pill[data-view="mesas"]{ pointer-events:none; opacity:.45; }
     .category-manager{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .status-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
     .status-available{ background:var(--success); }
@@ -6198,7 +6193,9 @@
     }
     function toggleTheme(){ state.theme = state.theme === 'dark' ? 'light' : 'dark'; persistAll(false); applyTheme(); toast(`Modo ${state.theme === 'dark' ? 'oscuro' : 'claro'} activado`, 'info'); }
     function openView(view){
-      if(!state.cash.open && view !== 'caja'){
+      // Con caja cerrada: solo se bloquea la vista de mesas (no se pueden abrir pedidos)
+      if(!state.cash.open && view === 'mesas'){
+        toast('Abre la caja para acceder a las mesas', 'warning');
         view = 'caja';
       }
       if(currentUser && !hasPermission(view)){
@@ -6231,10 +6228,12 @@
       setText('badgeProducts', `${state.products.length} productos`);
     }
     function updateSidebarCash(){
-      const from = startOfDay(new Date()), to = endOfDay(new Date());
-      const income = movementsBetween('Ingreso', from, to);
-      const expense = movementsBetween('Egreso', from, to);
+      // Caja estimada: calcular desde apertura de caja actual (no desde medianoche)
+      const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
+      const to = new Date();
       const report = buildCashReport(from, to);
+      const income = state.movements.filter(m => m.type === 'Ingreso' && m.date && new Date(m.date) >= from && new Date(m.date) <= to).reduce((a,b) => a + Number(b.amount || 0), 0);
+      const expense = state.movements.filter(m => m.type === 'Egreso' && m.date && new Date(m.date) >= from && new Date(m.date) <= to).reduce((a,b) => a + Number(b.amount || 0), 0);
       const balance = (state.cash.open ? state.cash.openingAmount : 0) + report.cashPayments + income - expense;
       setText('cashStatusLabel', state.cash.open ? 'Sí' : 'No');
       setText('cashOpenValue', money(state.cash.openingAmount || 0));
@@ -6324,7 +6323,7 @@
       });
       const sellerRanking = [...sellerTotals.entries()].map(([name, total]) => ({ name, total })).sort((a,b)=>b.total-a.total);
       const topSeller = sellerRanking[0] || { name:'-', total:0 };
-      const cashTotal = (state.cash.open ? state.cash.openingAmount : 0) + todayReport.cashPayments + movementsBetween('Ingreso', startOfDay(today), endOfDay(today)) - movementsBetween('Egreso', startOfDay(today), endOfDay(today));
+      const cashTotal = (state.cash.open ? state.cash.openingAmount : 0) + todayReport.cashPayments + movementsBetween('Ingreso', turnoStart, endOfDay(today)) - movementsBetween('Egreso', turnoStart, endOfDay(today));
 
       setText('dashDateLabel', range.label);
       setText('heroSalesToday', money(rangeSales));
@@ -9858,7 +9857,13 @@ tr.total-row td,tr td b{font-weight:800}
       }
     }
     function renderMovements(){
-      const grid = document.getElementById('movementsGrid'); const items = [...state.movements].reverse();
+      const grid = document.getElementById('movementsGrid');
+      // Mostrar solo movimientos del turno actual (desde apertura de caja).
+      // Si la caja está cerrada, no mostrar nada (los movimientos se vaciaron al cerrar).
+      const from = state.cash.open ? cashPeriodStart() : null;
+      const items = from
+        ? [...state.movements].filter(m => m.date && new Date(m.date) >= from).reverse()
+        : [...state.movements].reverse();
       const canDelete = isAdmin();
       grid.innerHTML = items.length ? items.map(m => `<div class="col-md-6 col-xl-4"><div class="movement-card p-3 h-100 d-flex flex-column"><div class="d-flex justify-content-between align-items-start gap-2"><div><div class="fw-bold">${escapeHtml(m.concept || '')}</div><div class="small text-secondary">${formatDate(m.date)}</div>${m.type === 'Egreso' ? `<div class="small text-secondary">${escapeHtml(expenseSourceLabel(m.source))}</div>` : ''}</div><span class="badge text-bg-${m.type === 'Ingreso' ? 'success' : 'danger'}">${m.type}</span></div><div class="d-flex justify-content-between align-items-end gap-2 mt-3"><div class="fs-4 fw-bold ${m.type === 'Ingreso' ? 'text-success' : 'text-danger'}">${m.type === 'Egreso' ? '-' : '+'}${money(m.amount)}</div><div class="d-flex gap-1">${canDelete ? `<button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="editMovement('${m.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button><button class="btn btn-sm btn-outline-danger rounded-pill" onclick="deleteMovement('${m.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : ''}</div></div></div></div>`).join('') : '<div class="text-secondary p-3">No hay movimientos todavia.</div>';
       setIndependentScroll(grid, items.length, 96);

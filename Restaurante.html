@@ -7840,8 +7840,6 @@ const colors = [
       order.kitchenSentSnapshot = delta.snapshot;
       (order.items || []).forEach(item => { item.kitchenSent = true; });
       order.printed = true;
-      // Emitir sonido de alerta (beep) cuando se envía un pedido a cocina.
-      playKitchenBeep();
       return true;
     }
     // Beep sonoro usando Web Audio API: suena en todos los dispositivos sin
@@ -8387,6 +8385,9 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
     function startPrintQueueListener(){
       if(!firebaseDb || printQueueUnsub) return;
+      // Escucha la cola de impresión separando por rol (cocina/caja).
+      // El dispositivo solo imprime los trabajos que corresponden a su rol
+      // configurado, o todos si no se distingue.
       printQueueUnsub = restaurantRoot().collection('printQueue')
         .where('printed', '==', false)
         .onSnapshot(snap => {
@@ -8394,10 +8395,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
             if(change.type !== 'added') return;
             const job = change.doc.data();
             if(job.device === CLOUD_DEVICE_ID) return;
-            // Imprimir directo con el diálogo del navegador (la impresora
-            // queda recordada después de la primera vez).
+            // Imprimir el trabajo
             openBrowserPrint(job.html, 420);
-            playKitchenBeep();
+            // Beep SOLO para trabajos de cocina
+            if(job.role === 'cocina') playKitchenBeep();
             change.doc.ref.update({ printed: true, printedAt: new Date().toISOString(), printedBy: CLOUD_DEVICE_ID }).catch(()=>{});
           });
         }, err => console.warn('printQueue listener:', err));
@@ -8435,21 +8436,23 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
 
     // routePrint: lógica principal de impresión.
-    // - Si este dispositivo es la IMPRESORA (marcado como estación): imprime aquí.
-    // - Si NO es la impresora (celular): envía el trabajo por Firebase al
-    //   dispositivo que sí tiene la impresora. NO abre diálogo local.
+    // Separa los documentos por rol (cocina/caja) para que cada uno se envíe
+    // a la impresora correcta. El navegador recuerda la última impresora usada
+    // por cada "ventana de impresión" (si se configuró una vez, no vuelve a preguntar).
     async function routePrint(html, role, width = 420){
       if(isPrintStation){
         // Este dispositivo TIENE la impresora: imprimir directo aquí.
         openBrowserPrint(html, width);
+        // Beep solo para cocina
+        if(role === 'cocina') playKitchenBeep();
       } else if(firebaseDb && cloudSyncEnabled){
-        // Este dispositivo NO tiene impresora (es un cel): enviar a la nube
-        // y el dispositivo con la impresora lo recoge automáticamente.
+        // Celular: enviar a la nube separando por rol
         const ok = await enqueuePrintJob(html, role);
         if(ok) toast('Enviado a imprimir', 'success');
-        else openBrowserPrint(html, width); // fallback
+        else openBrowserPrint(html, width);
       } else {
         openBrowserPrint(html, width);
+        if(role === 'cocina') playKitchenBeep();
       }
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.

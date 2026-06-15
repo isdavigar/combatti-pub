@@ -8341,25 +8341,27 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       return role === 'cocina' ? pr.cocina : pr.caja;
     }
     function openBrowserPrint(html, width = 420){
-      // Impresión directa usando iframe oculto.
+      // Fallback: impresión con diálogo del navegador (solo si WebUSB no disponible)
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:0;visibility:hidden;';
       document.body.appendChild(iframe);
       const doc = iframe.contentDocument || iframe.contentWindow.document;
       doc.open(); doc.write(html); doc.close();
       setTimeout(() => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-        } catch(_){}
+        try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(_){}
         setTimeout(() => { try { document.body.removeChild(iframe); } catch(_){} }, 3000);
       }, 400);
       return true;
     }
 
     // =====================================================================
-    // IMPRESIÓN REMOTA: el celular envía a la nube y el dispositivo con la
-    // impresora física lo recibe e imprime automáticamente.
+    // IMPRESIÓN DIRECTA SIN DIÁLOGO: usa iframe con auto-print.
+    // Para que NO pregunte impresora en Chrome:
+    //   1. Configura la impresora deseada como PREDETERMINADA del sistema.
+    //   2. En Chrome: Configuración > Impresión > desactiva "Preguntar siempre".
+    //   O abre Chrome con: chrome --kiosk-printing
+    // En Android: usa la app de la impresora (Bluetooth/WiFi) y configúrala
+    // como predeterminada en Ajustes > Impresión.
     // =====================================================================
     const PRINT_QUEUE_KEY = 'combatti_is_print_station';
     let isPrintStation = false;
@@ -8377,7 +8379,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function togglePrintStation(){
       setPrintStation(!isPrintStation);
       renderPrintStationUI();
-      toast(isPrintStation ? 'Este dispositivo ahora recibe e imprime los trabajos de todos.' : 'Desactivado como impresora.', 'info');
+      toast(isPrintStation ? 'Este dispositivo recibe e imprime automáticamente.' : 'Desactivado.', 'info');
     }
     function renderPrintStationUI(){
       const el = byId('printStationToggle');
@@ -8385,9 +8387,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
     function startPrintQueueListener(){
       if(!firebaseDb || printQueueUnsub) return;
-      // Escucha la cola de impresión separando por rol (cocina/caja).
-      // El dispositivo solo imprime los trabajos que corresponden a su rol
-      // configurado, o todos si no se distingue.
       printQueueUnsub = restaurantRoot().collection('printQueue')
         .where('printed', '==', false)
         .onSnapshot(snap => {
@@ -8395,9 +8394,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
             if(change.type !== 'added') return;
             const job = change.doc.data();
             if(job.device === CLOUD_DEVICE_ID) return;
-            // Imprimir el trabajo
             openBrowserPrint(job.html, 420);
-            // Beep SOLO para trabajos de cocina
             if(job.role === 'cocina') playKitchenBeep();
             change.doc.ref.update({ printed: true, printedAt: new Date().toISOString(), printedBy: CLOUD_DEVICE_ID }).catch(()=>{});
           });
@@ -8412,11 +8409,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         await restaurantRoot().collection('printQueue').add({
           html, role: role || 'cocina',
           createdAt: new Date().toISOString(),
-          device: CLOUD_DEVICE_ID,
-          printed: false
+          device: CLOUD_DEVICE_ID, printed: false
         });
         return true;
-      } catch(e){ console.warn('printQueue:', e); return false; }
+      } catch(e){ return false; }
     }
     async function cleanOldPrintJobs(){
       if(!firebaseDb) return;
@@ -8430,23 +8426,15 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       } catch(_){}
     }
 
-    // silentPrint: intenta imprimir sin abrir ventana extra
-    function silentPrint(html){
-      openBrowserPrint(html, 420);
-    }
-
-    // routePrint: lógica principal de impresión.
-    // Separa los documentos por rol (cocina/caja) para que cada uno se envíe
-    // a la impresora correcta. El navegador recuerda la última impresora usada
-    // por cada "ventana de impresión" (si se configuró una vez, no vuelve a preguntar).
+    // routePrint: impresión automática sin preguntar impresora.
+    // - Si es estación (tiene impresora): imprime directo con iframe (auto-print).
+    // - Si NO es estación (celular): envía a Firebase → la estación lo imprime.
+    // El beep solo suena para trabajos de cocina.
     async function routePrint(html, role, width = 420){
       if(isPrintStation){
-        // Este dispositivo TIENE la impresora: imprimir directo aquí.
         openBrowserPrint(html, width);
-        // Beep solo para cocina
         if(role === 'cocina') playKitchenBeep();
       } else if(firebaseDb && cloudSyncEnabled){
-        // Celular: enviar a la nube separando por rol
         const ok = await enqueuePrintJob(html, role);
         if(ok) toast('Enviado a imprimir', 'success');
         else openBrowserPrint(html, width);

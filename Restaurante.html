@@ -8418,13 +8418,30 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
           const job = change.doc.data();
           // No imprimir nuestros propios trabajos (ya los imprimimos localmente)
           if(job.device === CLOUD_DEVICE_ID) return;
-          // Imprimir el trabajo
-          openBrowserPrint(job.html, 420);
+          // Imprimir el trabajo directamente (sin diálogo si el navegador lo permite)
+          silentPrint(job.html);
           playKitchenBeep();
           // Marcar como impreso
           change.doc.ref.update({ printed: true, printedAt: new Date().toISOString(), printedBy: CLOUD_DEVICE_ID }).catch(()=>{});
         });
       }, err => console.warn('printQueue listener:', err));
+    }
+
+    // Impresión directa/silenciosa para la estación.
+    // Usa un iframe que se auto-imprime. En Chrome con --kiosk-printing o con
+    // la impresora por defecto configurada, imprime directamente sin diálogo.
+    // Truco: llama print() y auto-cierra — si el navegador tiene "imprimir
+    // siempre a [impresora]" configurado, sale directo al papel.
+    function silentPrint(html){
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:0;opacity:0;';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      // Inyectar script que se auto-imprime al cargar
+      const autoHtml = html.replace('</body>', `<script>window.onload=function(){window.print();}<\/script></body>`);
+      doc.open(); doc.write(autoHtml); doc.close();
+      // Limpiar después
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch(_){} }, 4000);
     }
     function stopPrintQueueListener(){
       if(printQueueUnsub){ printQueueUnsub(); printQueueUnsub = null; }
@@ -8444,18 +8461,19 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
 
     // Enruta un documento HTML a imprimir.
-    // - Si este dispositivo ES la estación de impresión: imprime directamente aquí.
+    // - Si este dispositivo ES la estación de impresión: imprime directamente aquí
+    //   usando silentPrint (sin diálogo si el navegador lo permite).
     // - Si NO es estación (celular, tablet, etc.): envía el trabajo a la estación
     //   de impresión vía Firebase. NO abre el diálogo de imprimir local.
     async function routePrint(html, role, width = 420){
       if(isPrintStation){
         // Estación: imprimir directo aquí (tiene la impresora física)
-        openBrowserPrint(html, width);
+        silentPrint(html);
       } else if(firebaseDb && cloudSyncEnabled){
         // Celular/tablet: encolar en Firebase para que la estación lo imprima
         const queued = await enqueuePrintJob(html, role);
         if(queued){
-          toast('Impresión enviada a la estación de impresión', 'success');
+          toast('Enviado a imprimir', 'success');
         } else {
           // Fallback: si no se pudo encolar, intentar imprimir localmente
           openBrowserPrint(html, width);

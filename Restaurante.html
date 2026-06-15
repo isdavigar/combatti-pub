@@ -2942,11 +2942,6 @@
       </section>
 
       <section id="view-caja" class="view">
-        <!-- Botones de gastos/ingresos — siempre visibles, incluso con caja cerrada -->
-        <div class="d-flex gap-2 flex-wrap mb-3" id="cajaCashMovementBtns">
-          <button class="btn btn-outline-danger btn-pill" onclick="openMovementModal('Egreso')"><i class="fa-solid fa-arrow-down me-2"></i>Registrar gasto</button>
-          <button class="btn btn-primary-soft btn-pill" onclick="openMovementModal('Ingreso')"><i class="fa-solid fa-arrow-up me-2"></i>Registrar ingreso</button>
-        </div>
         <div class="products-layout">
           <div class="col-lg-5">
             <div class="glass-card p-4 mb-4 cash-control-card">
@@ -9367,6 +9362,7 @@ tr.total-row td,tr td b{font-weight:800}
             <div class="col-12 small text-secondary">Egresos guardados: ${Array.isArray(record.expenseHistory) ? record.expenseHistory.length : 0} · Movimientos del periodo: ${Array.isArray(record.movementsHistory) ? record.movementsHistory.length : 0}</div>
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
+              <button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>
               <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printCashRecord('${record.id}')"><i class="fa-solid fa-receipt me-1"></i>Comprobante diario</button>
               <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-print me-1"></i>Inventario</button>
               ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteCashRecord('${record.id}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
@@ -9455,6 +9451,37 @@ tr.total-row td,tr td b{font-weight:800}
         }
       });
     }
+    // Agregar un gasto a un día específico del historial de cuadres.
+    // Se registra como movimiento con la fecha del cierre de caja y se descuenta del total.
+    function addExpenseToRecord(recordId){
+      const record = (state.cash.history || []).find(r => r.id === recordId);
+      if(!record){ toast('No se encontró el registro de caja', 'warning'); return; }
+      const concept = prompt('Concepto del gasto:');
+      if(!concept || !concept.trim()){ return; }
+      const amountStr = prompt('Valor del gasto:');
+      if(!amountStr) return;
+      const amount = clampNumber(amountStr);
+      if(amount <= 0){ toast('Ingresa un valor mayor a cero', 'warning'); return; }
+      // Usar la fecha del cierre (o apertura si no se cerró) como fecha del gasto
+      const expenseDate = record.closedAt || record.openedAt || new Date().toISOString();
+      // Agregar al array de movimientos generales
+      const movement = { id:uid(), type:'Egreso', concept:concept.trim(), amount, source:'EFECTIVO', date:expenseDate, linkedCashRecord:recordId };
+      state.movements.push(movement);
+      // También agregar al historial de egresos del registro de caja
+      if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
+      record.expenseHistory.push(movement);
+      if(!Array.isArray(record.movementsHistory)) record.movementsHistory = [];
+      record.movementsHistory.push(movement);
+      // Descontar del saldo final del registro
+      record.final = Number(record.final || 0) - amount;
+      record.expense = Number(record.expense || 0) + amount;
+      persistAll();
+      renderCashHistory();
+      renderCashView();
+      if(currentView === 'movimientos') renderMovements();
+      toast(`Gasto de ${money(amount)} agregado al cuadre del ${formatDate(expenseDate)}`, 'success');
+    }
+
     // Eliminar un cuadre de caja del historial (solo admin del sistema).
     function deleteCashRecord(id){
       if(!requireSystemAdmin('eliminar cuadres de caja')) return;

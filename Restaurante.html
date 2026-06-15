@@ -9578,7 +9578,7 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
             </div>
             <div class="text-end d-flex flex-column align-items-end gap-2">
               <strong>${money(entry.order?.total || (Number(entry.item?.price || 0) * Number(entry.item?.qty || 0)))}</strong>
-              ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteAuditEntry('${entry.id || ''}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
+              ${isSystemAdmin() ? `<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-success btn-pill" onclick="restoreDeletedOrder('${entry.id || ''}')"><i class="fa-solid fa-rotate-left me-1"></i>Restablecer</button><button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteAuditEntry('${entry.id || ''}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button></div>` : ''}
             </div>
           </div>
         </div>
@@ -9701,6 +9701,32 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
         }
       });
     }
+    // Restablecer un pedido eliminado (devolverlo al historial de ventas).
+    function restoreDeletedOrder(entryId){
+      if(!requireSystemAdmin('restablecer pedidos eliminados')) return;
+      const entry = (state.deletedOrders || []).find(e => (e.id || '') === entryId);
+      if(!entry || !entry.order){ toast('No se encontró el pedido para restablecer', 'warning'); return; }
+      confirmAction({
+        title:'Restablecer pedido',
+        message:`¿Restablecer la venta <strong>${escapeHtml(entry.order.tableName || '-')}</strong> por <strong>${money(entry.order.total || 0)}</strong>?<br><br>El pedido volverá al historial de ventas como pagado.`,
+        confirmLabel:'Sí, restablecer',
+        confirmClass:'btn-success',
+        onConfirm: () => {
+          // Devolver el pedido al historial
+          const restoredOrder = { ...entry.order, restoredAt:new Date().toISOString(), restoredBy:currentUser?.username || 'Admin' };
+          state.orders.push(restoredOrder);
+          // Quitar de la auditoría
+          state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== entryId);
+          persistAll();
+          forceCloudSyncNow();
+          renderDeletedOrders();
+          renderOrderHistory();
+          renderCashView();
+          toast('Pedido restablecido al historial de ventas', 'success');
+        }
+      });
+    }
+
     // Eliminar una entrada de la auditoría de eliminados (solo admin del sistema).
     function deleteAuditEntry(id){
       if(!requireSystemAdmin('eliminar registros de auditoría')) return;
@@ -9901,14 +9927,14 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
             <div>Núm. Final Electronica: </div>
             <div>Transacciones: ${paid.length}</div>
             <div>Documentos Anulados: 0</div>
-            <div>Valor Transacciones: ${money(report.sales)}</div>
+            <div>Total de venta POS: ${money(report.sales)}</div>
             <div>Propinas: ${money(report.tips)}</div>
             <div>Domicilios: ${money(report.deliveryFees)}</div>
           </div>
           <div class="section-title">Inicial</div>
           <table><thead><tr><th>Medio de pago</th><th class="right">Inicial</th></tr></thead><tbody>${initialRows}<tr class="total-row"><td>Total</td><td class="right">${money(record.openingAmount || 0)}</td></tr></tbody></table>
           <div class="section-title">Ventas</div>
-          <table><thead><tr><th>Nombre</th><th class="right">No. Trans.</th><th class="right">Sistema</th></tr></thead><tbody>${salesRows}<tr class="total-row"><td>Total cobrado</td><td></td><td class="right">${money(report.sales)}</td></tr><tr class="total-row"><td>Propinas</td><td></td><td class="right">${money(report.tips)}</td></tr><tr class="total-row"><td>Domicilios</td><td></td><td class="right">${money(report.deliveryFees)}</td></tr></tbody></table>
+          <table><thead><tr><th>Nombre</th><th class="right">No. Trans.</th><th class="right">Sistema</th></tr></thead><tbody>${salesRows}<tr class="total-row"><td>Total de venta POS</td><td></td><td class="right">${money(report.sales)}</td></tr><tr class="total-row"><td>Propinas</td><td></td><td class="right">${money(report.tips)}</td></tr><tr class="total-row"><td>Domicilios</td><td></td><td class="right">${money(report.deliveryFees)}</td></tr></tbody></table>
           <div class="section-title">Ventas a Crédito</div>
           <table><thead><tr><th>No. Trans.</th><th class="right">Ventas</th><th class="right">Domicilio</th><th class="right">Total</th></tr></thead><tbody><tr><td class="right">${credits.length}</td><td class="right">${money(creditSalesWithoutDelivery)}</td><td class="right">${money(creditDelivery)}</td><td class="right">${money(report.creditSales)}</td></tr></tbody></table>
           <div class="section-title">Detalle Ventas</div>

@@ -10033,6 +10033,7 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
               <div class="d-flex gap-1 flex-wrap justify-content-end mt-2">
                 <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewOrderTicket('${order.id}', 'TICKET')" title="Ver ticket"><i class="fa-solid fa-eye"></i></button>
                 <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printOrderTicket('${order.id}', 'TICKET')" title="Imprimir"><i class="fa-solid fa-print"></i></button>
+                ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-warning btn-pill" onclick="moveOrderToDate('${order.id}')" title="Mover a otro día"><i class="fa-solid fa-calendar-day"></i></button>` : ''}
                 ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-secondary btn-pill" onclick="editPaidOrder('${order.id}')" title="Editar venta"><i class="fa-solid fa-pen"></i></button>` : ''}
                 ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteOrderFromHistory('${order.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : ''}
               </div>
@@ -10041,6 +10042,28 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
         </div>`;
       }).join('') || '<div class="p-3 text-secondary">No hay pedidos pagados todavia.</div>';
       renderHistoryPager('orderHistoryPagination', pager.page, pager.totalPages, pager.totalItems, 'setOrderHistoryPage');
+    }
+
+    // Mover una venta a otro día (cambiar la fecha de pago).
+    function moveOrderToDate(orderId){
+      if(!requireSystemAdmin('mover ventas de fecha')) return;
+      const order = state.orders.find(o => o.id === orderId);
+      if(!order){ toast('Pedido no encontrado', 'warning'); return; }
+      const currentDate = order.paidAt ? new Date(order.paidAt).toISOString().split('T')[0] : '';
+      const newDate = prompt(`Venta: ${order.tableName || '-'} — ${money(order.total || 0)}\nFecha actual: ${currentDate}\n\nEscribe la nueva fecha (YYYY-MM-DD):`, currentDate);
+      if(!newDate) return;
+      const parsed = parseLocalDate(newDate);
+      if(!parsed || isNaN(parsed.getTime())){ toast('Fecha no válida. Usa formato YYYY-MM-DD (ej: 2025-06-14)', 'warning'); return; }
+      // Mantener la hora original pero cambiar el día
+      const oldDate = order.paidAt ? new Date(order.paidAt) : new Date();
+      parsed.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+      order.paidAt = parsed.toISOString();
+      order.updatedAt = new Date().toISOString();
+      persistAll();
+      renderOrderHistory();
+      renderCashView();
+      renderDashboard();
+      toast(`Venta movida al ${parsed.toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' })}`, 'success');
     }
 
     // Editar una venta pagada (solo admin del sistema) — para corregir precios.

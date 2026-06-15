@@ -10044,26 +10044,30 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
       renderHistoryPager('orderHistoryPagination', pager.page, pager.totalPages, pager.totalItems, 'setOrderHistoryPage');
     }
 
-    // Mover una venta a otro día (cambiar la fecha de pago).
+    // Mover una venta a otro día y/o turno (cambiar la fecha de pago y turno).
     function moveOrderToDate(orderId){
       if(!requireSystemAdmin('mover ventas de fecha')) return;
       const order = state.orders.find(o => o.id === orderId);
       if(!order){ toast('Pedido no encontrado', 'warning'); return; }
       const currentDate = order.paidAt ? new Date(order.paidAt).toISOString().split('T')[0] : '';
-      const newDate = prompt(`Venta: ${order.tableName || '-'} — ${money(order.total || 0)}\nFecha actual: ${currentDate}\n\nEscribe la nueva fecha (YYYY-MM-DD):`, currentDate);
+      const currentShift = order.saleShift || (order.paidAt && new Date(order.paidAt).getHours() >= 17 ? 'Noche' : 'Dia');
+      const newDate = prompt(`Venta: ${order.tableName || '-'} — ${money(order.total || 0)}\nFecha actual: ${currentDate}\nTurno actual: ${currentShift}\n\nEscribe la nueva fecha (YYYY-MM-DD):`, currentDate);
       if(!newDate) return;
       const parsed = parseLocalDate(newDate);
       if(!parsed || isNaN(parsed.getTime())){ toast('Fecha no válida. Usa formato YYYY-MM-DD (ej: 2025-06-14)', 'warning'); return; }
-      // Mantener la hora original pero cambiar el día
-      const oldDate = order.paidAt ? new Date(order.paidAt) : new Date();
-      parsed.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+      const newShift = prompt(`¿A qué turno mover esta venta?\nEscribe: Dia o Noche`, currentShift);
+      if(!newShift) return;
+      const shift = normalizeShift(newShift);
+      // Si es turno de día: hora 12:00, si es noche: hora 20:00
+      parsed.setHours(shift === 'Noche' ? 20 : 12, 0, 0, 0);
       order.paidAt = parsed.toISOString();
+      order.saleShift = shift;
       order.updatedAt = new Date().toISOString();
       persistAll();
       renderOrderHistory();
       renderCashView();
       renderDashboard();
-      toast(`Venta movida al ${parsed.toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' })}`, 'success');
+      toast(`Venta movida al ${parsed.toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' })} — Turno de ${shift === 'Noche' ? 'noche' : 'día'}`, 'success');
     }
 
     // Editar una venta pagada (solo admin del sistema) — para corregir precios.

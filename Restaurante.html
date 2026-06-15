@@ -4011,6 +4011,13 @@
               <select id="printerCajaSelect" class="form-select"></select>
             </div>
           </div>
+          <div class="form-check form-switch mb-3" style="border:2px solid rgba(var(--primary-rgb),.3);border-radius:14px;padding:14px;">
+            <input class="form-check-input" type="checkbox" id="printStationToggle" onchange="togglePrintStation()">
+            <label class="form-check-label fw-bold" for="printStationToggle">
+              <i class="fa-solid fa-print me-1 text-success"></i>Este dispositivo tiene la impresora física
+            </label>
+            <div class="section-subtitle mt-1">Activa esto SOLO en el PC/dispositivo donde están conectadas las impresoras de cocina y caja. Los celulares y tablets enviarán las impresiones aquí automáticamente sin abrir diálogo.</div>
+          </div>
           <div class="form-check form-switch mb-3">
             <input class="form-check-input" type="checkbox" id="printerNotifyCaja">
             <label class="form-check-label" for="printerNotifyCaja">Cuando se envía una comanda a cocina, imprimir también un aviso en caja</label>
@@ -8353,34 +8360,97 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     }
 
     // =====================================================================
-    // IMPRESIÓN DIRECTA: todos los dispositivos imprimen directo a las
-    // impresoras configuradas (cocina y caja). No hay "estación" ni cola.
-    // Cada dispositivo (PC, celular, tablet) imprime directamente.
+    // IMPRESIÓN REMOTA: el celular envía a la nube y el dispositivo con la
+    // impresora física lo recibe e imprime automáticamente.
     // =====================================================================
-    function silentPrint(html){
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:0;opacity:0;';
-      document.body.appendChild(iframe);
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      const autoHtml = html.replace('</body>', `<script>window.onload=function(){window.print();}<\/script></body>`);
-      doc.open(); doc.write(autoHtml); doc.close();
-      setTimeout(() => { try { document.body.removeChild(iframe); } catch(_){} }, 4000);
+    const PRINT_QUEUE_KEY = 'combatti_is_print_station';
+    let isPrintStation = false;
+    let printQueueUnsub = null;
+
+    function loadPrintStationFlag(){
+      try { isPrintStation = localStorage.getItem(PRINT_QUEUE_KEY) === 'true'; } catch(_){}
+    }
+    function setPrintStation(enabled){
+      isPrintStation = !!enabled;
+      try { localStorage.setItem(PRINT_QUEUE_KEY, isPrintStation ? 'true' : 'false'); } catch(_){}
+      if(isPrintStation) startPrintQueueListener();
+      else stopPrintQueueListener();
+    }
+    function togglePrintStation(){
+      setPrintStation(!isPrintStation);
+      renderPrintStationUI();
+      toast(isPrintStation ? 'Este dispositivo ahora recibe e imprime los trabajos de todos.' : 'Desactivado como impresora.', 'info');
+    }
+    function renderPrintStationUI(){
+      const el = byId('printStationToggle');
+      if(el) el.checked = isPrintStation;
+    }
+    function startPrintQueueListener(){
+      if(!firebaseDb || printQueueUnsub) return;
+      printQueueUnsub = restaurantRoot().collection('printQueue')
+        .where('printed', '==', false)
+        .onSnapshot(snap => {
+          snap.docChanges().forEach(change => {
+            if(change.type !== 'added') return;
+            const job = change.doc.data();
+            if(job.device === CLOUD_DEVICE_ID) return;
+            // Imprimir directo con el diálogo del navegador (la impresora
+            // queda recordada después de la primera vez).
+            openBrowserPrint(job.html, 420);
+            playKitchenBeep();
+            change.doc.ref.update({ printed: true, printedAt: new Date().toISOString(), printedBy: CLOUD_DEVICE_ID }).catch(()=>{});
+          });
+        }, err => console.warn('printQueue listener:', err));
+    }
+    function stopPrintQueueListener(){
+      if(printQueueUnsub){ printQueueUnsub(); printQueueUnsub = null; }
+    }
+    async function enqueuePrintJob(html, role){
+      if(!firebaseDb) return false;
+      try {
+        await restaurantRoot().collection('printQueue').add({
+          html, role: role || 'cocina',
+          createdAt: new Date().toISOString(),
+          device: CLOUD_DEVICE_ID,
+          printed: false
+        });
+        return true;
+      } catch(e){ console.warn('printQueue:', e); return false; }
+    }
+    async function cleanOldPrintJobs(){
+      if(!firebaseDb) return;
+      try {
+        const cutoff = new Date(Date.now() - 3600000).toISOString();
+        const old = await restaurantRoot().collection('printQueue').where('createdAt', '<', cutoff).get();
+        if(old.empty) return;
+        const batch = firebaseDb.batch();
+        old.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      } catch(_){}
     }
 
-    // Funciones stub para compatibilidad (ya no se usan)
-    function loadPrintStationFlag(){}
-    function setPrintStation(){}
-    function togglePrintStation(){}
-    function renderPrintStationUI(){}
-    function startPrintQueueListener(){}
-    function stopPrintQueueListener(){}
-    async function cleanOldPrintJobs(){}
-    let isPrintStation = true; // todos los dispositivos imprimen directo
+    // silentPrint: intenta imprimir sin abrir ventana extra
+    function silentPrint(html){
+      openBrowserPrint(html, 420);
+    }
 
-    // Enruta un documento HTML a imprimir directamente en ESTE dispositivo.
-    // Todos los dispositivos están conectados a las impresoras (cocina/caja).
+    // routePrint: lógica principal de impresión.
+    // - Si este dispositivo es la IMPRESORA (marcado como estación): imprime aquí.
+    // - Si NO es la impresora (celular): envía el trabajo por Firebase al
+    //   dispositivo que sí tiene la impresora. NO abre diálogo local.
     async function routePrint(html, role, width = 420){
-      silentPrint(html);
+      if(isPrintStation){
+        // Este dispositivo TIENE la impresora: imprimir directo aquí.
+        openBrowserPrint(html, width);
+      } else if(firebaseDb && cloudSyncEnabled){
+        // Este dispositivo NO tiene impresora (es un cel): enviar a la nube
+        // y el dispositivo con la impresora lo recoge automáticamente.
+        const ok = await enqueuePrintJob(html, role);
+        if(ok) toast('Enviado a imprimir', 'success');
+        else openBrowserPrint(html, width); // fallback
+      } else {
+        openBrowserPrint(html, width);
+      }
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.
     function kitchenNoticeHtml(order){

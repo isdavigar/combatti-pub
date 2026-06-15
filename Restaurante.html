@@ -2647,9 +2647,13 @@
                   <p class="section-subtitle mb-0">Participación por cantidad vendida.</p>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-2">
-                  <div class="d-flex align-items-center gap-2">
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <select id="topProductsCashFilter" class="form-select form-select-sm" style="width:auto;min-width:140px;" onchange="updateTopProductsByFilter()">
+                      <option value="turno">Turno actual</option>
+                      <option value="month">Mes</option>
+                      <option value="day">Hoy</option>
+                    </select>
                     <input id="topProductsDateFilter" type="date" class="form-control form-control-sm" style="width:auto;min-width:140px;" onchange="updateTopProductsByDate()">
-                    <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="clearTopProductsFilter()">Mes</button>
                   </div>
                   <div class="chart-kpis">
                     <div class="chart-kpi"><span>Top</span><strong id="topProductName">-</strong></div>
@@ -9429,10 +9433,12 @@ tr.total-row td,tr td b{font-weight:800}
             <div class="col-md-2"><div class="small text-secondary">Turno</div><span class="badge text-bg-light text-dark"><i class="fa-solid ${normalizeShift(record.shift) === 'Noche' ? 'fa-moon' : 'fa-sun'} me-1"></i>${shiftLabel(record.shift)}</span></div>
             <div class="col-md-2"><span class="badge text-bg-${record.status === 'Abierta' ? 'success' : 'secondary'}">${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</span></div>
             <div class="col-12 small text-secondary">Egresos guardados: ${Array.isArray(record.expenseHistory) ? record.expenseHistory.length : 0} · Movimientos del periodo: ${Array.isArray(record.movementsHistory) ? record.movementsHistory.length : 0}</div>
+            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(record.sales || 0)}</span><span class="text-danger fw-bold">Gastos: ${money(record.expense || 0)}</span><span class="text-success fw-bold">Neto: ${money(Number(record.sales || 0) - Number(record.expense || 0))}</span></div></div>
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               <button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>
-              <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printCashRecord('${record.id}')"><i class="fa-solid fa-receipt me-1"></i>Comprobante diario</button>
+              <button class="btn btn-sm btn-outline-success btn-pill" onclick="exportCashRecordExcel('${record.id}')"><i class="fa-solid fa-file-excel me-1"></i>Excel</button>
+              <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printCashRecord('${record.id}')"><i class="fa-solid fa-receipt me-1"></i>Comprobante</button>
               <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-print me-1"></i>Inventario</button>
               ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteCashRecord('${record.id}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
             </div>
@@ -9604,6 +9610,62 @@ tr.total-row td,tr td b{font-weight:800}
       modals.cashDetail.show();
     }
     function printCashRecord(id){ printCloseReport(findCashRecord(id)); }
+    function exportCashRecordExcel(id){
+      if(typeof XLSX === 'undefined'){ toast('XLSX no disponible', 'warning'); return; }
+      const record = findCashRecord(id);
+      if(!record) return;
+      const from = new Date(record.openedAt || new Date());
+      const to = record.closedAt ? new Date(record.closedAt) : new Date();
+      const report = buildCashReport(from, to);
+      const allExpenses = Array.isArray(record.expenseHistory) ? record.expenseHistory : (record.movementsHistory || []).filter(m => m.type === 'Egreso');
+      const payrollExpenses = allExpenses.filter(m => m.payroll || (m.concept || '').toLowerCase().includes('nómina'));
+      const otherExpenses = allExpenses.filter(m => !m.payroll && !(m.concept || '').toLowerCase().includes('nómina'));
+      const totalExpenses = allExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
+      const totalPayroll = payrollExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
+      const totalOther = otherExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
+      const neto = Number(record.sales || report.sales || 0) - totalExpenses;
+      // Hoja resumen
+      const resumen = [
+        { Concepto:'Apertura de caja', Valor:record.openingAmount || 0 },
+        { Concepto:'Ventas pagadas', Valor:record.sales || report.sales || 0 },
+        { Concepto:'Propinas', Valor:record.tips || report.tips || 0 },
+        { Concepto:'Ingresos manuales', Valor:record.income || report.income || 0 },
+        { Concepto:'Egresos totales', Valor:totalExpenses },
+        { Concepto:'  - Nómina', Valor:totalPayroll },
+        { Concepto:'  - Otros gastos', Valor:totalOther },
+        { Concepto:'Saldo efectivo en caja', Valor:record.final || report.final || 0 },
+        { Concepto:'NETO (Ventas - Gastos)', Valor:neto },
+        {},
+        { Concepto:'Turno', Valor:shiftLabel(record.shift) },
+        { Concepto:'Responsable', Valor:record.responsible || '' },
+        { Concepto:'Apertura', Valor:formatDate(record.openedAt) },
+        { Concepto:'Cierre', Valor:record.closedAt ? formatDate(record.closedAt) : 'Abierta' },
+        { Concepto:'Arqueo contado', Valor:record.countedCash ?? '' },
+        { Concepto:'Diferencia', Valor:record.discrepancy ?? '' }
+      ];
+      // Hoja egresos
+      const egresos = allExpenses.map(m => ({
+        Fecha: formatDate(m.date),
+        Concepto: m.concept || '',
+        Medio: expenseSourceLabel(m.source),
+        Valor: m.amount || 0,
+        Tipo: m.payroll ? 'Nómina' : 'Gasto'
+      }));
+      // Hoja ventas
+      const ventas = report.orders.map(o => ({
+        Fecha: formatDate(o.paidAt),
+        Mesa: o.tableName || '',
+        Cliente: o.customer || '',
+        Método: o.paymentMethod || '',
+        Total: o.total || 0
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(egresos.length ? egresos : [{ Fecha:'', Concepto:'Sin egresos', Medio:'', Valor:0, Tipo:'' }]), 'Egresos');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ventas.length ? ventas : [{ Fecha:'', Mesa:'', Cliente:'Sin ventas', Método:'', Total:0 }]), 'Ventas');
+      XLSX.writeFile(wb, `cuadre_${dateTimeStamp()}.xlsx`);
+      toast('Excel descargado', 'success');
+    }
     function cashRecordDetailHtml(record = currentCashRecord()){
       if(!record) return '<div class="text-secondary">No hay cuadre seleccionado.</div>';
       const from = new Date(record.openedAt || new Date());
@@ -11199,6 +11261,21 @@ function parseMoneyValue(value){
         tooltip:item => `${item.label}: ${item.raw} (${Math.round((Number(item.raw || 0) / total) * 100)}%)`
       });
     }
+    function updateTopProductsByFilter(){
+      const filter = byId('topProductsCashFilter')?.value || 'turno';
+      setValue('topProductsDateFilter', '');
+      let orders;
+      if(filter === 'turno'){
+        // Turno actual: desde apertura de caja
+        const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
+        orders = paidOrdersRange(from, new Date());
+      } else if(filter === 'day'){
+        orders = paidOrdersRange(startOfDay(new Date()), endOfDay(new Date()));
+      } else {
+        orders = paidOrdersRange(startOfMonth(new Date()), endOfDay(new Date()));
+      }
+      renderTopProductsFromOrders(orders);
+    }
     function updateTopProductsByDate(){
       const dateVal = byId('topProductsDateFilter')?.value;
       const date = dateVal ? parseLocalDate(dateVal) : null;
@@ -11206,19 +11283,24 @@ function parseMoneyValue(value){
       if(date){
         orders = paidOrdersRange(startOfDay(date), endOfDay(date));
       } else {
-        orders = paidOrdersRange(startOfMonth(new Date()), endOfDay(new Date()));
+        updateTopProductsByFilter();
+        return;
       }
+      renderTopProductsFromOrders(orders);
+    }
+    function clearTopProductsFilter(){
+      setValue('topProductsDateFilter', '');
+      if(byId('topProductsCashFilter')) byId('topProductsCashFilter').value = 'month';
+      updateTopProductsByFilter();
+    }
+    function renderTopProductsFromOrders(orders){
       const productMap = new Map();
-      orders.forEach(o => (o.items || []).forEach(it => productMap.set(it.name, (productMap.get(it.name) || 0) + Number(it.qty || 0))));
+      (orders || []).forEach(o => (o.items || []).forEach(it => productMap.set(it.name, (productMap.get(it.name) || 0) + Number(it.qty || 0))));
       const topProducts = [...productMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
       const topLabels = topProducts.map(x => x[0]);
       const topQty = topProducts.map(x => x[1]);
       setText('topProductName', topProducts[0]?.[0] || '-');
       updateTopProductsPie(topLabels.length ? topLabels : ['Sin ventas'], topQty.length ? topQty : [1]);
-    }
-    function clearTopProductsFilter(){
-      setValue('topProductsDateFilter', '');
-      updateTopProductsByDate();
     }
     function updateTopProductsPie(labels, data){
       const canvas = document.getElementById('topProductsChart');

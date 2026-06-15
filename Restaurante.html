@@ -8473,11 +8473,9 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       </body></html>`;
     }
     function maybePrintKitchenNoticeToCaja(order){
-      const pr = printingConfig();
-      // Imprime el aviso de cocina en caja si está habilitado.
-      if(pr.notifyCaja){
-        routePrint(kitchenNoticeHtml(order), 'caja', 300);
-      }
+      // SIEMPRE imprimir el aviso en caja cuando se manda a cocina.
+      // Cocina recibe el pedido detallado, Caja recibe solo el aviso simple.
+      routePrint(kitchenNoticeHtml(order), 'caja', 300);
     }
 
     // ----- Modal de configuración de impresoras -----
@@ -8640,8 +8638,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const meta = `<p><b>Tipo:</b> ${escapeHtml(order.type || '-')}</p><p><b>Mesa/Pedido:</b> ${escapeHtml(order.tableName || '-')}</p><p><b>Cliente:</b> ${escapeHtml(order.customer || '-')}</p><p><b>Dirección:</b> ${escapeHtml(order.address || '-')}</p>`;
       const style = `body{font-family:Arial,sans-serif;margin:0;padding:6px;width:300px;font-size:12px;line-height:1.16;}h1,h2,h3,p{margin:0 0 3px 0}h2{font-size:16px}.center{text-align:center}.small{font-size:10px}.line{border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 0;vertical-align:top;border-bottom:1px dotted #ddd}th{text-align:left}.right{text-align:right}.center{text-align:center}.kitchen-observation{display:block;margin-top:3px;font-weight:400;font-style:italic;font-size:13px;line-height:1.25;white-space:pre-wrap;color:#111}.kitchen-observation.is-empty{font-weight:400;font-style:italic;color:#444;font-size:12px}`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${type}</title><style>${style}</style></head><body><div class="center"><h2>${escapeHtml(state.brand.name)}</h2><p class="small">${type}</p><p class="small">${formatDate()}</p></div><div class="line"></div>${meta}<div class="line"></div>${itemsTable}<div class="line"></div></body></html>`;
+      // Imprimir simultáneamente: cocina (detallado) y caja (aviso simple).
+      // Se envían ambos con un pequeño delay para que no colisionen.
       routePrint(html, 'cocina', 420);
-      if(type === 'COMANDA') maybePrintKitchenNoticeToCaja(order);
+      if(type === 'COMANDA') setTimeout(() => maybePrintKitchenNoticeToCaja(order), 800);
     }
 
     function isKitchenDisplayMode(){

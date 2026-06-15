@@ -8927,6 +8927,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         return;
       }
       if(!requireNoActiveOrders('cerrar caja')) return;
+      // Arqueo obligatorio: no se puede cerrar sin escribir el efectivo contado
+      if(!String(byId('closeCountedInput')?.value || '').trim()){
+        toast('Debes escribir el efectivo contado en caja (arqueo) antes de cerrar', 'warning');
+        byId('closeCountedInput')?.focus();
+        return;
+      }
       const closedAt = new Date().toISOString();
       const report = buildCashReport(cashPeriodStart(), new Date(closedAt));
       state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;

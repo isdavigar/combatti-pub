@@ -4095,6 +4095,45 @@
     </div>
   </div>
 
+  <!-- Modal elegante para agregar gasto a un cuadre de caja -->
+  <div class="modal fade" id="addExpenseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="border-radius:28px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.28);">
+        <div class="modal-header" style="background:linear-gradient(135deg, #ef4444, #b91c1c);color:#fff;border:0;padding:20px 24px;">
+          <div>
+            <h5 class="modal-title fw-bold"><i class="fa-solid fa-receipt me-2"></i>Agregar gasto al cuadre</h5>
+            <small style="opacity:.85;">Se descontará automáticamente del saldo de esa caja.</small>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="padding:24px;">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Concepto del gasto</label>
+            <input id="expModalConcept" class="form-control" placeholder="Ej: Pago proveedor, compra insumos...">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Valor</label>
+            <input id="expModalAmount" type="text" inputmode="numeric" data-money-input="1" class="form-control form-control-lg" placeholder="150.000">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Sale de</label>
+            <select id="expModalSource" class="form-select">
+              <option value="EFECTIVO">Efectivo - dinero de caja</option>
+              <option value="BANCOLOMBIA">Transferencia Bancolombia</option>
+              <option value="NEQUI">Nequi</option>
+              <option value="BOLD">Bold</option>
+            </select>
+          </div>
+          <input type="hidden" id="expModalRecordId" value="">
+        </div>
+        <div class="modal-footer" style="padding:16px 24px;border:0;">
+          <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-danger btn-pill" onclick="confirmAddExpenseToRecord()"><i class="fa-solid fa-check me-2"></i>Guardar gasto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Asistente / chatbot de soporte (responde dentro del mismo chat) -->
   <button id="supportChatLauncher" class="support-chat-launcher" type="button" onclick="toggleSupportChat()" title="Asistente Combatti" aria-label="Abrir asistente Combatti"><i class="fa-solid fa-comment-dots"></i></button>
   <button id="supportChatHideBtn" class="support-chat-launcher" type="button" onclick="hideSupportAssistant()" title="Ocultar asistente" aria-label="Ocultar asistente" style="right:80px;background:#64748b;"><i class="fa-solid fa-eye-slash"></i></button>
@@ -9223,16 +9262,29 @@ tr.total-row td,tr td b{font-weight:800}
         confirmClass:'btn-warning',
         onConfirm: () => {
           const now = new Date().toISOString();
+          // Buscar el último cierre de caja para vincular los gastos de nómina
+          const lastClosed = [...(state.cash.history || [])].reverse().find(r => r.status === 'Cerrada' && r.closedAt);
           selections.forEach(sel => {
-            state.movements.push({
+            const movement = {
               id:uid(),
               type:'Egreso',
               concept:`Nómina - ${sel.name} (${sel.role})`,
               amount:sel.amount,
               source:sel.source,
               payroll:true,
-              date:now
-            });
+              date:now,
+              linkedCashRecord: lastClosed?.id || null
+            };
+            state.movements.push(movement);
+            // Vincular al historial de la última caja cerrada
+            if(lastClosed){
+              if(!Array.isArray(lastClosed.expenseHistory)) lastClosed.expenseHistory = [];
+              lastClosed.expenseHistory.push(movement);
+              if(!Array.isArray(lastClosed.movementsHistory)) lastClosed.movementsHistory = [];
+              lastClosed.movementsHistory.push(movement);
+              lastClosed.final = Number(lastClosed.final || 0) - sel.amount;
+              lastClosed.expense = Number(lastClosed.expense || 0) + sel.amount;
+            }
           });
           persistAll();
           modals.payroll.hide();
@@ -9527,20 +9579,29 @@ tr.total-row td,tr td b{font-weight:800}
       });
     }
     // Agregar un gasto a un día específico del historial de cuadres.
-    // Se registra como movimiento con la fecha del cierre de caja y se descuenta del total.
+    // Abre un modal elegante para ingresar los datos.
     function addExpenseToRecord(recordId){
       const record = (state.cash.history || []).find(r => r.id === recordId);
       if(!record){ toast('No se encontró el registro de caja', 'warning'); return; }
-      const concept = prompt('Concepto del gasto:');
-      if(!concept || !concept.trim()){ return; }
-      const amountStr = prompt('Valor del gasto:');
-      if(!amountStr) return;
-      const amount = clampNumber(amountStr);
+      setValue('expModalConcept', '');
+      setValue('expModalAmount', '');
+      setValue('expModalSource', 'EFECTIVO');
+      byId('expModalRecordId').value = recordId;
+      modalFor(document.getElementById('addExpenseModal')).show();
+    }
+    function confirmAddExpenseToRecord(){
+      const recordId = byId('expModalRecordId')?.value;
+      const record = (state.cash.history || []).find(r => r.id === recordId);
+      if(!record){ toast('No se encontró el registro de caja', 'warning'); return; }
+      const concept = String(byId('expModalConcept')?.value || '').trim();
+      const amount = clampNumber(byId('expModalAmount')?.value || 0);
+      const source = byId('expModalSource')?.value || 'EFECTIVO';
+      if(!concept){ toast('Escribe el concepto del gasto', 'warning'); return; }
       if(amount <= 0){ toast('Ingresa un valor mayor a cero', 'warning'); return; }
       // Usar la fecha del cierre (o apertura si no se cerró) como fecha del gasto
       const expenseDate = record.closedAt || record.openedAt || new Date().toISOString();
       // Agregar al array de movimientos generales
-      const movement = { id:uid(), type:'Egreso', concept:concept.trim(), amount, source:'EFECTIVO', date:expenseDate, linkedCashRecord:recordId };
+      const movement = { id:uid(), type:'Egreso', concept, amount, source, date:expenseDate, linkedCashRecord:recordId };
       state.movements.push(movement);
       // También agregar al historial de egresos del registro de caja
       if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
@@ -9551,6 +9612,7 @@ tr.total-row td,tr td b{font-weight:800}
       record.final = Number(record.final || 0) - amount;
       record.expense = Number(record.expense || 0) + amount;
       persistAll();
+      modalFor(document.getElementById('addExpenseModal')).hide();
       renderCashHistory();
       renderCashView();
       if(currentView === 'movimientos') renderMovements();

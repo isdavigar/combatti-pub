@@ -9037,7 +9037,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // lo bloquee.
       await pushIncremental(true);
       modals.cashClose.hide();
-      exportDailyCloseExcel(true, lastHistory);
+      // Excel: solo descargar automáticamente en cierre de NOCHE (incluye día + noche)
+      if(normalizeShift(state.shift) === 'Noche'){
+        exportDailyCloseExcelDualShift(lastHistory);
+      }
       printCloseReport(lastHistory);
       sendCashCloseEmail(lastHistory);
       // Guardar el turno en los movimientos del historial antes de limpiar
@@ -10789,6 +10792,80 @@ tr.total-row td{font-weight:800;border-top:1px solid #111}
       const { sheets } = dailyCloseData(record);
       exportWorkbookOrCsv(`cierre_diario_combatti_${dateTimeStamp()}`, sheets);
       if(!auto) toast('Cierre diario exportado', 'success');
+    }
+
+    // Excel de cierre NOCTURNO: incluye turno DÍA y turno NOCHE del mismo día, separados.
+    function exportDailyCloseExcelDualShift(nightRecord){
+      if(typeof XLSX === 'undefined') return;
+      // Buscar el cierre de DÍA del mismo día
+      const nightDate = new Date(nightRecord?.closedAt || nightRecord?.openedAt || new Date());
+      const dayRecord = [...(state.cash.history || [])].reverse().find(r =>
+        r.id !== nightRecord?.id &&
+        r.status === 'Cerrada' &&
+        r.closedAt &&
+        normalizeShift(r.shift) === 'Dia' &&
+        new Date(r.closedAt).toDateString() === nightDate.toDateString()
+      );
+
+      const wb = XLSX.utils.book_new();
+
+      // Hoja: Turno Día
+      if(dayRecord){
+        const dayFrom = new Date(dayRecord.openedAt || new Date());
+        const dayTo = new Date(dayRecord.closedAt);
+        const dayReport = buildCashReport(dayFrom, dayTo);
+        const dayExpenses = Array.isArray(dayRecord.expenseHistory) ? dayRecord.expenseHistory : [];
+        const dayTotalExp = dayExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);
+        const dayRows = [
+          { Concepto:'Turno', Valor:'DÍA' },
+          { Concepto:'Apertura', Valor:dayRecord.openingAmount || 0 },
+          { Concepto:'Ventas', Valor:dayRecord.sales || dayReport.sales || 0 },
+          { Concepto:'Propinas', Valor:dayRecord.tips || dayReport.tips || 0 },
+          { Concepto:'Egresos', Valor:dayTotalExp },
+          { Concepto:'Saldo caja', Valor:dayRecord.final || dayReport.final || 0 },
+          { Concepto:'Neto (Ventas-Gastos)', Valor:Number(dayRecord.sales || dayReport.sales || 0) - dayTotalExp },
+          { Concepto:'Responsable', Valor:dayRecord.responsible || '' },
+          { Concepto:'Apertura', Valor:formatDate(dayRecord.openedAt) },
+          { Concepto:'Cierre', Valor:formatDate(dayRecord.closedAt) }
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayRows), 'Turno Día');
+      } else {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Concepto:'No se encontró cierre de turno día para hoy' }]), 'Turno Día');
+      }
+
+      // Hoja: Turno Noche
+      const nightFrom = new Date(nightRecord.openedAt || new Date());
+      const nightTo = new Date(nightRecord.closedAt || new Date());
+      const nightReport = buildCashReport(nightFrom, nightTo);
+      const nightExpenses = Array.isArray(nightRecord.expenseHistory) ? nightRecord.expenseHistory : [];
+      const nightTotalExp = nightExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);
+      const nightRows = [
+        { Concepto:'Turno', Valor:'NOCHE' },
+        { Concepto:'Apertura', Valor:nightRecord.openingAmount || 0 },
+        { Concepto:'Ventas', Valor:nightRecord.sales || nightReport.sales || 0 },
+        { Concepto:'Propinas', Valor:nightRecord.tips || nightReport.tips || 0 },
+        { Concepto:'Egresos', Valor:nightTotalExp },
+        { Concepto:'Saldo caja', Valor:nightRecord.final || nightReport.final || 0 },
+        { Concepto:'Neto (Ventas-Gastos)', Valor:Number(nightRecord.sales || nightReport.sales || 0) - nightTotalExp },
+        { Concepto:'Responsable', Valor:nightRecord.responsible || '' },
+        { Concepto:'Apertura', Valor:formatDate(nightRecord.openedAt) },
+        { Concepto:'Cierre', Valor:formatDate(nightRecord.closedAt) }
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(nightRows), 'Turno Noche');
+
+      // Hoja: Resumen del día completo
+      const daySales = Number((dayRecord?.sales || 0)) + Number((nightRecord?.sales || nightReport.sales || 0));
+      const dayTotalExpenses = (dayRecord ? (dayRecord.expenseHistory || []).reduce((a,b) => a + Number(b.amount || 0), 0) : 0) + nightTotalExp;
+      const resumenRows = [
+        { Concepto:'RESUMEN DEL DÍA', Valor:'' },
+        { Concepto:'Total ventas (Día + Noche)', Valor:daySales },
+        { Concepto:'Total gastos (Día + Noche)', Valor:dayTotalExpenses },
+        { Concepto:'NETO DEL DÍA', Valor:daySales - dayTotalExpenses }
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenRows), 'Resumen Día');
+
+      XLSX.writeFile(wb, `cierre_completo_${dateTimeStamp()}.xlsx`);
+      toast('Excel del día completo descargado (Día + Noche)', 'success');
     }
     function dailyCloseExcelBase64(record = null){
       try{

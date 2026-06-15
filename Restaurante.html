@@ -9465,10 +9465,64 @@ tr.total-row td,tr td b{font-weight:800}
     function clearDeletedOrdersFilter(){ setValue('deletedOrdersDateFilter', ''); applyDeletedOrdersFilter(); }
     function setDeletedOrdersPage(page){ historyPages.deleted = page; renderDeletedOrders(); }
 
+    // Vincula movimientos huérfanos (nómina y gastos registrados después del cierre)
+    // al registro de caja que les corresponde por fecha. Esto corrige registros
+    // que se pagaron antes de implementar el vínculo automático.
+    function linkOrphanMovementsToRecords(){
+      if(!state.cash.history || !state.movements.length) return;
+      let changed = false;
+      const sortedRecords = [...state.cash.history].sort((a,b) => new Date(a.openedAt || 0) - new Date(b.openedAt || 0));
+      state.movements.forEach(m => {
+        if(!m.type || m.type !== 'Egreso' || !m.date) return;
+        // Si ya está vinculado a un registro, verificar que esté en su expenseHistory
+        if(m.linkedCashRecord){
+          const record = state.cash.history.find(r => r.id === m.linkedCashRecord);
+          if(record){
+            if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
+            if(!record.expenseHistory.some(e => e.id === m.id)){
+              record.expenseHistory.push(m);
+              record.expense = (record.expenseHistory || []).reduce((a,b) => a + Number(b.amount || 0), 0);
+              record.final = Number(record.openingAmount || 0) + Number(record.sales || 0) + Number(record.income || 0) - record.expense;
+              changed = true;
+            }
+          }
+          return;
+        }
+        // Buscar el registro de caja al que pertenece este movimiento por fecha
+        const mDate = new Date(m.date);
+        for(let i = sortedRecords.length - 1; i >= 0; i--){
+          const record = sortedRecords[i];
+          if(!record.closedAt) continue;
+          const openedAt = new Date(record.openedAt || 0);
+          const closedAt = new Date(record.closedAt);
+          // El gasto pertenece a este registro si su fecha cae en el rango de la caja
+          // O si fue hecho DESPUÉS del cierre pero el mismo día (ej: nómina después de cerrar)
+          const sameDay = mDate.toDateString() === closedAt.toDateString() || mDate.toDateString() === openedAt.toDateString();
+          const inRange = mDate >= openedAt && mDate <= new Date(closedAt.getTime() + 12 * 3600000); // hasta 12h después
+          if(sameDay || inRange){
+            m.linkedCashRecord = record.id;
+            if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
+            if(!record.expenseHistory.some(e => e.id === m.id)){
+              record.expenseHistory.push(m);
+              if(!Array.isArray(record.movementsHistory)) record.movementsHistory = [];
+              if(!record.movementsHistory.some(e => e.id === m.id)) record.movementsHistory.push(m);
+              record.expense = (record.expenseHistory || []).reduce((a,b) => a + Number(b.amount || 0), 0);
+              record.final = Number(record.openingAmount || 0) + Number(record.sales || 0) + Number(record.income || 0) - record.expense;
+              changed = true;
+            }
+            break;
+          }
+        }
+      });
+      if(changed) persistAll(false);
+    }
+
     function renderCashHistory(){
       const wrap = byId('cashHistoryList');
       if(!wrap) return;
       ensureCashHistory();
+      // Vincular retroactivamente movimientos (nómina, gastos) al registro de caja correspondiente
+      linkOrphanMovementsToRecords();
       const filter = byId('cashHistoryDateFilter')?.value || '';
       const rows = [...state.cash.history]
         .reverse()

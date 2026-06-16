@@ -8503,9 +8503,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         margins: { top:0, right:0, bottom:0, left:0 },
         units: 'mm',
         size: { width:80, height:null },
-        scaleContent: true,
-        rasterize: true,
-        density: 'best'
+        scaleContent: false,
+        rasterize: true
       });
       await qz.print(cfg, [{ type:'pixel', format:'html', flavor:'plain', data: html }]);
     }
@@ -9080,31 +9079,31 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       routePrint(html, 'caja', 720);
     }
     function cashReportPrintStyle(){
-      return `*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:2px;color:#000;background:#fff;font-size:12px;line-height:1.35;width:32ch;font-weight:900;}
-h2{font-size:13px;margin:0 0 3px;font-weight:900;text-align:center}
-h3,h5{font-size:12px;margin:6px 0 3px;font-weight:900}
-p{margin:0 0 2px;font-size:11px;font-weight:900}
-.muted{color:#000;font-size:10px;font-weight:900}
+      return `*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0 2mm;color:#000;background:#fff;font-size:9pt;line-height:1.3;width:76mm;font-weight:bold;}
+h2{font-size:11pt;margin:0 0 2mm;font-weight:bold;text-align:center}
+h3,h5{font-size:10pt;margin:3mm 0 1mm;font-weight:bold}
+p{margin:0 0 1mm;font-size:9pt;font-weight:bold}
+.muted{color:#000;font-size:8pt;font-weight:bold}
 .center{text-align:center}
 .right{text-align:right}
-.row{margin:3px 0}
-.col-md-3{margin:1px 0}
-.mini-table{padding:1px 0}
-.mini-table span{font-size:10px;font-weight:900}
-.mini-table strong{font-size:11px;font-weight:900}
-table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:3px;font-weight:900}
-th,td{padding:1px 0;text-align:left;vertical-align:top;border:0}
-th{font-weight:900;font-size:10px;border-bottom:1px solid #000}
+.row{margin:2mm 0}
+.col-md-3{margin:1mm 0}
+.mini-table{padding:0.5mm 0}
+.mini-table span{font-size:8pt;font-weight:bold}
+.mini-table strong{font-size:9pt;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:2mm;font-weight:bold}
+th,td{padding:0.5mm 0;text-align:left;vertical-align:top;border:0}
+th{font-weight:bold;font-size:8pt;border-bottom:0.5mm solid #000}
 td.right,table .right{text-align:right}
-tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:11px}
-.daily-report{width:32ch;margin:0;font-size:12px;line-height:1.35;font-weight:900}
-.daily-report h2,.daily-report h3,.daily-report p{margin:0 0 2px}
-.daily-report .header-title{font-size:12px;font-weight:900;text-align:center}
-.daily-report .brand-name{font-size:13px;font-weight:900;text-align:center}
-.daily-report .meta{margin:3px 0;font-size:10px;font-weight:900}
-.daily-report .meta div{margin-bottom:1px}
-.daily-report .section-title{text-align:center;font-weight:900;font-size:10px;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:2px 0;margin:5px 0 2px}
-.daily-report .summary td{font-size:10px;padding:1px 0;font-weight:900}`;
+tr.total-row td{font-weight:bold;border-top:0.5mm solid #000;font-size:9pt}
+.daily-report{width:76mm;margin:0;font-size:9pt;line-height:1.3;font-weight:bold}
+.daily-report h2,.daily-report h3,.daily-report p{margin:0 0 1mm}
+.daily-report .header-title{font-size:10pt;font-weight:bold;text-align:center}
+.daily-report .brand-name{font-size:11pt;font-weight:bold;text-align:center}
+.daily-report .meta{margin:2mm 0;font-size:8pt;font-weight:bold}
+.daily-report .meta div{margin-bottom:0.5mm}
+.daily-report .section-title{text-align:center;font-weight:bold;font-size:8pt;border-top:0.3mm dashed #000;border-bottom:0.3mm dashed #000;padding:1mm 0;margin:2mm 0 1mm}
+.daily-report .summary td{font-size:8pt;padding:0.5mm 0;font-weight:bold}`;
     }
     function printCurrentCashReport(){ printCloseReport(currentCashRecord()); }
 

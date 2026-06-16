@@ -10025,7 +10025,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const totalAllExpenses = allExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);
       const payrollTotal = allExpenses.filter(m => m.payroll || (m.concept || '').toLowerCase().includes('nómina')).reduce((a,b) => a + Number(b.amount || 0), 0);
       const expenseRows = allExpenses.map(m => `<tr><td>${escapeHtml(m.concept || 'Gasto')}${m.payroll ? ' <span style="color:#f59e0b;font-weight:800;">(NÓMINA)</span>' : ''}<div class="muted">${escapeHtml(expenseSourceLabel(m.source))}</div></td><td class="right">${money(m.amount || 0)}</td></tr>`).join('');
-      const netoFinal = Number(record.sales || report.sales || 0) - Number(report.expense || 0);
+      const netoFinal = Number(record.sales || report.sales || 0) - totalAllExpenses;
       return `
         <div class="daily-report">
           <div class="center">
@@ -10060,9 +10060,9 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           <div class="section-title">Impuestos</div>
           <table><thead><tr><th>Nombre</th><th class="right">Base</th><th class="right">Imp</th></tr></thead><tbody><tr class="total-row"><td>Total</td><td></td><td class="right">$ 0</td></tr></tbody></table>
           <div class="section-title">Gastos (incluye nómina)</div>
-          <table><thead><tr><th>Tipo de gasto</th><th class="right">Total</th></tr></thead><tbody>${expenseRows}${payrollTotal > 0 ? `<tr class="total-row"><td>Subtotal nómina</td><td class="right">${money(payrollTotal)}</td></tr>` : ''}<tr class="total-row"><td>Total gastos (informativo)</td><td class="right">${money(totalAllExpenses)}</td></tr></tbody></table>
+          <table><thead><tr><th>Tipo de gasto</th><th class="right">Total</th></tr></thead><tbody>${expenseRows}${payrollTotal > 0 ? `<tr class="total-row"><td>Subtotal nómina</td><td class="right">${money(payrollTotal)}</td></tr>` : ''}<tr class="total-row"><td>Total gastos</td><td class="right">${money(totalAllExpenses)}</td></tr></tbody></table>
           <div class="section-title">Resumen</div>
-          <table class="summary"><tbody><tr><td>Inicial + cobros + ingresos</td><td class="right">${money(Number(record.openingAmount || 0) + report.sales + report.income)}</td></tr><tr><td>Gastos durante turno</td><td class="right">-${money(report.cashExpense)}</td></tr><tr><td>Gastos post-cierre (nómina/otros)</td><td class="right">${money(totalAllExpenses - report.expense)} (no se restan)</td></tr><tr class="total-row"><td><b>Debe tener en caja</b></td><td class="right"><b>${money(report.final)}</b></td></tr><tr class="total-row"><td><b>NETO (Ventas - Gastos turno)</b></td><td class="right"><b>${money(netoFinal)}</b></td></tr></tbody></table>
+          <table class="summary"><tbody><tr><td>Inicial + cobros + ingresos</td><td class="right">${money(Number(record.openingAmount || 0) + report.sales + report.income)}</td></tr><tr><td>Gastos del turno</td><td class="right">-${money(totalAllExpenses)}</td></tr><tr class="total-row"><td><b>Debe tener en caja</b></td><td class="right"><b>${money(Number(record.openingAmount || 0) + report.cashPayments + report.income - totalAllExpenses)}</b></td></tr><tr class="total-row"><td><b>NETO (Ventas - Gastos turno)</b></td><td class="right"><b>${money(netoFinal)}</b></td></tr></tbody></table>
         </div>
       `;
     }

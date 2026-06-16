@@ -8522,7 +8522,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         if(printer){
           try{
             await qzPrintHtml(printer, html);
-            if(role === 'cocina') playKitchenBeep();
             return;
           } catch(e){
             console.warn('QZ print fail:', e);
@@ -8531,7 +8530,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       }
       // Fallback: navegador (con diálogo)
       openBrowserPrint(html, width);
-      if(role === 'cocina') playKitchenBeep();
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.
     function kitchenNoticeHtml(order){

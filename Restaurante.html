@@ -8500,12 +8500,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     async function qzPrintHtml(printerName, html){
       await ensureQz();
       const cfg = qz.configs.create(printerName, {
-        margins: { top:0, right:0, bottom:0, left:0 },
+        margins: 0,
         units: 'mm',
-        size: { width:80, height:null },
-        colorType: 'grayscale',
-        scaleContent: true,
-        rasterize: true
+        size: { width:72, height:null },
+        scaleContent: false,
+        rasterize: true,
+        density: 'draft'
       });
       await qz.print(cfg, [{ type:'pixel', format:'html', flavor:'plain', data: html }]);
     }
@@ -9080,32 +9080,31 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       routePrint(html, 'caja', 720);
     }
     function cashReportPrintStyle(){
-      return `*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0;color:#000;background:#fff;font-size:12px;line-height:1.35;width:48ch;font-weight:700;}
-h2{font-size:14px;margin:0 0 4px;font-weight:900;text-align:center}
-h3,h5{font-size:13px;margin:8px 0 4px;font-weight:900}
-p{margin:0 0 2px;font-size:12px;font-weight:700}
-.muted{color:#000;font-size:11px;font-weight:700}
+      return `*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0;color:#000;background:#fff;font-size:11px;line-height:1.3;width:272px;font-weight:700;}
+h2{font-size:13px;margin:0 0 3px;font-weight:900;text-align:center}
+h3,h5{font-size:12px;margin:6px 0 3px;font-weight:900}
+p{margin:0 0 2px;font-size:11px;font-weight:700}
+.muted{color:#000;font-size:10px;font-weight:700}
 .center{text-align:center}
 .right{text-align:right}
-.row{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px}
-.col-md-3{flex:1 1 48%}
-.mini-table{border:1px solid #000;padding:3px 5px;margin-bottom:2px}
-.mini-table span{display:block;font-size:10px;color:#000;font-weight:800}
-.mini-table strong{font-size:12px;font-weight:900}
-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px;font-weight:700;word-wrap:break-word}
-th,td{padding:2px 1px;text-align:left;vertical-align:top;border-bottom:1px solid #000;white-space:nowrap}
-th{font-weight:900;font-size:10px}
-td.right,table .right{text-align:right;white-space:nowrap}
-tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px;white-space:nowrap}
-.daily-report{width:48ch;margin:0;font-size:12px;line-height:1.35;font-weight:700}
+.row{display:none}
+.col-md-3{display:none}
+.mini-table{border:1px solid #000;padding:2px 4px;margin-bottom:2px}
+.mini-table span{display:block;font-size:9px;color:#000;font-weight:800}
+.mini-table strong{font-size:11px;font-weight:900}
+table{width:272px;border-collapse:collapse;font-size:10px;margin-bottom:4px;font-weight:700}
+th,td{padding:1px 0;text-align:left;vertical-align:top;border-bottom:1px solid #000}
+th{font-weight:900;font-size:9px}
+td.right,table .right{text-align:right}
+tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:11px}
+.daily-report{width:272px;margin:0;font-size:11px;line-height:1.3;font-weight:700}
 .daily-report h2,.daily-report h3,.daily-report p{margin:0 0 2px}
-.daily-report .header-title{font-size:13px;font-weight:900}
-.daily-report .brand-name{font-size:14px;font-weight:900}
-.daily-report .meta{margin:4px 0;font-size:11px;font-weight:700}
+.daily-report .header-title{font-size:12px;font-weight:900}
+.daily-report .brand-name{font-size:13px;font-weight:900}
+.daily-report .meta{margin:3px 0;font-size:10px;font-weight:700}
 .daily-report .meta div{margin-bottom:1px}
-.daily-report .section-title{text-align:center;font-weight:900;font-size:11px;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:3px 0;margin:6px 0 3px;text-transform:uppercase}
-.daily-report .summary td{font-size:11px;padding:2px 1px;font-weight:800}
-@media print{body{width:48ch;padding:0;overflow:visible}}`;
+.daily-report .section-title{text-align:center;font-weight:900;font-size:10px;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:2px 0;margin:5px 0 3px;text-transform:uppercase}
+.daily-report .summary td{font-size:10px;padding:1px 0;font-weight:800}`;
     }
     function printCurrentCashReport(){ printCloseReport(currentCashRecord()); }
 

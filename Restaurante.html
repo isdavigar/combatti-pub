@@ -6326,10 +6326,8 @@
       const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
       const to = new Date();
       const report = buildCashReport(from, to);
-      const income = state.movements.filter(m => m.type === 'Ingreso' && m.date && new Date(m.date) >= from && new Date(m.date) <= to).reduce((a,b) => a + Number(b.amount || 0), 0);
-      const expense = state.movements.filter(m => m.type === 'Egreso' && m.date && new Date(m.date) >= from && new Date(m.date) <= to).reduce((a,b) => a + Number(b.amount || 0), 0);
-      // Balance = apertura + ventas en efectivo del turno + ingresos - egresos
-      const balance = (state.cash.open ? Number(state.cash.openingAmount || 0) : 0) + Number(report.cashPayments || 0) + income - expense;
+      // Solo restar del efectivo los egresos que salieron EN EFECTIVO (no Nequi/Bancolombia/Bold)
+      const balance = (state.cash.open ? Number(state.cash.openingAmount || 0) : 0) + Number(report.cashPayments || 0) + Number(report.income || 0) - Number(report.cashExpense || 0);
       setText('cashStatusLabel', state.cash.open ? 'Sí' : 'No');
       setText('cashOpenValue', money(state.cash.openingAmount || 0));
       setText('cashCloseCount', state.cash.closures || 0);
@@ -6419,7 +6417,7 @@
       });
       const sellerRanking = [...sellerTotals.entries()].map(([name, total]) => ({ name, total })).sort((a,b)=>b.total-a.total);
       const topSeller = sellerRanking[0] || { name:'-', total:0 };
-      const cashTotal = (state.cash.open ? state.cash.openingAmount : 0) + todayReport.cashPayments + movementsBetween('Ingreso', turnoStart, new Date()) - movementsBetween('Egreso', turnoStart, new Date());
+      const cashTotal = (state.cash.open ? state.cash.openingAmount : 0) + todayReport.cashPayments + Number(todayReport.income || 0) - Number(todayReport.cashExpense || 0);
 
       setText('dashDateLabel', range.label);
       setText('heroSalesToday', money(todaySales));

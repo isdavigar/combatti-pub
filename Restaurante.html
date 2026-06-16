@@ -10908,30 +10908,27 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(!auto) toast('Cierre diario exportado', 'success');
     }
 
-    // Excel de cierre NOCTURNO: incluye turno DÍA y turno NOCHE del mismo día, separados.
+    // Excel de cierre NOCTURNO: incluye turno DÍA y turno NOCHE del mismo día completo.
     function exportDailyCloseExcelDualShift(nightRecord){
       if(typeof XLSX === 'undefined') return;
-      // Buscar el cierre de DÍA del mismo día
       const nightDate = new Date(nightRecord?.closedAt || nightRecord?.openedAt || new Date());
       const dayRecord = [...(state.cash.history || [])].reverse().find(r =>
-        r.id !== nightRecord?.id &&
-        r.status === 'Cerrada' &&
-        r.closedAt &&
+        r.id !== nightRecord?.id && r.status === 'Cerrada' && r.closedAt &&
         normalizeShift(r.shift) === 'Dia' &&
         new Date(r.closedAt).toDateString() === nightDate.toDateString()
       );
-
       const wb = XLSX.utils.book_new();
 
-      // Hoja: Turno Día
+      // === TURNO DÍA ===
       if(dayRecord){
         const dayFrom = new Date(dayRecord.openedAt || new Date());
         const dayTo = new Date(dayRecord.closedAt);
         const dayReport = buildCashReport(dayFrom, dayTo);
         const dayExpenses = Array.isArray(dayRecord.expenseHistory) ? dayRecord.expenseHistory : [];
         const dayTotalExp = dayExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);
-        const dayRows = [
-          { Concepto:'Turno', Valor:'DÍA' },
+        // 1. Resumen Día
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+          { Concepto:'TURNO DÍA', Valor:'' },
           { Concepto:'Apertura', Valor:dayRecord.openingAmount || 0 },
           { Concepto:'Ventas', Valor:dayRecord.sales || dayReport.sales || 0 },
           { Concepto:'Propinas', Valor:dayRecord.tips || dayReport.tips || 0 },
@@ -10939,22 +10936,39 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           { Concepto:'Saldo caja', Valor:dayRecord.final || dayReport.final || 0 },
           { Concepto:'Neto (Ventas-Gastos)', Valor:Number(dayRecord.sales || dayReport.sales || 0) - dayTotalExp },
           { Concepto:'Responsable', Valor:dayRecord.responsible || '' },
-          { Concepto:'Apertura', Valor:formatDate(dayRecord.openedAt) },
-          { Concepto:'Cierre', Valor:formatDate(dayRecord.closedAt) }
-        ];
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayRows), 'Turno Día');
+          { Concepto:'Apertura hora', Valor:formatDate(dayRecord.openedAt) },
+          { Concepto:'Cierre hora', Valor:formatDate(dayRecord.closedAt) }
+        ]), 'Día Resumen');
+        // 2. Productos Día
+        const dayProductMap = new Map();
+        dayReport.orders.forEach(o => (o.items || []).forEach(it => {
+          const key = it.name || 'Sin nombre';
+          const ex = dayProductMap.get(key) || { Producto:key, Cantidad:0, Total:0 };
+          ex.Cantidad += Number(it.qty || 0);
+          ex.Total += Number(it.price || 0) * Number(it.qty || 0);
+          dayProductMap.set(key, ex);
+        }));
+        const dayProds = [...dayProductMap.values()].sort((a,b) => b.Cantidad - a.Cantidad);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayProds.length ? dayProds : [{Producto:'Sin productos',Cantidad:0,Total:0}]), 'Día Productos');
+        // 3. Egresos Día
+        const dayEgr = dayExpenses.map(m => ({ Fecha:formatDate(m.date), Concepto:m.concept||'', Medio:expenseSourceLabel(m.source), Valor:m.amount||0, Tipo:m.payroll?'Nómina':'Gasto' }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayEgr.length ? dayEgr : [{Fecha:'',Concepto:'Sin egresos',Medio:'',Valor:0,Tipo:''}]), 'Día Egresos');
+        // 4. Ventas Día
+        const dayVtas = dayReport.orders.map(o => ({ Fecha:formatDate(o.paidAt), Mesa:o.tableName||'', Cliente:o.customer||'', Método:o.paymentMethod||'', Total:o.total||0 }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayVtas.length ? dayVtas : [{Fecha:'',Mesa:'',Cliente:'Sin ventas',Método:'',Total:0}]), 'Día Ventas');
       } else {
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Concepto:'No se encontró cierre de turno día para hoy' }]), 'Turno Día');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{Concepto:'No hubo turno de día'}]), 'Día Resumen');
       }
 
-      // Hoja: Turno Noche
+      // === TURNO NOCHE ===
       const nightFrom = new Date(nightRecord.openedAt || new Date());
       const nightTo = new Date(nightRecord.closedAt || new Date());
       const nightReport = buildCashReport(nightFrom, nightTo);
       const nightExpenses = Array.isArray(nightRecord.expenseHistory) ? nightRecord.expenseHistory : [];
       const nightTotalExp = nightExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);
-      const nightRows = [
-        { Concepto:'Turno', Valor:'NOCHE' },
+      // 5. Resumen Noche
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+        { Concepto:'TURNO NOCHE', Valor:'' },
         { Concepto:'Apertura', Valor:nightRecord.openingAmount || 0 },
         { Concepto:'Ventas', Valor:nightRecord.sales || nightReport.sales || 0 },
         { Concepto:'Propinas', Valor:nightRecord.tips || nightReport.tips || 0 },
@@ -10962,23 +10976,28 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         { Concepto:'Saldo caja', Valor:nightRecord.final || nightReport.final || 0 },
         { Concepto:'Neto (Ventas-Gastos)', Valor:Number(nightRecord.sales || nightReport.sales || 0) - nightTotalExp },
         { Concepto:'Responsable', Valor:nightRecord.responsible || '' },
-        { Concepto:'Apertura', Valor:formatDate(nightRecord.openedAt) },
-        { Concepto:'Cierre', Valor:formatDate(nightRecord.closedAt) }
-      ];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(nightRows), 'Turno Noche');
+        { Concepto:'Apertura hora', Valor:formatDate(nightRecord.openedAt) },
+        { Concepto:'Cierre hora', Valor:formatDate(nightRecord.closedAt) }
+      ]), 'Noche Resumen');
+      // 6. Productos Noche
+      const nightProductMap = new Map();
+      nightReport.orders.forEach(o => (o.items || []).forEach(it => {
+        const key = it.name || 'Sin nombre';
+        const ex = nightProductMap.get(key) || { Producto:key, Cantidad:0, Total:0 };
+        ex.Cantidad += Number(it.qty || 0);
+        ex.Total += Number(it.price || 0) * Number(it.qty || 0);
+        nightProductMap.set(key, ex);
+      }));
+      const nightProds = [...nightProductMap.values()].sort((a,b) => b.Cantidad - a.Cantidad);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(nightProds.length ? nightProds : [{Producto:'Sin productos',Cantidad:0,Total:0}]), 'Noche Productos');
+      // 7. Egresos Noche
+      const nightEgr = nightExpenses.map(m => ({ Fecha:formatDate(m.date), Concepto:m.concept||'', Medio:expenseSourceLabel(m.source), Valor:m.amount||0, Tipo:m.payroll?'Nómina':'Gasto' }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(nightEgr.length ? nightEgr : [{Fecha:'',Concepto:'Sin egresos',Medio:'',Valor:0,Tipo:''}]), 'Noche Egresos');
+      // 8. Ventas Noche
+      const nightVtas = nightReport.orders.map(o => ({ Fecha:formatDate(o.paidAt), Mesa:o.tableName||'', Cliente:o.customer||'', Método:o.paymentMethod||'', Total:o.total||0 }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(nightVtas.length ? nightVtas : [{Fecha:'',Mesa:'',Cliente:'Sin ventas',Método:'',Total:0}]), 'Noche Ventas');
 
-      // Hoja: Resumen del día completo
-      const daySales = Number((dayRecord?.sales || 0)) + Number((nightRecord?.sales || nightReport.sales || 0));
-      const dayTotalExpenses = (dayRecord ? (dayRecord.expenseHistory || []).reduce((a,b) => a + Number(b.amount || 0), 0) : 0) + nightTotalExp;
-      const resumenRows = [
-        { Concepto:'RESUMEN DEL DÍA', Valor:'' },
-        { Concepto:'Total ventas (Día + Noche)', Valor:daySales },
-        { Concepto:'Total gastos (Día + Noche)', Valor:dayTotalExpenses },
-        { Concepto:'NETO DEL DÍA', Valor:daySales - dayTotalExpenses }
-      ];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenRows), 'Resumen Día');
-
-      XLSX.writeFile(wb, `cierre_completo_${dateTimeStamp()}.xlsx`);
+      XLSX.writeFile(wb, `cierre_${dateTimeStamp()}.xlsx`);
       toast('Excel del día completo descargado (Día + Noche)', 'success');
     }
     function dailyCloseExcelBase64(record = null){

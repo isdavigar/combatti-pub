@@ -9628,7 +9628,7 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
         message:`Vas a eliminar <strong>${closed}</strong> pedido(s) del historial de forma permanente (también de la nube).<br><br>Esta acción no se puede deshacer.`,
         confirmLabel:'Sí, vaciar todo',
         confirmClass:'btn-danger',
-        onConfirm: () => {
+        onConfirm: async () => {
           const removedIds = new Set((state.orders || []).filter(isClosedOrder).map(o => o.id));
           state.orders = (state.orders || []).filter(o => !isClosedOrder(o));
           state.cash.history = (state.cash.history || []).map(record => ({
@@ -9716,7 +9716,7 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
         message:`¿Eliminar el cuadre del <strong>${formatDate(record.openedAt)}</strong>?<br><br>Esta acción no se puede deshacer.`,
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
-        onConfirm: () => {
+        onConfirm: async () => {
           state.cash.history = (state.cash.history || []).filter(r => r.id !== id);
           persistAll();
           await forceCloudSyncNow();

@@ -3727,7 +3727,7 @@
             <label class="form-label">Monto inicial</label>
             <input id="cashOpenAmount" type="text" inputmode="numeric" data-money-input="1" class="form-control" placeholder="100000">
           </div>
-          <div>
+          <div class="d-none">
             <label class="form-label">Turno</label>
             <select id="cashOpenShiftInput" class="form-select">
               <option value="Dia">Turno de dia</option>
@@ -4788,7 +4788,14 @@
       return PERMISSION_ORDER.find(view => hasPermission(view)) || 'dashboard';
     }
     function normalizeShift(value){
-      return String(value || '').toLowerCase().includes('noche') ? 'Noche' : 'Dia';
+      // Turno automático por hora: Día (3:00am - 3:00pm), Noche (3:30pm - 2:59am)
+      const now = new Date();
+      const hour = now.getHours();
+      const minutes = now.getMinutes();
+      const totalMinutes = hour * 60 + minutes;
+      // 3:00am = 180min, 3:00pm = 900min, 3:30pm = 930min
+      if(totalMinutes >= 180 && totalMinutes < 930) return 'Dia';
+      return 'Noche';
     }
     function shiftLabel(value = state.shift){
       return normalizeShift(value) === 'Noche' ? 'Turno de noche' : 'Turno de dia';

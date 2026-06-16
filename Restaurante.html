@@ -9304,14 +9304,12 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
               linkedCashRecord: lastClosed?.id || null
             };
             state.movements.push(movement);
-            // Vincular al historial de la última caja cerrada
+            // Vincular al historial de la última caja cerrada (solo informativo, no resta)
             if(lastClosed){
               if(!Array.isArray(lastClosed.expenseHistory)) lastClosed.expenseHistory = [];
               lastClosed.expenseHistory.push(movement);
               if(!Array.isArray(lastClosed.movementsHistory)) lastClosed.movementsHistory = [];
               lastClosed.movementsHistory.push(movement);
-              lastClosed.final = Number(lastClosed.final || 0) - sel.amount;
-              lastClosed.expense = Number(lastClosed.expense || 0) + sel.amount;
             }
           });
           persistAll();
@@ -9511,8 +9509,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
             if(!record.expenseHistory.some(e => e.id === m.id)){
               record.expenseHistory.push(m);
-              record.expense = (record.expenseHistory || []).reduce((a,b) => a + Number(b.amount || 0), 0);
-              record.final = Number(record.openingAmount || 0) + Number(record.sales || 0) + Number(record.income || 0) - record.expense;
               changed = true;
             }
           }
@@ -9536,8 +9532,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
               record.expenseHistory.push(m);
               if(!Array.isArray(record.movementsHistory)) record.movementsHistory = [];
               if(!record.movementsHistory.some(e => e.id === m.id)) record.movementsHistory.push(m);
-              record.expense = (record.expenseHistory || []).reduce((a,b) => a + Number(b.amount || 0), 0);
-              record.final = Number(record.openingAmount || 0) + Number(record.sales || 0) + Number(record.income || 0) - record.expense;
               changed = true;
             }
             break;
@@ -9692,9 +9686,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       record.expenseHistory.push(movement);
       if(!Array.isArray(record.movementsHistory)) record.movementsHistory = [];
       record.movementsHistory.push(movement);
-      // Descontar del saldo final del registro
-      record.final = Number(record.final || 0) - amount;
-      record.expense = Number(record.expense || 0) + amount;
+      // NO descontar del saldo final — los gastos post-cierre son informativos
       persistAll();
       modalFor(document.getElementById('addExpenseModal')).hide();
       renderCashHistory();

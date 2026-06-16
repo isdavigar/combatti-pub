@@ -8507,9 +8507,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         rasterize: true
       });
       await qz.print(cfg, [{ type:'pixel', format:'html', flavor:'plain', data: html }]);
-      // Corte automático del papel después de imprimir el ticket completo
-      const cutCfg = qz.configs.create(printerName);
-      await qz.print(cutCfg, [{ type:'raw', format:'hex', data:'1B640A1D5601' }]);
     }
 
     // Stubs de compatibilidad (ya no se usa cola remota ni Bluetooth)
@@ -9563,7 +9560,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             <div class="col-md-2"><div class="small text-secondary">Turno</div><span class="badge text-bg-light text-dark"><i class="fa-solid ${normalizeShift(record.shift) === 'Noche' ? 'fa-moon' : 'fa-sun'} me-1"></i>${shiftLabel(record.shift)}</span></div>
             <div class="col-md-2"><span class="badge text-bg-${record.status === 'Abierta' ? 'success' : 'secondary'}">${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</span></div>
             <div class="col-12 small text-secondary">Egresos guardados: ${Array.isArray(record.expenseHistory) ? record.expenseHistory.length : 0} · Movimientos del periodo: ${Array.isArray(record.movementsHistory) ? record.movementsHistory.length : 0}</div>
-            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(record.sales || 0)}</span><span class="text-danger fw-bold">Gastos: ${money(record.expense || 0)}</span><span class="text-success fw-bold">Neto: ${money(Number(record.sales || 0) - Number(record.expense || 0))}</span></div></div>
+            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(record.sales || 0)}</span><span class="text-danger fw-bold">Gastos turno: ${money(record.cashExpense || 0)}</span><span class="text-success fw-bold">Neto: ${money(Number(record.sales || 0) - Number(record.cashExpense || 0))}</span></div></div>
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               <button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>
@@ -9804,7 +9801,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const totalExpenses = allExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
       const totalPayroll = payrollExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
       const totalOther = otherExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
-      const neto = Number(record.sales || report.sales || 0) - totalExpenses;
+      const neto = Number(record.sales || report.sales || 0) - Number(record.cashExpense || report.cashExpense || 0);
       // Hoja resumen
       const resumen = [
         { Concepto:'Apertura de caja', Valor:record.openingAmount || 0 },

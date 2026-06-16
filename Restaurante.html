@@ -8516,11 +8516,16 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     // directamente via QZ Tray. Sin diálogo, automático, simultáneo.
     async function routePrint(html, role, width = 420){
       const pr = printingConfig();
-      // Intentar QZ Tray primero (impresión directa sin diálogo)
       if(pr.engine === 'qz' || qzConnected){
         const printer = printerNameForRole(role);
         if(printer){
           try{
+            // Si es cocina, enviar comando de beep a la impresora POS antes de imprimir
+            if(role === 'cocina'){
+              await ensureQz();
+              const beepCfg = qz.configs.create(printer);
+              await qz.print(beepCfg, [{ type:'raw', format:'hex', data:'1B420A05' }]);
+            }
             await qzPrintHtml(printer, html);
             return;
           } catch(e){
@@ -8749,8 +8754,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const fresh = orders.filter(order => !seenKitchenTicketIds.has(order.id));
       seenKitchenTicketIds = ids;
       if(fresh.length){
-        // Sonar beep de alerta en la pantalla de cocina cuando llega un pedido nuevo
-        playKitchenBeep();
+        // Ya no suena en el navegador — el beep lo emite la impresora de cocina
       }
       fresh.forEach(order => {
         const qty = (order.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);

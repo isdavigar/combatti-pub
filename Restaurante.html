@@ -4052,25 +4052,6 @@
             <input class="form-check-input" type="checkbox" id="printerNotifyCaja">
             <label class="form-check-label" for="printerNotifyCaja">Cuando se envía una comanda a cocina, imprimir también un aviso en caja</label>
           </div>
-          <div style="border:2px solid rgba(var(--primary-rgb),.3);border-radius:14px;padding:14px;margin-bottom:14px;">
-            <h6 class="fw-bold mb-2"><i class="fa-solid fa-cloud me-2 text-primary"></i>PrintNode (impresión automática en la nube)</h6>
-            <p class="section-subtitle mb-3">Configura tu cuenta de PrintNode para imprimir automáticamente sin diálogos. <a href="https://app.printnode.com" target="_blank">Crear cuenta gratis</a></p>
-            <div class="mb-2">
-              <label class="form-label">API Key</label>
-              <input id="printNodeApiKeyInput" type="text" class="form-control" placeholder="Tu API Key de PrintNode">
-            </div>
-            <div class="row g-2 mb-2">
-              <div class="col-md-6">
-                <label class="form-label">ID Impresora Cocina</label>
-                <input id="printNodeCocinaIdInput" type="text" class="form-control" placeholder="Ej: 12345">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">ID Impresora Caja</label>
-                <input id="printNodeCajaIdInput" type="text" class="form-control" placeholder="Ej: 12346">
-              </div>
-            </div>
-            <p class="section-subtitle">Instala el <a href="https://www.printnode.com/download" target="_blank">cliente PrintNode</a> en tu PC. Los IDs de impresora los ves en <a href="https://app.printnode.com/printers" target="_blank">app.printnode.com/printers</a>.</p>
-          </div>
           <hr>
           <h6 class="fw-bold mb-1">Mis impresoras</h6>
           <p class="section-subtitle mb-2">Al detectar, se agregan automáticamente. Solo elige si cada una es de <strong>Cocina</strong> o de <strong>Caja</strong>.</p>
@@ -5433,13 +5414,10 @@
         role: ['cocina','caja','otro'].includes(x.role) ? x.role : 'otro'
       })) : [];
       return {
-        engine: (p && p.engine) || 'printnode',
+        engine: (p && p.engine) || 'qz',
         cocina: String((p && p.cocina) || ''),
         caja: String((p && p.caja) || ''),
         notifyCaja: !p || p.notifyCaja !== false,
-        printNodeApiKey: String((p && p.printNodeApiKey) || ''),
-        printNodeCocinaId: String((p && p.printNodeCocinaId) || ''),
-        printNodeCajaId: String((p && p.printNodeCajaId) || ''),
         list
       };
     }
@@ -8454,11 +8432,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         </div>
       </body></html>`;
     }
-    // ===================== IMPRESIÓN CON PRINTNODE =====================
-    // PrintNode envía trabajos de impresión directo a la impresora vía API REST.
-    // No tiene problemas de tamaño — la impresora maneja el ancho automáticamente.
-    // Configuración: instalar cliente PrintNode + poner API Key + ID de impresora.
-    let printerDraft = { engine:'printnode', cocina:'', caja:'', notifyCaja:true, list:[], printNodeApiKey:'', printNodeCocinaId:'', printNodeCajaId:'' };
+    // ===================== IMPRESIÓN CON QZ TRAY =====================
+    // QZ Tray envía cada documento directamente a la impresora asignada
+    // (cocina o caja) sin diálogo, automática y simultáneamente.
+    let printerDraft = { engine:'qz', cocina:'', caja:'', notifyCaja:true, list:[] };
     let qzDetectedPrinters = [];
     let qzConnected = false;
 
@@ -8467,83 +8444,72 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const pr = printingConfig();
       return role === 'cocina' ? pr.cocina : pr.caja;
     }
-    function printNodeIdForRole(role){
-      const pr = printingConfig();
-      return role === 'cocina' ? (pr.printNodeCocinaId || '') : (pr.printNodeCajaId || '');
-    }
-    function printNodeApiKey(){
-      const pr = printingConfig();
-      return pr.printNodeApiKey || '';
-    }
-
-    // Enviar trabajo de impresión a PrintNode via API REST
-    async function printNodePrint(printerId, html){
-      const apiKey = printNodeApiKey();
-      if(!apiKey || !printerId) return false;
-      try {
-        const content = btoa(unescape(encodeURIComponent(html)));
-        const response = await fetch('https://api.printnode.com/printjobs', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(apiKey + ':'),
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            printerId: Number(printerId),
-            title: 'Combatti POS',
-            contentType: 'raw_base64',
-            content: content,
-            source: 'Combatti PUB POS'
-          })
-        });
-        return response.ok;
-      } catch(e){
-        console.warn('PrintNode error:', e);
-        return false;
-      }
-    }
-
-    // Enviar HTML como PDF a PrintNode (mejor para tickets con formato)
-    async function printNodePrintHtml(printerId, html){
-      const apiKey = printNodeApiKey();
-      if(!apiKey || !printerId) return false;
-      try {
-        const content = btoa(unescape(encodeURIComponent(html)));
-        const response = await fetch('https://api.printnode.com/printjobs', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(apiKey + ':'),
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            printerId: Number(printerId),
-            title: 'Combatti POS Ticket',
-            contentType: 'html_base64',
-            content: content,
-            source: 'Combatti PUB POS'
-          })
-        });
-        if(response.ok) return true;
-        console.warn('PrintNode response:', response.status);
-        return false;
-      } catch(e){
-        console.warn('PrintNode error:', e);
-        return false;
-      }
-    }
-
     function openBrowserPrint(html, width = 420){
       const w = window.open('', '_blank', `width=${width},height=760`);
-      if(!w){ toast('El navegador bloqueó la ventana de impresión.', 'warning'); return false; }
+      if(!w){ toast('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.', 'warning'); return false; }
       w.document.open(); w.document.write(html); w.document.close();
       setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 450);
       return true;
     }
+    function loadQzLibrary(){
+      return new Promise((resolve, reject) => {
+        if(window.qz){ return resolve(); }
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qz-tray@2/qz-tray.js';
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('No se pudo cargar la librería de QZ Tray'));
+        document.head.appendChild(s);
+      });
+    }
+    async function ensureQz(){
+      await loadQzLibrary();
+      if(!window.qz) throw new Error('QZ no disponible');
+      if(!qz.security.__combattiSet){
+        qz.security.setCertificatePromise(function(resolve){ resolve(''); });
+        qz.security.setSignaturePromise(function(){ return function(resolve){ resolve(''); }; });
+        qz.security.__combattiSet = true;
+      }
+      if(!qz.websocket.isActive()){
+        await qz.websocket.connect();
+      }
+      qzConnected = true;
+    }
+    async function connectQzAndList(){
+      setText('qzStatusText', 'QZ Tray: conectando...');
+      try{
+        await ensureQz();
+        let printers = await qz.printers.find();
+        qzDetectedPrinters = Array.isArray(printers) ? printers : [printers].filter(Boolean);
+        const existing = new Set((printerDraft.list || []).map(p => p.name.toLowerCase()));
+        qzDetectedPrinters.forEach(name => {
+          if(!existing.has(String(name).toLowerCase())){
+            printerDraft.list.push({ id:uid(), name:String(name), role:'otro' });
+            existing.add(String(name).toLowerCase());
+          }
+        });
+        setText('qzStatusText', `QZ Tray conectado. ${qzDetectedPrinters.length} impresora(s) detectada(s).`);
+        renderPrinterSelectsAndList();
+        toast(`${qzDetectedPrinters.length} impresora(s) detectada(s)`, 'success');
+      }catch(e){
+        qzConnected = false;
+        console.warn('QZ connect', e);
+        setText('qzStatusText', 'No se pudo conectar a QZ Tray. ¿Está instalado y abierto?');
+        toast('No se pudo conectar a QZ Tray. Asegúrate de que esté instalado y corriendo.', 'warning');
+      }
+    }
+    async function qzPrintHtml(printerName, html){
+      await ensureQz();
+      const cfg = qz.configs.create(printerName, {
+        margins: { top:0, right:0, bottom:0, left:0 },
+        units: 'in',
+        size: { width:3.15, height:null },
+        scaleContent: true,
+        rasterize: true
+      });
+      await qz.print(cfg, [{ type:'pixel', format:'html', flavor:'plain', data: html }]);
+    }
 
-    // Stubs QZ Tray (por compatibilidad — ya no se usa)
-    async function ensureQz(){ return false; }
-    async function connectQzAndList(){ toast('Usa PrintNode en vez de QZ Tray. Configura tu API Key en Marca > Impresoras.', 'info'); }
-
+    // Stubs de compatibilidad (ya no se usa cola remota ni Bluetooth)
     function loadPrintStationFlag(){}
     function setPrintStation(){}
     function togglePrintStation(){}
@@ -8553,23 +8519,28 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     async function cleanOldPrintJobs(){}
     let isPrintStation = true;
 
-    // routePrint: envía el ticket a la impresora correcta via PrintNode.
-    // PrintNode maneja el tamaño del papel automáticamente — no hay que configurar ancho.
+    // routePrint: envía el documento a la impresora del rol (cocina/caja)
+    // directamente via QZ Tray. Sin diálogo, automático, simultáneo.
     async function routePrint(html, role, width = 420){
-      const printerId = printNodeIdForRole(role);
-      const apiKey = printNodeApiKey();
-      if(apiKey && printerId){
-        const ok = await printNodePrintHtml(printerId, html);
-        if(ok){
-          // Beep en impresora de cocina (comando ESC/POS BEL)
-          if(role === 'cocina'){
-            await printNodePrint(printerId, String.fromCharCode(0x1B, 0x42, 0x03, 0x03));
+      const pr = printingConfig();
+      if(pr.engine === 'qz' || qzConnected){
+        const printer = printerNameForRole(role);
+        if(printer){
+          try{
+            // Si es cocina, enviar comando de beep a la impresora POS antes de imprimir
+            if(role === 'cocina'){
+              await ensureQz();
+              const beepCfg = qz.configs.create(printer);
+              await qz.print(beepCfg, [{ type:'raw', format:'hex', data:'1B420A05' }]);
+            }
+            await qzPrintHtml(printer, html);
+            return;
+          } catch(e){
+            console.warn('QZ print fail:', e);
           }
-          return;
         }
-        toast('Error al imprimir con PrintNode. Usando navegador.', 'warning');
       }
-      // Fallback: navegador
+      // Fallback: navegador (con diálogo)
       openBrowserPrint(html, width);
     }
     // Aviso pequeño y creativo que sale en CAJA cuando un pedido se manda a cocina.
@@ -8649,12 +8620,9 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function openPrinterConfigModal(){
       if(!requireAdmin('configurar impresoras')) return;
       const pr = printingConfig();
-      printerDraft = { engine:pr.engine, cocina:pr.cocina, caja:pr.caja, notifyCaja:pr.notifyCaja !== false, printNodeApiKey:pr.printNodeApiKey||'', printNodeCocinaId:pr.printNodeCocinaId||'', printNodeCajaId:pr.printNodeCajaId||'', list:(pr.list || []).map(x => ({ ...x })) };
+      printerDraft = { engine:pr.engine, cocina:pr.cocina, caja:pr.caja, notifyCaja:pr.notifyCaja !== false, list:(pr.list || []).map(x => ({ ...x })) };
       document.querySelectorAll('input[name="printerEngine"]').forEach(r => { r.checked = (r.value === printerDraft.engine); });
       if(byId('printerNotifyCaja')) byId('printerNotifyCaja').checked = printerDraft.notifyCaja;
-      if(byId('printNodeApiKeyInput')) byId('printNodeApiKeyInput').value = printerDraft.printNodeApiKey;
-      if(byId('printNodeCocinaIdInput')) byId('printNodeCocinaIdInput').value = printerDraft.printNodeCocinaId;
-      if(byId('printNodeCajaIdInput')) byId('printNodeCajaIdInput').value = printerDraft.printNodeCajaId;
       byId('qzPanel')?.classList.toggle('d-none', printerDraft.engine !== 'qz');
       renderPrinterSelectsAndList();
       renderPrintStationUI();
@@ -8689,9 +8657,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function savePrinterConfig(){
       syncPrinterSelectsToDraft();
       printerDraft.notifyCaja = byId('printerNotifyCaja')?.checked !== false;
-      printerDraft.printNodeApiKey = String(byId('printNodeApiKeyInput')?.value || '').trim();
-      printerDraft.printNodeCocinaId = String(byId('printNodeCocinaIdInput')?.value || '').trim();
-      printerDraft.printNodeCajaId = String(byId('printNodeCajaIdInput')?.value || '').trim();
       state.brand.printing = normalizePrinting(printerDraft);
       persistAll();
       modals.printerConfig?.hide();

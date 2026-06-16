@@ -9611,10 +9611,10 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
     }
     // Fuerza la sincronización inmediata (incluye BORRADOS) hacia Firestore para
     // que al recargar la página los datos eliminados NO regresen desde la nube.
-    function forceCloudSyncNow(){
+    async function forceCloudSyncNow(){
       try{
         if(typeof firebaseDb !== 'undefined' && firebaseDb && typeof pushIncremental === 'function'){
-          pushIncremental(true);
+          await pushIncremental(true);
         }
       }catch(_){}
     }
@@ -9636,7 +9636,7 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
             orders: Array.isArray(record.orders) ? record.orders.filter(id => !removedIds.has(id)) : record.orders
           }));
           persistAll();
-          forceCloudSyncNow();
+          await forceCloudSyncNow();
           renderOrderHistory();
           renderCashView();
           toast('Historial de pedidos vaciado', 'info');
@@ -9652,10 +9652,10 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
         message:'Vas a eliminar <strong>toda</strong> la auditoría de eliminados de forma permanente (también de la nube).<br><br>Esta acción no se puede deshacer.',
         confirmLabel:'Sí, vaciar todo',
         confirmClass:'btn-danger',
-        onConfirm: () => {
+        onConfirm: async () => {
           state.deletedOrders = [];
           persistAll();
-          forceCloudSyncNow();
+          await forceCloudSyncNow();
           renderDeletedOrders();
           toast('Auditoría de eliminados vaciada', 'info');
         }
@@ -9719,7 +9719,7 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
         onConfirm: () => {
           state.cash.history = (state.cash.history || []).filter(r => r.id !== id);
           persistAll();
-          forceCloudSyncNow();
+          await forceCloudSyncNow();
           renderCashHistory();
           toast('Cuadre de caja eliminado', 'info');
         }
@@ -9735,14 +9735,14 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
         message:`¿Restablecer la venta <strong>${escapeHtml(entry.order.tableName || '-')}</strong> por <strong>${money(entry.order.total || 0)}</strong>?<br><br>El pedido volverá al historial de ventas como pagado.`,
         confirmLabel:'Sí, restablecer',
         confirmClass:'btn-success',
-        onConfirm: () => {
+        onConfirm: async () => {
           // Devolver el pedido al historial
           const restoredOrder = { ...entry.order, restoredAt:new Date().toISOString(), restoredBy:currentUser?.username || 'Admin' };
           state.orders.push(restoredOrder);
           // Quitar de la auditoría
           state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== entryId);
           persistAll();
-          forceCloudSyncNow();
+          await forceCloudSyncNow();
           renderDeletedOrders();
           renderOrderHistory();
           renderCashView();
@@ -9761,12 +9761,12 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px}
         message:'¿Eliminar este registro de la lista de eliminados internamente?<br><br>Esta acción no se puede deshacer.',
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
-        onConfirm: () => {
+        onConfirm: async () => {
           state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== id);
           persistAll();
-          forceCloudSyncNow();
+          await forceCloudSyncNow();
           renderDeletedOrders();
-          toast('Registro eliminado', 'info');
+          toast('Registro eliminado permanentemente', 'info');
         }
       });
     }

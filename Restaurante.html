@@ -9879,8 +9879,26 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px;white-s
             dayProductMap.set(key, existing);
           }));
           const dayProductos = [...dayProductMap.values()].sort((a,b) => b.Cantidad - a.Cantidad);
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayResumen), 'Turno Día Resumen');
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayProductos.length ? dayProductos : [{ Producto:'Sin productos', Cantidad:0, Total:0 }]), 'Turno Día Productos');
+          // Egresos del turno día
+          const dayEgresos = dayExpenses.map(m => ({
+            Fecha: formatDate(m.date),
+            Concepto: m.concept || '',
+            Medio: expenseSourceLabel(m.source),
+            Valor: m.amount || 0,
+            Tipo: m.payroll ? 'Nómina' : 'Gasto'
+          }));
+          // Ventas del turno día
+          const dayVentas = dayReport.orders.map(o => ({
+            Fecha: formatDate(o.paidAt),
+            Mesa: o.tableName || '',
+            Cliente: o.customer || '',
+            Método: o.paymentMethod || '',
+            Total: o.total || 0
+          }));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayResumen), 'Día Resumen');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayProductos.length ? dayProductos : [{ Producto:'Sin productos', Cantidad:0, Total:0 }]), 'Día Productos');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayEgresos.length ? dayEgresos : [{ Fecha:'', Concepto:'Sin egresos', Medio:'', Valor:0, Tipo:'' }]), 'Día Egresos');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayVentas.length ? dayVentas : [{ Fecha:'', Mesa:'', Cliente:'Sin ventas', Método:'', Total:0 }]), 'Día Ventas');
         }
       }
 

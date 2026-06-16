@@ -9828,11 +9828,63 @@ tr.total-row td{font-weight:900;border-top:2px solid #000;font-size:12px;white-s
         Método: o.paymentMethod || '',
         Total: o.total || 0
       }));
+      // Hoja productos vendidos
+      const productMap = new Map();
+      report.orders.forEach(o => (o.items || []).forEach(it => {
+        const key = it.name || 'Sin nombre';
+        const existing = productMap.get(key) || { Producto:key, Cantidad:0, Total:0 };
+        existing.Cantidad += Number(it.qty || 0);
+        existing.Total += Number(it.price || 0) * Number(it.qty || 0);
+        productMap.set(key, existing);
+      }));
+      const productos = [...productMap.values()].sort((a,b) => b.Cantidad - a.Cantidad);
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productos.length ? productos : [{ Producto:'Sin productos', Cantidad:0, Total:0 }]), 'Productos vendidos');
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(egresos.length ? egresos : [{ Fecha:'', Concepto:'Sin egresos', Medio:'', Valor:0, Tipo:'' }]), 'Egresos');
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ventas.length ? ventas : [{ Fecha:'', Mesa:'', Cliente:'Sin ventas', Método:'', Total:0 }]), 'Ventas');
-      XLSX.writeFile(wb, `cuadre_${dateTimeStamp()}.xlsx`);
+
+      // Si es turno de NOCHE, incluir también el turno de DÍA del mismo día
+      if(normalizeShift(record.shift) === 'Noche'){
+        const recordDate = new Date(record.closedAt || record.openedAt || new Date());
+        const dayRecord = [...(state.cash.history || [])].reverse().find(r =>
+          r.id !== record.id && r.status === 'Cerrada' && r.closedAt &&
+          normalizeShift(r.shift) === 'Dia' &&
+          new Date(r.closedAt).toDateString() === recordDate.toDateString()
+        );
+        if(dayRecord){
+          const dayFrom = new Date(dayRecord.openedAt || new Date());
+          const dayTo = new Date(dayRecord.closedAt);
+          const dayReport = buildCashReport(dayFrom, dayTo);
+          const dayExpenses = Array.isArray(dayRecord.expenseHistory) ? dayRecord.expenseHistory : [];
+          const dayTotalExp = dayExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);
+          const dayResumen = [
+            { Concepto:'TURNO DÍA', Valor:'' },
+            { Concepto:'Apertura', Valor:dayRecord.openingAmount || 0 },
+            { Concepto:'Ventas', Valor:dayRecord.sales || dayReport.sales || 0 },
+            { Concepto:'Egresos', Valor:dayTotalExp },
+            { Concepto:'Neto', Valor:Number(dayRecord.sales || dayReport.sales || 0) - dayTotalExp },
+            { Concepto:'Responsable', Valor:dayRecord.responsible || '' },
+            { Concepto:'Apertura hora', Valor:formatDate(dayRecord.openedAt) },
+            { Concepto:'Cierre hora', Valor:formatDate(dayRecord.closedAt) }
+          ];
+          // Productos del turno día
+          const dayProductMap = new Map();
+          dayReport.orders.forEach(o => (o.items || []).forEach(it => {
+            const key = it.name || 'Sin nombre';
+            const existing = dayProductMap.get(key) || { Producto:key, Cantidad:0, Total:0 };
+            existing.Cantidad += Number(it.qty || 0);
+            existing.Total += Number(it.price || 0) * Number(it.qty || 0);
+            dayProductMap.set(key, existing);
+          }));
+          const dayProductos = [...dayProductMap.values()].sort((a,b) => b.Cantidad - a.Cantidad);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayResumen), 'Turno Día Resumen');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dayProductos.length ? dayProductos : [{ Producto:'Sin productos', Cantidad:0, Total:0 }]), 'Turno Día Productos');
+        }
+      }
+
+      XLSX.writeFile(wb, `cuadre_${shiftLabel(record.shift).replace(/\s/g,'_')}_${dateTimeStamp()}.xlsx`);
       toast('Excel descargado', 'success');
     }
     function cashRecordDetailHtml(record = currentCashRecord()){

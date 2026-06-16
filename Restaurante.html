@@ -1109,10 +1109,10 @@
     }
     .chart-kpi span{ display:block; color:var(--muted); font-size:.72rem; line-height:1.1; }
     .chart-kpi strong{ display:block; font-size:.9rem; line-height:1.2; white-space:nowrap; }
-    .chart-box canvas{ width:100% !important; height:310px !important; }
-    .chart-box.chart-tall canvas{ height:350px !important; }
-    .chart-box.small canvas{ height:236px !important; }
-    .chart-box.pie canvas{ height:282px !important; }
+    .chart-box canvas{ width:100% !important; height:380px !important; }
+    .chart-box.chart-tall canvas{ height:420px !important; }
+    .chart-box.small canvas{ height:280px !important; }
+    .chart-box.pie canvas{ height:300px !important; }
     .cash-scroll-area{
       overflow-y:auto !important;
       scrollbar-gutter:stable;
@@ -11460,7 +11460,7 @@ function parseMoneyValue(value){
         backgroundColor:type === 'line' ? makeCanvasGradient(canvas, `${baseColor}44`, `${baseColor}08`) : makeCanvasGradient(canvas, `${baseColor}dd`, `${baseColor}88`),
         fill:type === 'line',
         borderRadius:type === 'bar' ? 10 : 0,
-        maxBarThickness:28
+        maxBarThickness:48
       };
       charts[id] = new Chart(canvas, {
         type,

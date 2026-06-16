@@ -5471,7 +5471,24 @@
     }
     function syncAllTableOrderSnapshots(){
       state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
-      state.tables.forEach((table, index) => normalizeTable(table, index));
+      state.tables.forEach((table, index) => {
+        normalizeTable(table, index);
+        // Si la mesa tiene un orderId que ya es un pedido pagado/cerrado, limpiarla
+        if(table.orderId){
+          const linkedOrder = state.orders.find(o => o.id === table.orderId);
+          if(!linkedOrder || isClosedOrder(linkedOrder)){
+            table.orderId = null;
+            table.status = 'Disponible';
+            table.customer = '';
+            table.orderTotal = 0;
+            table.orderStartedAt = null;
+          }
+        }
+        // Para multi-order tables, verificar que no haya pedidos cerrados mostrándose
+        if(isMultiOrderTable(table)){
+          updateMultiOrderTableStatus(table.id);
+        }
+      });
     }
     function toast(message, type='success'){
       const area = document.getElementById('toastArea');

@@ -2536,7 +2536,7 @@
         <div class="nav-pill" data-view="insumos" onclick="openView('insumos')"><i class="fa-solid fa-wheat-awn"></i> Insumos</div>
         <div class="nav-pill" data-view="caja" onclick="openView('caja')"><i class="fa-solid fa-cash-register"></i> Caja</div>
         <div class="nav-pill" data-view="zona-domicilio" onclick="openView('zona-domicilio')"><i class="fa-solid fa-location-dot"></i> Zona de domicilio</div>
-        <div class="nav-pill" data-view="movimientos" onclick="openView('movimientos')"><i class="fa-solid fa-money-bill-transfer"></i> Ingresos / Egresos</div>
+        <div class="nav-pill" data-view="movimientos" onclick="openView('movimientos')"><i class="fa-solid fa-money-bill-transfer"></i> Gastos</div>
         <div class="nav-pill" data-view="marca" onclick="openView('marca')"><i class="fa-solid fa-shop"></i> Marca y Configuración</div>
         <div class="nav-pill nav-pill-subscription" onclick="openSubscription()"><i class="fa-solid fa-credit-card"></i> Pagar Suscripción</div>
  
@@ -3132,12 +3132,12 @@
         <div class="glass-card p-4">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
-              <h5 class="section-title mb-1">Ingresos y egresos</h5>
+              <h5 class="section-title mb-1">Gastos</h5>
               <p class="section-subtitle mb-0">Todo lo que entra y sale del negocio.</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
-              <button class="btn btn-outline-danger btn-pill" onclick="openMovementModal('Egreso')">Nuevo egreso</button>
-              <button class="btn btn-primary-soft btn-pill" onclick="openMovementModal('Ingreso')">Nuevo ingreso</button>
+              <button class="btn btn-outline-danger btn-pill" onclick="openMovementModal('Egreso')">Nuevo gasto</button>
+              <button class="btn btn-primary-soft btn-pill" data-admin-only onclick="openMovementModal('Ingreso')">Nuevo ingreso</button>
             </div>
           </div>
           <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
@@ -5668,7 +5668,7 @@
       refreshLoginCarousel(true);
       ensureLoginCarouselTimer();
     }
-    function currentViewTitle(view){ return { dashboard:'Dashboard general', mesas:'Gestión de mesas', productos:'Productos y menú', inventarios:'Inventarios', insumos:'Insumos de cocina', caja:'Caja y arqueo', 'zona-domicilio':'Zona de domicilio', movimientos:'Ingresos y egresos', marca:'Marca y configuración' }[view] || 'POS'; }
+    function currentViewTitle(view){ return { dashboard:'Dashboard general', mesas:'Gestión de mesas', productos:'Productos y menú', inventarios:'Inventarios', insumos:'Insumos de cocina', caja:'Caja y arqueo', 'zona-domicilio':'Zona de domicilio', movimientos:'Gastos', marca:'Marca y configuración' }[view] || 'POS'; }
     function normalizeDatabaseUrl(url){
       return String(url || '').trim().replace(/\.json$/i, '').replace(/\/+$/, '');
     }

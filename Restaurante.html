@@ -2624,15 +2624,19 @@
 
         <div class="row g-3 mb-4">
           <div class="col-lg-5">
-            <div class="chart-box pie income-expense-pie h-100">
+            <div class="chart-box h-100">
               <div class="chart-head">
                 <div>
                   <h5 class="section-title mb-1">Ingresos vs gastos</h5>
-                  <p class="section-subtitle mb-0">Filtra por día para ver el detalle.</p>
+                  <p class="section-subtitle mb-0">Barras comparativas por período.</p>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                  <input id="incomeExpenseDateFilter" type="date" class="form-control form-control-sm" style="width:auto;min-width:140px;" onchange="updateIncomeExpenseByDate()">
-                  <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="clearIncomeExpenseDateFilter()">Hoy</button>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <select id="incomeExpensePeriod" class="form-select form-select-sm" style="width:auto;" onchange="updateIncomeExpenseByPeriod()">
+                    <option value="day">Hoy</option>
+                    <option value="week">Semana</option>
+                    <option value="month">Mes</option>
+                  </select>
+                  <input id="incomeExpenseDateFilter" type="date" class="form-control form-control-sm" style="width:auto;min-width:130px;" onchange="updateIncomeExpenseByDate()">
                 </div>
               </div>
               <canvas id="incomeVsExpenseChart"></canvas>
@@ -11499,48 +11503,103 @@ function parseMoneyValue(value){
         expenses:days.map(item => item.expense)
       };
     }
+    function updateIncomeExpenseByPeriod(){
+      const period = byId('incomeExpensePeriod')?.value || 'day';
+      setValue('incomeExpenseDateFilter', '');
+      const today = new Date();
+      let labels = [], incomes = [], expenses = [];
+      if(period === 'month'){
+        // Últimas 4 semanas
+        for(let w = 3; w >= 0; w--){
+          const end = new Date(today); end.setDate(end.getDate() - w * 7);
+          const start = new Date(end); start.setDate(start.getDate() - 6);
+          const r = buildCashReport(startOfDay(start), endOfDay(end));
+          labels.push(`Sem ${4 - w}`);
+          incomes.push(Number(r.sales || 0) + Number(r.income || 0));
+          expenses.push(Number(r.expense || 0));
+        }
+      } else if(period === 'week'){
+        // Últimos 7 días
+        for(let d = 6; d >= 0; d--){
+          const date = new Date(today); date.setDate(date.getDate() - d);
+          const r = buildCashReport(startOfDay(date), endOfDay(date));
+          labels.push(date.toLocaleDateString('es-CO', { weekday:'short', day:'2-digit' }));
+          incomes.push(Number(r.sales || 0) + Number(r.income || 0));
+          expenses.push(Number(r.expense || 0));
+        }
+      } else {
+        // Hoy (turno actual)
+        const from = state.cash.open ? cashPeriodStart() : startOfDay(today);
+        const r = buildCashReport(from, endOfDay(today));
+        labels.push('Ingresos', 'Gastos');
+        incomes.push(Number(r.sales || 0) + Number(r.income || 0));
+        expenses.push(Number(r.expense || 0));
+      }
+      updateIncomeExpenseBarChart(labels, incomes, expenses, period);
+    }
     function updateIncomeExpenseByDate(){
       const dateVal = byId('incomeExpenseDateFilter')?.value;
-      const date = dateVal ? parseLocalDate(dateVal) : new Date();
-      const from = startOfDay(date || new Date());
-      const to = endOfDay(date || new Date());
-      const report = buildCashReport(from, to);
-      const income = Number(report.sales || 0) + Number(report.income || 0);
-      const expense = Number(report.expense || 0);
-      updateIncomeExpenseChart(income, expense);
+      if(!dateVal){ updateIncomeExpenseByPeriod(); return; }
+      const date = parseLocalDate(dateVal);
+      if(!date){ updateIncomeExpenseByPeriod(); return; }
+      const r = buildCashReport(startOfDay(date), endOfDay(date));
+      const labels = ['Ingresos', 'Gastos'];
+      const incomes = [Number(r.sales || 0) + Number(r.income || 0)];
+      const expenses = [Number(r.expense || 0)];
+      updateIncomeExpenseBarChart(labels, incomes, expenses, 'day');
     }
     function clearIncomeExpenseDateFilter(){
       setValue('incomeExpenseDateFilter', '');
-      updateIncomeExpenseByDate();
+      if(byId('incomeExpensePeriod')) byId('incomeExpensePeriod').value = 'day';
+      updateIncomeExpenseByPeriod();
     }
     function updateIncomeExpenseChart(income, expense){
+      // Compatibilidad: se llama desde renderDashboardCharts
+      updateIncomeExpenseBarChart(['Ingresos', 'Gastos'], [income], [expense], 'day');
+    }
+    function updateIncomeExpenseBarChart(labels, incomes, expenses, period){
       const ctx = document.getElementById('incomeVsExpenseChart');
       const legend = byId('incomeVsExpenseLegend');
       if(!ctx) return;
-      const values = [Number(income || 0), Number(expense || 0)];
-      const hasData = values.some(value => value > 0);
-      const data = hasData ? values : [1, 0];
-      const labels = ['Ingresos totales', 'Gastos'];
-      const colors = [brandPrimaryColor(), '#ef4444'];
-      const total = Math.max(1, values.reduce((a,b)=>a + b, 0));
+      const totalIncome = incomes.reduce((a,b) => a + Number(b || 0), 0);
+      const totalExpense = expenses.reduce((a,b) => a + Number(b || 0), 0);
       if(legend){
-        legend.innerHTML = labels.map((label, index) => {
-          const value = values[index] || 0;
-          const percent = total ? Math.round((value / total) * 100) : 0;
-          return `
-            <div class="chart-legend-item">
-              <div class="chart-legend-name"><span class="legend-dot" style="background:${colors[index]}"></span><span>${escapeHtml(label)}</span></div>
-              <strong>${money(value)} · ${percent}%</strong>
-            </div>
-          `;
-        }).join('');
+        legend.innerHTML = `
+          <div class="chart-legend-item"><div class="chart-legend-name"><span class="legend-dot" style="background:#10b981"></span><span>Ingresos</span></div><strong>${money(totalIncome)}</strong></div>
+          <div class="chart-legend-item"><div class="chart-legend-name"><span class="legend-dot" style="background:#ef4444"></span><span>Gastos</span></div><strong>${money(totalExpense)}</strong></div>
+          <div class="chart-legend-item"><div class="chart-legend-name"><span class="legend-dot" style="background:#2563eb"></span><span>Balance</span></div><strong>${money(totalIncome - totalExpense)}</strong></div>
+        `;
       }
-      if(typeof Chart === 'undefined'){ drawFallbackDoughnut(ctx, labels, data); return; }
-      modernDoughnutChart('incomeVsExpenseChart', ctx, labels, data, colors, {
-        centerLabel:'Balance',
-        formatCenter:() => money((values[0] || 0) - (values[1] || 0)),
-        tooltip:item => `${item.label}: ${money(values[item.dataIndex] || 0)}`
-      });
+      if(typeof Chart === 'undefined') return;
+      const chartId = 'incomeVsExpenseChart';
+      if(window._chartInstances && window._chartInstances[chartId]){
+        window._chartInstances[chartId].destroy();
+      }
+      if(!window._chartInstances) window._chartInstances = {};
+      if(period === 'day' && labels.length <= 2){
+        // Para un solo día: barras lado a lado
+        window._chartInstances[chartId] = new Chart(ctx, {
+          type:'bar',
+          data:{
+            labels:['Ingresos','Gastos'],
+            datasets:[{ data:[totalIncome, totalExpense], backgroundColor:['#10b981','#ef4444'], borderRadius:8, barThickness:40 }]
+          },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>money(v), color:chartMutedColor() }, grid:{color:chartGridColor()} }, x:{ ticks:{color:chartTextColor()}, grid:{display:false} } } }
+        });
+      } else {
+        // Para semana/mes: barras agrupadas por período
+        window._chartInstances[chartId] = new Chart(ctx, {
+          type:'bar',
+          data:{
+            labels,
+            datasets:[
+              { label:'Ingresos', data:incomes, backgroundColor:'#10b981', borderRadius:6 },
+              { label:'Gastos', data:expenses, backgroundColor:'#ef4444', borderRadius:6 }
+            ]
+          },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:true, labels:{color:chartTextColor()}} }, scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>money(v), color:chartMutedColor() }, grid:{color:chartGridColor()} }, x:{ ticks:{color:chartTextColor()}, grid:{display:false} } } }
+        });
+      }
     }
     function updatePaymentMethodsChart(labels, data){
       const canvas = byId('paymentMethodsChart');

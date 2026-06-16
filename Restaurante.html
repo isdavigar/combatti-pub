@@ -9535,11 +9535,9 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           if(!record.closedAt) continue;
           const openedAt = new Date(record.openedAt || 0);
           const closedAt = new Date(record.closedAt);
-          // El gasto pertenece a este registro si su fecha cae en el rango de la caja
-          // O si fue hecho DESPUÉS del cierre pero el mismo día (ej: nómina después de cerrar)
-          const sameDay = mDate.toDateString() === closedAt.toDateString() || mDate.toDateString() === openedAt.toDateString();
-          const inRange = mDate >= openedAt && mDate <= new Date(closedAt.getTime() + 12 * 3600000); // hasta 12h después
-          if(sameDay || inRange){
+          // El gasto pertenece a este registro SOLO si cae DENTRO del rango apertura-cierre
+          const inRange = mDate >= openedAt && mDate <= closedAt;
+          if(inRange){
             m.linkedCashRecord = record.id;
             if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
             if(!record.expenseHistory.some(e => e.id === m.id)){
@@ -10018,8 +10016,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const creditDelivery = credits.reduce((sum, order) => sum + Number(order.deliveryFee || 0), 0);
       const creditSalesWithoutDelivery = Math.max(0, report.creditSales - creditDelivery);
       const expenses = report.movements.filter(m => m.type === 'Egreso');
-      // Incluir gastos de nómina y otros vinculados al registro (que pueden ser posteriores al cierre)
-      const recordExpenses = Array.isArray(record.expenseHistory) ? record.expenseHistory : [];
+      // Solo mostrar gastos cuya fecha cae DENTRO del turno (apertura-cierre)
+      const recordExpenses = Array.isArray(record.expenseHistory)
+        ? record.expenseHistory.filter(re => re.date && new Date(re.date) >= from && new Date(re.date) <= to)
+        : [];
       const allExpenses = [...expenses];
       recordExpenses.forEach(re => { if(!allExpenses.some(e => e.id === re.id)) allExpenses.push(re); });
       const totalAllExpenses = allExpenses.reduce((a,b) => a + Number(b.amount || 0), 0);

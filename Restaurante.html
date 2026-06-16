@@ -6287,8 +6287,8 @@
     }
     function toggleTheme(){ state.theme = state.theme === 'dark' ? 'light' : 'dark'; persistAll(false); applyTheme(); toast(`Modo ${state.theme === 'dark' ? 'oscuro' : 'claro'} activado`, 'info'); }
     function openView(view){
-      // Con caja cerrada: solo se bloquea la vista de mesas (no se pueden abrir pedidos)
-      if(!state.cash.open && view === 'mesas'){
+      // Con caja cerrada: bloquear mesas y pantalla cocina (para todos)
+      if(!state.cash.open && (view === 'mesas')){
         toast('Abre la caja para acceder a las mesas', 'warning');
         view = 'caja';
       }
@@ -9407,22 +9407,24 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
 
     function updateCashLockLayout(){
       const locked = !state.cash.open;
-      document.body.classList.toggle('cash-closed-lock', locked);
+      const adminOverride = isAdmin(); // Admin ve todo aunque caja esté cerrada
+      const effectiveLock = locked && !adminOverride;
+      document.body.classList.toggle('cash-closed-lock', effectiveLock);
       const cashView = byId('view-caja');
       if(!cashView) return;
       const cards = [...cashView.querySelectorAll('.glass-card')];
       const historyCard = cards.find(card => (card.querySelector('.section-title')?.textContent || '').includes('Historial de cuadres'));
       cards.forEach(card => {
-        const keep = !locked || card === historyCard;
+        const keep = !effectiveLock || card === historyCard;
         card.classList.toggle('cash-locked-hidden', !keep);
-        card.classList.toggle('cash-history-fullscreen', locked && card === historyCard);
+        card.classList.toggle('cash-history-fullscreen', effectiveLock && card === historyCard);
       });
       const leftCol = cashView.querySelector('.products-layout > .col-lg-5');
       const rightCol = cashView.querySelector('.products-layout > .col-lg-7');
-      if(leftCol) leftCol.classList.toggle('cash-locked-hidden', locked);
+      if(leftCol) leftCol.classList.toggle('cash-locked-hidden', effectiveLock);
       if(rightCol) rightCol.classList.toggle('cash-locked-hidden', false);
       const historyWrapper = historyCard?.parentElement;
-      if(historyWrapper) historyWrapper.style.minWidth = locked ? '100%' : '';
+      if(historyWrapper) historyWrapper.style.minWidth = effectiveLock ? '100%' : '';
       // El pago de nómina solo está disponible cuando la caja está cerrada.
       const payrollBtn = byId('payrollButton');
       if(payrollBtn) payrollBtn.classList.toggle('d-none', !locked);

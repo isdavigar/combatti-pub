@@ -9378,10 +9378,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     }
     function renderCashView(){
       const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date()), to = endOfDay(new Date());
-      const report = buildCashReport(from, to);
+      const report = state.cash.open ? buildCashReport(from, to) : { sales:0, tips:0, deliveryFees:0, income:0, expense:0, final:0, cashPayments:0 };
       const balance = state.cash.open ? report.final : 0;
       setText('cashOpenState', state.cash.open ? 'Abierta' : 'Cerrada');
-      setText('cashFund', money(state.cash.openingAmount || 0));
+      setText('cashFund', money(state.cash.open ? (state.cash.openingAmount || 0) : 0));
       setText('cashSales', money(report.sales));
       setText('cashTips', money(report.tips));
       setText('cashDeliveryFees', money(report.deliveryFees));
@@ -9704,6 +9704,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     }
 
     // Eliminar un cuadre de caja del historial (solo admin del sistema).
+    // También elimina todas las ventas (orders) que pertenecen a ese cuadre.
     function deleteCashRecord(id){
       if(!requireSystemAdmin('eliminar cuadres de caja')) return;
       const record = (state.cash.history || []).find(r => r.id === id);
@@ -9714,15 +9715,31 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       }
       confirmAction({
         title:'Eliminar cuadre de caja',
-        message:`¿Eliminar el cuadre del <strong>${formatDate(record.openedAt)}</strong>?<br><br>Esta acción no se puede deshacer.`,
-        confirmLabel:'Sí, eliminar',
+        message:`¿Eliminar el cuadre del <strong>${formatDate(record.openedAt)}</strong>?<br><br>Se eliminarán también <strong>todas las ventas y movimientos</strong> de ese turno. Esta acción no se puede deshacer.`,
+        confirmLabel:'Sí, eliminar todo',
         confirmClass:'btn-danger',
         onConfirm: async () => {
+          // Eliminar las ventas (orders) que pertenecen a este cuadre
+          const recordOrders = Array.isArray(record.orders) ? new Set(record.orders) : new Set();
+          const from = new Date(record.openedAt || 0);
+          const to = record.closedAt ? new Date(record.closedAt) : new Date();
+          // Eliminar por IDs guardados en el record + por rango de fecha
+          state.orders = (state.orders || []).filter(o => {
+            if(recordOrders.has(o.id)) return false;
+            if(o.paidAt && new Date(o.paidAt) >= from && new Date(o.paidAt) <= to) return false;
+            return true;
+          });
+          // Eliminar movimientos vinculados a este cuadre
+          state.movements = (state.movements || []).filter(m => m.linkedCashRecord !== id);
+          // Eliminar el cuadre del historial
           state.cash.history = (state.cash.history || []).filter(r => r.id !== id);
           persistAll();
           await forceCloudSyncNow();
           renderCashHistory();
-          toast('Cuadre de caja eliminado', 'info');
+          renderOrderHistory();
+          renderCashView();
+          renderDashboard();
+          toast('Cuadre de caja eliminado con todas sus ventas', 'info');
         }
       });
     }

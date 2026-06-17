@@ -2983,6 +2983,7 @@
               <div class="cash-action-grid">
                 <div id="cashActionArea"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button></div>
                 <button class="btn btn-outline-danger btn-pill" onclick="showCloseCashModal()">Cerrar caja</button>
+                <button class="btn btn-outline-warning btn-pill" onclick="transferOrdersToNextShift()"><i class="fa-solid fa-arrow-right-arrow-left me-2"></i>Pasar pedidos al siguiente turno</button>
                 <button class="btn btn-primary-soft btn-pill" onclick="exportDailyCloseExcel(false)"><i class="fa-solid fa-file-excel me-2"></i>Exportar cierre diario</button>
                 <button class="btn btn-outline-primary btn-pill" onclick="printCurrentCashReport()"><i class="fa-solid fa-receipt me-2"></i>Imprimir comprobante diario</button>
                 <button class="btn btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-boxes-stacked me-2"></i>Imprimir inventario</button>
@@ -8875,10 +8876,38 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       return orders.slice(0, 5).map(order => order.tableName || order.type || 'Pedido').join(', ') + (orders.length > 5 ? ` y ${orders.length - 5} más` : '');
     }
     function requireNoActiveOrders(action){
-      const open = activeOrders();
+      const open = activeOrders().filter(o => !o.shiftTransferred);
       if(!open.length) return true;
-      toast(`No puedes ${action}: hay ${open.length} pedido${open.length === 1 ? '' : 's'} activo${open.length === 1 ? '' : 's'} (${activeOrdersText(open)}).`, 'warning');
+      toast(`No puedes ${action}: hay ${open.length} pedido${open.length === 1 ? '' : 's'} activo${open.length === 1 ? '' : 's'} (${activeOrdersText(open)}). Usa "Pasar pedidos al siguiente turno" primero.`, 'warning');
       return false;
+    }
+    // Transferir todos los pedidos activos al siguiente turno para poder cerrar caja.
+    // Los pedidos se mantienen abiertos pero su fecha se actualiza para que no
+    // pertenezcan a este turno sino al siguiente.
+    function transferOrdersToNextShift(){
+      const open = activeOrders();
+      if(!open.length){ toast('No hay pedidos activos para transferir', 'info'); return; }
+      const nextShift = normalizeShift(state.shift) === 'Dia' ? 'Noche' : 'Dia';
+      confirmAction({
+        title:'Pasar pedidos al siguiente turno',
+        message:`Vas a transferir <strong>${open.length}</strong> pedido(s) activo(s) al turno de <strong>${nextShift === 'Noche' ? 'noche' : 'día'}</strong>.<br><br>Los pedidos seguirán abiertos en las mesas pero no bloquearán el cierre de caja del turno actual.<br><br>Pedidos: <strong>${activeOrdersText(open)}</strong>`,
+        confirmLabel:`Sí, pasar al turno de ${nextShift === 'Noche' ? 'noche' : 'día'}`,
+        confirmClass:'btn-warning',
+        onConfirm: () => {
+          const now = new Date();
+          // Marcar los pedidos para que pertenezcan al siguiente turno
+          open.forEach(order => {
+            order.shiftTransferred = true;
+            order.originalShift = normalizeShift(state.shift);
+            order.transferredToShift = nextShift;
+            order.transferredAt = now.toISOString();
+          });
+          persistAll();
+          toast(`${open.length} pedido(s) transferido(s) al turno de ${nextShift === 'Noche' ? 'noche' : 'día'}. Ya puedes cerrar caja.`, 'success');
+          renderCashView();
+          renderTables();
+        }
+      });
     }
     function buildCashReport(fromDate = cashPeriodStart(), toDate = new Date()){
       const orders = closedOrdersRange(fromDate, toDate);

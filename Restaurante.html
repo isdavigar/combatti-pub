@@ -9816,7 +9816,15 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
         onConfirm: async () => {
+          // Borrar directamente de Firebase primero
+          if(firebaseDb){
+            try { await restaurantRoot().collection('deletedOrders').doc(id).delete(); } catch(_){}
+          }
           state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== id);
+          // Limpiar del cloudShadow para que no vuelva
+          if(typeof cloudShadow !== 'undefined' && cloudShadow.deletedOrders){
+            delete cloudShadow.deletedOrders[id];
+          }
           persistAll();
           await forceCloudSyncNow();
           renderDeletedOrders();

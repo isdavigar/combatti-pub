@@ -3201,14 +3201,6 @@
                 <div class="form-text">También puedes alternarlo desde el botón lateral.</div>
               </div>
               <div class="mb-3">
-                <label class="form-label">Imagen de productos</label>
-                <select id="brandProductPhotosInput" class="form-select">
-                  <option value="photos">Fotos reales por defecto</option>
-                  <option value="initials">Solo letra inicial</option>
-                </select>
-                <div class="form-text">Elige si los productos sin imagen propia muestran una foto representativa o solo la inicial.</div>
-              </div>
-              <div class="mb-3">
                 <label class="form-label">Icono / logo principal</label>
                 <div class="brand-logo-editor">
                   <div id="brandLogoPreview" class="brand-logo logo-preview"><i class="fa-solid fa-utensils fa-2x"></i></div>
@@ -7184,14 +7176,6 @@ const colors = [
     `;
   }
 
-  // Setting: show photos (default food images) or initials
-  const showPhotos = state.brand?.showProductPhotos !== false;
-
-  if(showPhotos){
-    const photoUrl = productDefaultEmoji(p.name, p.category);
-    return `<img src="${photoUrl}" class="product-image" onerror="this.outerHTML='${productFallbackMarkup(p, bg, letter)}'">`;
-  }
-
   return `
     <div class="product-avatar"
          style="background:${bg}">
@@ -7201,59 +7185,6 @@ const colors = [
 }
     function productFallbackMarkup(p, bg, letter){
       return `<div class=&quot;product-avatar&quot; style=&quot;background:${bg}&quot;>${letter}</div>`;
-    }
-    function productDefaultEmoji(name, category){
-      const n = (name || '').toLowerCase();
-      const c = (category || '').toLowerCase();
-      // Use loremflickr for reliable category-based food photos
-      // Format: https://loremflickr.com/300/300/keyword
-      const photos = [
-        [/hamburguesa|burger|hambur/,'https://loremflickr.com/300/300/hamburger,food'],
-        [/pizza/,'https://loremflickr.com/300/300/pizza,food'],
-        [/pollo|chicken|alitas|wing/,'https://loremflickr.com/300/300/fried,chicken'],
-        [/carne|steak|res|lomo|churrasco|filet/,'https://loremflickr.com/300/300/steak,meat'],
-        [/cerdo|pork|costilla|chicharr/,'https://loremflickr.com/300/300/ribs,pork'],
-        [/pescado|fish|trucha|salmon|mojarra/,'https://loremflickr.com/300/300/fish,food'],
-        [/camar[oó]n|shrimp|marisco/,'https://loremflickr.com/300/300/shrimp,seafood'],
-        [/ensalad|salad/,'https://loremflickr.com/300/300/salad,food'],
-        [/taco|burrito|wrap|tortilla/,'https://loremflickr.com/300/300/tacos,mexican'],
-        [/hot.?dog|perro|salchicha/,'https://loremflickr.com/300/300/hotdog,food'],
-        [/sandwich|s[aá]ndwich|sub/,'https://loremflickr.com/300/300/sandwich,food'],
-        [/pasta|spaguetti|fettuccine|lasaña/,'https://loremflickr.com/300/300/pasta,italian'],
-        [/sopa|crema|caldo/,'https://loremflickr.com/300/300/soup,food'],
-        [/arroz|rice/,'https://loremflickr.com/300/300/rice,food'],
-        [/huevo|egg/,'https://loremflickr.com/300/300/eggs,breakfast'],
-        [/pan|bread|arepa|empanada|patac[oó]n/,'https://loremflickr.com/300/300/bread,bakery'],
-        [/papas|fries|frita/,'https://loremflickr.com/300/300/fries,potato'],
-        [/nachos|chips|snack/,'https://loremflickr.com/300/300/nachos,snack'],
-        [/cerveza|beer|brew/,'https://loremflickr.com/300/300/beer,drink'],
-        [/vino|wine/,'https://loremflickr.com/300/300/wine,drink'],
-        [/cocktail|coctel|c[oó]ctel|mojito|margarita|daiquiri/,'https://loremflickr.com/300/300/cocktail,drink'],
-        [/whisky|whiskey|ron|vodka|tequila|aguardiente|licor/,'https://loremflickr.com/300/300/whiskey,liquor'],
-        [/michelada/,'https://loremflickr.com/300/300/beer,michelada'],
-        [/jugo|juice|limonada|naranjada/,'https://loremflickr.com/300/300/juice,fresh'],
-        [/gaseosa|coca|soda|sprite|refresco/,'https://loremflickr.com/300/300/soda,drink'],
-        [/café|coffee|cappuccino|latte|americano|tinto/,'https://loremflickr.com/300/300/coffee,cafe'],
-        [/t[eé]|tea|arom[aá]tica/,'https://loremflickr.com/300/300/tea,drink'],
-        [/agua|water/,'https://loremflickr.com/300/300/water,bottle'],
-        [/milkshake|malteada|smoothie|batido/,'https://loremflickr.com/300/300/milkshake,drink'],
-        [/helado|ice.?cream|sundae/,'https://loremflickr.com/300/300/icecream,dessert'],
-        [/torta|cake|pastel|brownie|postre|dessert/,'https://loremflickr.com/300/300/cake,dessert'],
-        [/waffle|pancake|crepe|crepa/,'https://loremflickr.com/300/300/waffle,breakfast'],
-        [/chuzo|pincho|brochet/,'https://loremflickr.com/300/300/skewer,grill'],
-        [/mazorca|corn|elote|choclo/,'https://loremflickr.com/300/300/corn,food']
-      ];
-      for(const [regex, url] of photos){ if(regex.test(n)) return url; }
-      // Fallback: use category name as keyword
-      const catMap = [
-        [/bebida|drink|licor|trago|coctel/,'https://loremflickr.com/300/300/drinks,bar'],
-        [/comida|rapida|fast/,'https://loremflickr.com/300/300/fastfood,restaurant'],
-        [/postre|sweet|dulce/,'https://loremflickr.com/300/300/dessert,sweet'],
-        [/entrada|appetizer|snack/,'https://loremflickr.com/300/300/appetizer,food'],
-        [/grill|asado|parrilla/,'https://loremflickr.com/300/300/grill,bbq']
-      ];
-      for(const [regex, url] of catMap){ if(regex.test(c)) return url; }
-      return 'https://loremflickr.com/300/300/food,restaurant';
     }
     function saveProduct(){
       if(!requireAdmin('guardar productos')) return;
@@ -10645,7 +10576,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       document.getElementById('brandColorInput').value = state.brand.color || '#19c37d';
       document.getElementById('brandLogoInput').value = state.brand.logo || '';
       setValue('brandThemeInput', state.theme || state.brand.theme || 'light');
-      setValue('brandProductPhotosInput', state.brand.showProductPhotos === false ? 'initials' : 'photos');
       setLoginImageValue(state.brand.loginImage || '');
       document.getElementById('brandInfoInput').value = state.brand.info || '';
       setValue('brandNitInput', state.brand.nit || '');
@@ -10686,7 +10616,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       state.brand.name = document.getElementById('brandNameInput').value.trim() || 'Combatti PUB';
       state.brand.color = document.getElementById('brandColorInput').value;
       state.brand.logo = document.getElementById('brandLogoInput').value.trim();
-      state.brand.showProductPhotos = (byId('brandProductPhotosInput')?.value || 'photos') !== 'initials';
       state.theme = document.getElementById('brandThemeInput')?.value || state.theme || 'light';
       const gallery = normalizeLoginGallery(
         [

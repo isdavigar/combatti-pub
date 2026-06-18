@@ -505,7 +505,6 @@
     .category-chip, .type-chip{
       display:inline-flex; align-items:center; gap:8px;
       padding:10px 14px; border-radius:999px;
-      white-space:nowrap; flex-shrink:0;
       border:1px solid var(--border); background:var(--card);
       cursor:pointer; transition:.2s; user-select:none;
     }
@@ -1779,11 +1778,6 @@
 
   color:#6c757d;
   border:1px solid rgba(0,0,0,.05);
-}
-   .product-avatar.product-emoji-avatar{
-  font-size:72px;
-  font-weight:normal;
-  filter:drop-shadow(0 4px 8px rgba(0,0,0,.08));
 }
     .kitchen-item .qty{
       width:42px;
@@ -3209,10 +3203,10 @@
               <div class="mb-3">
                 <label class="form-label">Imagen de productos</label>
                 <select id="brandProductPhotosInput" class="form-select">
-                  <option value="photos">Fotos / emojis por defecto</option>
+                  <option value="photos">Fotos reales por defecto</option>
                   <option value="initials">Solo letra inicial</option>
                 </select>
-                <div class="form-text">Elige si los productos sin imagen propia muestran un emoji representativo o solo la inicial.</div>
+                <div class="form-text">Elige si los productos sin imagen propia muestran una foto representativa o solo la inicial.</div>
               </div>
               <div class="mb-3">
                 <label class="form-label">Icono / logo principal</label>
@@ -3621,7 +3615,7 @@
                     </div>
                     <span class="badge-soft">Catálogo</span>
                   </div>
-                  <div class="d-flex gap-2 mb-3" id="orderCategoryFilters" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;"></div>
+                  <div class="d-flex gap-2 flex-wrap mb-3" id="orderCategoryFilters" style="max-height:120px;overflow-y:auto;padding-right:4px;scrollbar-width:thin;"></div>
                   <div class="channel-filter-bar mb-3" id="orderChannelFilters"></div>
                   <div class="input-group">
                     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
@@ -7194,8 +7188,8 @@ const colors = [
   const showPhotos = state.brand?.showProductPhotos !== false;
 
   if(showPhotos){
-    const emoji = productDefaultEmoji(p.name);
-    return `<div class="product-avatar product-emoji-avatar" style="background:${bg}">${emoji}</div>`;
+    const photoUrl = productDefaultEmoji(p.name);
+    return `<img src="${photoUrl}" class="product-image" onerror="this.outerHTML='${productFallbackMarkup(p, bg, letter)}'">`;
   }
 
   return `
@@ -7206,39 +7200,55 @@ const colors = [
   `;
 }
     function productFallbackMarkup(p, bg, letter){
-      const showPhotos = state.brand?.showProductPhotos !== false;
-      if(showPhotos){
-        const emoji = productDefaultEmoji(p.name);
-        return `<div class=&quot;product-avatar product-emoji-avatar&quot; style=&quot;background:${bg}&quot;>${emoji}</div>`;
-      }
       return `<div class=&quot;product-avatar&quot; style=&quot;background:${bg}&quot;>${letter}</div>`;
     }
     function productDefaultEmoji(name){
       const n = (name || '').toLowerCase();
-      const map = [
-        [/hamburguesa|burger|hambur/,'🍔'],[/pizza/,'🍕'],[/pollo|chicken|alitas|wing/,'🍗'],
-        [/carne|steak|res|lomo|churrasco|filet/,'🥩'],[/cerdo|pork|costilla|chicharr/,'🥓'],
-        [/pescado|fish|trucha|salmon|mojarra/,'🐟'],[/camar[oó]n|shrimp|marisco/,'🦐'],
-        [/ensalad|salad/,'🥗'],[/taco|burrito|wrap|tortilla/,'🌮'],[/hot.?dog|perro|salchicha/,'🌭'],
-        [/sandwich|s[aá]ndwich|sub/,'🥪'],[/pasta|spaguetti|fettuccine|lasaña/,'🍝'],
-        [/sopa|crema|caldo/,'🍲'],[/arroz|rice/,'🍚'],[/huevo|egg/,'🍳'],
-        [/pan|bread|arepa|empanada|patac[oó]n/,'🫓'],[/papas|fries|frita/,'🍟'],
-        [/nachos|chips|snack/,'🧀'],[/mazorca|corn|elote|choclo/,'🌽'],
-        [/cerveza|beer|brew/,'🍺'],[/vino|wine/,'🍷'],[/cocktail|coctel|c[oó]ctel|mojito|margarita|daiquiri/,'🍹'],
-        [/whisky|whiskey|ron|vodka|tequila|aguardiente|licor/,'🥃'],[/michelada|clericot/,'🍻'],
-        [/jugo|juice|limonada|naranjada/,'🧃'],[/gaseosa|coca|soda|sprite|refresco/,'🥤'],
-        [/café|coffee|cappuccino|latte|americano|tinto/,'☕'],[/t[eé]|tea|arom[aá]tica/,'🍵'],
-        [/agua|water/,'💧'],[/milkshake|malteada|smoothie|batido/,'🥛'],
-        [/helado|ice.?cream|sundae/,'🍦'],[/torta|cake|pastel|brownie|postre|dessert/,'🍰'],
-        [/galleta|cookie/,'🍪'],[/waffle|pancake|crepe|crepa/,'🧇'],
-        [/chocolate|choco/,'🍫'],[/dulce|candy|caramelo/,'🍬'],
-        [/chuzo|pincho|brochet/,'🍢'],[/quesadilla|queso/,'🧀'],
-        [/limon|lemon|lime/,'🍋'],[/fresa|strawberry/,'🍓'],[/mango/,'🥭'],
-        [/piña|pineapple/,'🍍'],[/banan|plátano|platano/,'🍌'],
-        [/tomate|tomato/,'🍅'],[/cebolla|onion/,'🧅']
+      const photos = [
+        [/hamburguesa|burger|hambur/,'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&h=300&fit=crop'],
+        [/pizza/,'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&h=300&fit=crop'],
+        [/pollo|chicken|alitas|wing/,'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=300&h=300&fit=crop'],
+        [/carne|steak|res|lomo|churrasco|filet/,'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300&h=300&fit=crop'],
+        [/cerdo|pork|costilla|chicharr/,'https://images.unsplash.com/photo-1544025162-d76694265947?w=300&h=300&fit=crop'],
+        [/pescado|fish|trucha|salmon|mojarra/,'https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?w=300&h=300&fit=crop'],
+        [/camar[oó]n|shrimp|marisco/,'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=300&h=300&fit=crop'],
+        [/ensalad|salad/,'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=300&fit=crop'],
+        [/taco|burrito|wrap|tortilla/,'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=300&h=300&fit=crop'],
+        [/hot.?dog|perro|salchicha/,'https://images.unsplash.com/photo-1612392062798-1a8a5a3b1f8e?w=300&h=300&fit=crop'],
+        [/sandwich|s[aá]ndwich|sub/,'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=300&h=300&fit=crop'],
+        [/pasta|spaguetti|fettuccine|lasaña/,'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=300&h=300&fit=crop'],
+        [/sopa|crema|caldo/,'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=300&h=300&fit=crop'],
+        [/arroz|rice/,'https://images.unsplash.com/photo-1536304929831-ee1ca9d44726?w=300&h=300&fit=crop'],
+        [/huevo|egg/,'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=300&h=300&fit=crop'],
+        [/pan|bread|arepa|empanada|patac[oó]n/,'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=300&h=300&fit=crop'],
+        [/papas|fries|frita/,'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=300&h=300&fit=crop'],
+        [/nachos|chips|snack/,'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=300&h=300&fit=crop'],
+        [/cerveza|beer|brew/,'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=300&h=300&fit=crop'],
+        [/vino|wine/,'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=300&h=300&fit=crop'],
+        [/cocktail|coctel|c[oó]ctel|mojito|margarita|daiquiri/,'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=300&h=300&fit=crop'],
+        [/whisky|whiskey|ron|vodka|tequila|aguardiente|licor/,'https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=300&h=300&fit=crop'],
+        [/michelada/,'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=300&h=300&fit=crop'],
+        [/jugo|juice|limonada|naranjada/,'https://images.unsplash.com/photo-1534353473418-4cfa6c56fd38?w=300&h=300&fit=crop'],
+        [/gaseosa|coca|soda|sprite|refresco/,'https://images.unsplash.com/photo-1581006852262-e4307cf6283a?w=300&h=300&fit=crop'],
+        [/café|coffee|cappuccino|latte|americano|tinto/,'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=300&h=300&fit=crop'],
+        [/t[eé]|tea|arom[aá]tica/,'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=300&h=300&fit=crop'],
+        [/agua|water/,'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=300&h=300&fit=crop'],
+        [/milkshake|malteada|smoothie|batido/,'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=300&h=300&fit=crop'],
+        [/helado|ice.?cream|sundae/,'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=300&h=300&fit=crop'],
+        [/torta|cake|pastel|brownie|postre|dessert/,'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&h=300&fit=crop'],
+        [/waffle|pancake|crepe|crepa/,'https://images.unsplash.com/photo-1562376552-0d160a2f238d?w=300&h=300&fit=crop'],
+        [/chuzo|pincho|brochet/,'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=300&h=300&fit=crop'],
+        [/mazorca|corn|elote|choclo/,'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=300&h=300&fit=crop']
       ];
-      for(const [regex, emoji] of map){ if(regex.test(n)) return emoji; }
-      return '🍽️';
+      for(const [regex, url] of photos){ if(regex.test(n)) return url; }
+      // Fallback by category keywords
+      const catPhotos = [
+        [/bebida|drink|licor|trago/,'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=300&h=300&fit=crop'],
+        [/comida|food|plato|entrada/,'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&h=300&fit=crop'],
+        [/postre|sweet|dulce/,'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&h=300&fit=crop']
+      ];
+      for(const [regex, url] of catPhotos){ if(regex.test(n)) return url; }
+      return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&h=300&fit=crop';
     }
     function saveProduct(){
       if(!requireAdmin('guardar productos')) return;
@@ -11639,8 +11649,9 @@ function parseMoneyValue(value){
       const periods = `<option value="turno">Turno actual</option><option value="day">Hoy</option><option value="week">Semana</option><option value="month" selected>Mes</option><option value="year">Año</option>`;
       confirmAction({
         title:'Agregar widget al dashboard',
-        body:`<div class="mb-3"><label class="form-label">Dato a mostrar</label><select id="widgetTypeInput" class="form-select">${options}</select></div><div class="mb-3"><label class="form-label">Período</label><select id="widgetPeriodInput" class="form-select">${periods}</select></div><div class="mb-3"><label class="form-label">Título personalizado (opcional)</label><input id="widgetTitleInput" class="form-control" placeholder="Dejar vacío para usar nombre por defecto"></div>`,
+        message:`<div class="mb-3"><label class="form-label">Dato a mostrar</label><select id="widgetTypeInput" class="form-select">${options}</select></div><div class="mb-3"><label class="form-label">Período</label><select id="widgetPeriodInput" class="form-select">${periods}</select></div><div class="mb-3"><label class="form-label">Título personalizado (opcional)</label><input id="widgetTitleInput" class="form-control" placeholder="Dejar vacío para usar nombre por defecto"></div>`,
         confirmLabel:'Agregar',
+        confirmClass:'btn-success',
         onConfirm:() => {
           const typeId = byId('widgetTypeInput')?.value;
           const period = byId('widgetPeriodInput')?.value || 'month';

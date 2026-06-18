@@ -11956,22 +11956,41 @@ function parseMoneyValue(value){
       // Income: sales in range
       const report = buildCashReport(from, to);
       const income = Number(report.sales || 0) + Number(report.income || 0);
-      // Expenses: collect from state.movements (current shift) AND from
-      // closed cash records' movementsHistory (past shifts), since
-      // state.movements gets cleared on each caja close.
+      // Expenses: collect ALL non-payroll expenses from current shift AND
+      // closed cash records (movementsHistory + expenseHistory).
+      // Use a Set to avoid counting duplicates.
       let expense = 0;
+      const counted = new Set();
       // Current shift movements
       state.movements.forEach(m => {
         if(!m.date || m.payroll || m.type !== 'Egreso') return;
         const mDate = new Date(m.date);
-        if(mDate >= from && mDate <= to) expense += Number(m.amount || 0);
+        if(mDate >= from && mDate <= to){
+          expense += Number(m.amount || 0);
+          if(m.id) counted.add(m.id);
+        }
       });
-      // Past shifts: search in cash history movementsHistory
+      // Past shifts: search in cash history
       (state.cash.history || []).forEach(record => {
+        // Check movementsHistory
         (record.movementsHistory || []).forEach(m => {
           if(!m.date || m.payroll || m.type !== 'Egreso') return;
+          if(m.id && counted.has(m.id)) return;
           const mDate = new Date(m.date);
-          if(mDate >= from && mDate <= to) expense += Number(m.amount || 0);
+          if(mDate >= from && mDate <= to){
+            expense += Number(m.amount || 0);
+            if(m.id) counted.add(m.id);
+          }
+        });
+        // Also check expenseHistory (some expenses only exist here)
+        (record.expenseHistory || []).forEach(m => {
+          if(!m.date || m.payroll) return;
+          if(m.id && counted.has(m.id)) return;
+          const mDate = new Date(m.date);
+          if(mDate >= from && mDate <= to){
+            expense += Number(m.amount || 0);
+            if(m.id) counted.add(m.id);
+          }
         });
       });
       return { income, expense };

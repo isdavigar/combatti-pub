@@ -1587,6 +1587,59 @@
     #orderProductsGrid .product-title{
       font-size:1rem;
     }
+    .payment-method-btns{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .payment-method-btn{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+      padding:12px 8px;
+      border-radius:16px;
+      border:2px solid var(--border);
+      background:var(--card);
+      cursor:pointer;
+      transition:all .2s ease;
+      user-select:none;
+    }
+    .payment-method-btn:hover{
+      border-color:rgba(var(--primary-rgb),.4);
+      background:rgba(var(--primary-rgb),.05);
+    }
+    .payment-method-btn.active{
+      border-color:var(--primary);
+      background:rgba(var(--primary-rgb),.12);
+      box-shadow:0 4px 12px rgba(var(--primary-rgb),.18);
+    }
+    .payment-method-btn .pm-icon{
+      width:40px;
+      height:40px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      font-size:1.1rem;
+      color:#fff;
+      flex-shrink:0;
+    }
+    .payment-method-btn .pm-label{
+      font-size:.75rem;
+      font-weight:700;
+      text-align:center;
+      line-height:1.2;
+    }
+    .pm-icon-efectivo{ background:linear-gradient(135deg,#22c55e,#16a34a); }
+    .pm-icon-nequi{ background:linear-gradient(135deg,#e91e8c,#320032); }
+    .pm-icon-bancolombia{ background:linear-gradient(135deg,#fdda24,#003580); }
+    .pm-icon-bold{ background:linear-gradient(135deg,#7c3aed,#dc2626); }
+    .pm-icon-llave{ background:linear-gradient(135deg,#06d6a0,#00b4d8); }
+    .pm-icon-mixta{ background:linear-gradient(135deg,#f59e0b,#6366f1); }
+    @media (max-width:400px){
+      .payment-method-btns{ grid-template-columns:repeat(2, 1fr); }
+    }
     .cash-payment-box{
       border:1px solid rgba(var(--primary-rgb),.20);
       background:linear-gradient(180deg, rgba(var(--primary-rgb),.08), rgba(37,99,235,.03));
@@ -2619,7 +2672,16 @@
               <div class="chart-head">
                 <div>
                   <h5 class="section-title mb-1">Métodos de pago</h5>
-                  <p class="section-subtitle mb-0">Uso por ventas del mes.</p>
+                  <p class="section-subtitle mb-0">Uso por ventas.</p>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <select id="paymentMethodsChartFilter" class="form-select form-select-sm" style="width:auto;min-width:140px;" onchange="updatePaymentMethodsByFilter()">
+                    <option value="turno">Turno actual</option>
+                    <option value="day">Hoy</option>
+                    <option value="week">Semana</option>
+                    <option value="month" selected>Mes</option>
+                  </select>
+                  <input id="paymentMethodsDateFilter" type="date" class="form-control form-control-sm" style="width:auto;min-width:130px;" onchange="updatePaymentMethodsByDate()">
                 </div>
               </div>
               <canvas id="paymentMethodsChart"></canvas>
@@ -2638,6 +2700,7 @@
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <select id="incomeExpensePeriod" class="form-select form-select-sm" style="width:auto;" onchange="updateIncomeExpenseByPeriod()">
+                    <option value="turno">Turno actual</option>
                     <option value="day">Hoy</option>
                     <option value="week">Semana</option>
                     <option value="month">Mes</option>
@@ -2660,8 +2723,9 @@
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <select id="topProductsCashFilter" class="form-select form-select-sm" style="width:auto;min-width:140px;" onchange="updateTopProductsByFilter()">
                       <option value="turno">Turno actual</option>
-                      <option value="month">Mes</option>
                       <option value="day">Hoy</option>
+                      <option value="week">Semana</option>
+                      <option value="month">Mes</option>
                     </select>
                     <input id="topProductsDateFilter" type="date" class="form-control form-control-sm" style="width:auto;min-width:140px;" onchange="updateTopProductsByDate()">
                   </div>
@@ -2985,8 +3049,7 @@
                 <button class="btn btn-outline-danger btn-pill" onclick="showCloseCashModal()">Cerrar caja</button>
                 <button class="btn btn-outline-warning btn-pill" onclick="transferOrdersToNextShift()"><i class="fa-solid fa-arrow-right-arrow-left me-2"></i>Pasar pedidos al siguiente turno</button>
                 <button class="btn btn-primary-soft btn-pill" onclick="exportDailyCloseExcel(false)"><i class="fa-solid fa-file-excel me-2"></i>Exportar cierre diario</button>
-                <button class="btn btn-outline-primary btn-pill" onclick="printCurrentCashReport()"><i class="fa-solid fa-receipt me-2"></i>Imprimir comprobante diario</button>
-                <button class="btn btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-boxes-stacked me-2"></i>Imprimir inventario</button>
+                <button class="btn btn-outline-success btn-pill" onclick="exportMonthlyCloseExcel()"><i class="fa-solid fa-calendar-days me-2"></i>Exportar cierre de mes</button>
                 <input id="historicalSalesImportInput" type="file" accept=".xlsx,.xls,.csv" class="d-none" onchange="importHistoricalSalesExcel(event)">
                 <button class="btn btn-outline-success btn-pill" onclick="document.getElementById('historicalSalesImportInput').click()"><i class="fa-solid fa-file-import me-2"></i>Importar ventas anteriores</button>
                 <button class="btn btn-outline-primary btn-pill" onclick="exportAnnualCloseExcel()"><i class="fa-solid fa-calendar-check me-2"></i>Guardar cierre anual</button>
@@ -3641,14 +3704,33 @@
                 <div class="mb-3" id="paymentBlock">
                   <label class="form-label fw-bold">Método de pago</label>
                   <div class="small text-secondary mb-2">Aquí eliges cómo se va a cobrar la cuenta.</div>
-                  <select id="paymentMethodInput" class="form-select" onchange="togglePaymentSplit()">
-                    <option value="EFECTIVO">EFECTIVO</option>
-                    <option value="NEQUI">NEQUI</option>
-                    <option value="BANCOLOMBIA">BANCOLOMBIA</option>
-                    <option value="BOLD">BOLD</option>
-                    <option value="LLAVE">LLAVE</option>
-                    <option value="MIXTA">MIXTA</option>
-                  </select>
+                  <input type="hidden" id="paymentMethodInput" value="EFECTIVO">
+                  <div class="payment-method-btns" id="paymentMethodBtns">
+                    <div class="payment-method-btn active" data-method="EFECTIVO" onclick="selectPaymentMethod('EFECTIVO')">
+                      <div class="pm-icon pm-icon-efectivo"><i class="fa-solid fa-money-bill-wave"></i></div>
+                      <span class="pm-label">Efectivo</span>
+                    </div>
+                    <div class="payment-method-btn" data-method="NEQUI" onclick="selectPaymentMethod('NEQUI')">
+                      <div class="pm-icon pm-icon-nequi"><i class="fa-solid fa-mobile-screen"></i></div>
+                      <span class="pm-label">Nequi</span>
+                    </div>
+                    <div class="payment-method-btn" data-method="BANCOLOMBIA" onclick="selectPaymentMethod('BANCOLOMBIA')">
+                      <div class="pm-icon pm-icon-bancolombia"><i class="fa-solid fa-building-columns"></i></div>
+                      <span class="pm-label">Bancolombia</span>
+                    </div>
+                    <div class="payment-method-btn" data-method="BOLD" onclick="selectPaymentMethod('BOLD')">
+                      <div class="pm-icon pm-icon-bold"><i class="fa-solid fa-credit-card"></i></div>
+                      <span class="pm-label">Bold</span>
+                    </div>
+                    <div class="payment-method-btn" data-method="LLAVE" onclick="selectPaymentMethod('LLAVE')">
+                      <div class="pm-icon pm-icon-llave"><i class="fa-solid fa-key"></i></div>
+                      <span class="pm-label">Llave (Bre-B)</span>
+                    </div>
+                    <div class="payment-method-btn" data-method="MIXTA" onclick="selectPaymentMethod('MIXTA')">
+                      <div class="pm-icon pm-icon-mixta"><i class="fa-solid fa-shuffle"></i></div>
+                      <span class="pm-label">Mixto</span>
+                    </div>
+                  </div>
 
                   <div id="cashPaymentSection" class="cash-payment-box">
                     <div class="cash-head">
@@ -4893,14 +4975,26 @@
       return PAYMENT_METHODS.filter(method => !['RAPPI','DIDI'].includes(method));
     }
     function renderPaymentMethodOptions(table, selected){
-      const select = byId('paymentMethodInput');
-      if(!select) return;
+      const input = byId('paymentMethodInput');
+      if(!input) return;
       const forced = forcedPaymentMethodForTable(table);
       const methods = forced ? [forced] : [...paymentMethodsForTable(table), MIXED_PAYMENT_METHOD];
-      select.innerHTML = methods.map(method => `<option value="${method}">${paymentLabel(method)}</option>`).join('');
-      select.value = forced || normalizePaymentMethod(selected || 'EFECTIVO');
-      select.disabled = Boolean(forced);
-      select.title = forced ? `La mesa ${table.kind} solo permite pago ${paymentLabel(forced)}` : '';
+      const selectedMethod = forced || normalizePaymentMethod(selected || 'EFECTIVO');
+      input.value = selectedMethod;
+      input.disabled = Boolean(forced);
+      const iconMap = { EFECTIVO:'fa-money-bill-wave', NEQUI:'fa-mobile-screen', BANCOLOMBIA:'fa-building-columns', BOLD:'fa-credit-card', LLAVE:'fa-key', MIXTA:'fa-shuffle', RAPPI:'fa-motorcycle', DIDI:'fa-car' };
+      const classMap = { EFECTIVO:'pm-icon-efectivo', NEQUI:'pm-icon-nequi', BANCOLOMBIA:'pm-icon-bancolombia', BOLD:'pm-icon-bold', LLAVE:'pm-icon-llave', MIXTA:'pm-icon-mixta', RAPPI:'pm-icon-efectivo', DIDI:'pm-icon-efectivo' };
+      const labelMap = { EFECTIVO:'Efectivo', NEQUI:'Nequi', BANCOLOMBIA:'Bancolombia', BOLD:'Bold', LLAVE:'Llave (Bre-B)', MIXTA:'Mixto', RAPPI:'Rappi', DIDI:'Didi' };
+      const btnsContainer = byId('paymentMethodBtns');
+      if(btnsContainer){
+        btnsContainer.innerHTML = methods.map(method => `
+          <div class="payment-method-btn ${method === selectedMethod ? 'active' : ''}" data-method="${method}" onclick="selectPaymentMethod('${method}')">
+            <div class="pm-icon ${classMap[method] || 'pm-icon-efectivo'}"><i class="fa-solid ${iconMap[method] || 'fa-money-bill-wave'}"></i></div>
+            <span class="pm-label">${labelMap[method] || method}</span>
+          </div>
+        `).join('');
+        if(forced) btnsContainer.querySelectorAll('.payment-method-btn').forEach(btn => { if(btn.dataset.method !== forced) btn.style.opacity = '0.4'; btn.style.pointerEvents = forced ? 'none' : ''; });
+      }
     }
     function methodTotalsForOrders(orders){
       const totals = emptyPaymentMap();
@@ -6370,7 +6464,7 @@
       return activeCashUserName();
     }
 
-    function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const logoutBtnHtml = '<button class="btn btn-outline-danger btn-pill" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>';       const openActionsHtml = `<div class="d-flex gap-2 flex-wrap align-items-center">${openBtnHtml}${logoutBtnHtml}</div>`;       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openActionsHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="d-grid gap-2"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button><button class="btn btn-outline-danger btn-pill w-100" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button></div>`;     }      function salesBetween(fromDate, toDate){
+    function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const logoutBtnHtml = '<button class="btn btn-outline-danger btn-pill" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>';       const openActionsHtml = `<div class="d-flex gap-2 flex-wrap align-items-center">${openBtnHtml}${logoutBtnHtml}</div>`;       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openActionsHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
       return orderSales + historical;
@@ -6413,7 +6507,7 @@
       const turnoStart = state.cash.open ? cashPeriodStart() : startOfDay(today);
       const turnoOrderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= turnoStart && new Date(o.paidAt) <= endOfDay(today)).reduce((a,b)=>a + (b.total || 0), 0);
       const rangeSales = salesBetween(range.from, range.to);
-      const todaySales = state.cash.open ? turnoOrderSales : salesBetween(startOfDay(today), endOfDay(today));
+      const todaySales = state.cash.open ? turnoOrderSales : 0;
       const sales7 = salesBetween(new Date(today.getTime() - 6*24*60*60*1000), endOfDay(today));
       const sales30 = salesBetween(new Date(today.getTime() - 29*24*60*60*1000), endOfDay(today));
       const salesYear = salesBetween(startOfYear(today), endOfDay(today));
@@ -6436,7 +6530,7 @@
       });
       const sellerRanking = [...sellerTotals.entries()].map(([name, total]) => ({ name, total })).sort((a,b)=>b.total-a.total);
       const topSeller = sellerRanking[0] || { name:'-', total:0 };
-      const cashTotal = (state.cash.open ? state.cash.openingAmount : 0) + todayReport.cashPayments + Number(todayReport.income || 0) - Number(todayReport.cashExpense || 0);
+      const cashTotal = state.cash.open ? (state.cash.openingAmount || 0) + todayReport.cashPayments + Number(todayReport.income || 0) - Number(todayReport.cashExpense || 0) : 0;
 
       setText('dashDateLabel', range.label);
       setText('heroSalesToday', money(todaySales));
@@ -7847,6 +7941,13 @@ const colors = [
       queueAutosave();
       togglePaymentSplit(); renderPaymentSplitSummary();
       refreshPayButtonState();
+    }
+    function selectPaymentMethod(method){
+      const input = document.getElementById('paymentMethodInput');
+      if(input) input.value = method;
+      const btns = document.querySelectorAll('#paymentMethodBtns .payment-method-btn');
+      btns.forEach(btn => btn.classList.toggle('active', btn.dataset.method === method));
+      togglePaymentSplit();
     }
     function togglePaymentSplit(){
       const method = normalizePaymentMethod(document.getElementById('paymentMethodInput')?.value);
@@ -10014,9 +10115,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     }
     function soldProductsSummaryFromOrders(orders, selectedCategory = 'Todas'){
       const map = new Map();
+      const isAll = !selectedCategory || selectedCategory === 'Todas' || selectedCategory === 'Todos';
       orders.forEach(order => (order.items || []).forEach(item => {
         const category = categoryForOrderItem(item);
-        if(selectedCategory !== 'Todas' && category !== selectedCategory) return;
+        if(!isAll && category !== selectedCategory) return;
         const key = `${category}__${item.productId || item.name}`;
         const current = map.get(key) || { category, product:item.name, qty:0, total:0 };
         current.qty += Number(item.qty || 0);
@@ -10154,7 +10256,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     function renderSoldCategoryOptions(){
       const select = byId('soldCategorySelect');
       if(!select) return;
-      const selected = select.value || 'Todas';
+      const selected = select.value || 'Todos';
       refreshCategories();
       select.innerHTML = CATEGORIES.map(category => `<option value="${escapeHtmlAttr(category)}" ${category === selected ? 'selected' : ''}>${escapeHtml(category)}</option>`).join('');
     }
@@ -10163,8 +10265,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       initSoldCategoryFilters();
       const from = dateFromInput(byId('soldCategoryFrom')?.value, false);
       const to = dateFromInput(byId('soldCategoryTo')?.value, true);
-      const category = byId('soldCategorySelect')?.value || 'Todas';
-      const orders = paidOrdersRange(from, to);
+      const category = byId('soldCategorySelect')?.value || 'Todos';
+      const orders = closedOrdersRange(from, to);
       const rows = soldProductsSummaryFromOrders(orders, category);
       const qty = rows.reduce((sum, row) => sum + Number(row.qty || 0), 0);
       const total = rows.reduce((sum, row) => sum + Number(row.total || 0), 0);
@@ -11003,6 +11105,49 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(!auto) toast('Cierre diario exportado', 'success');
     }
 
+    function exportMonthlyCloseExcel(){
+      const today = new Date();
+      const from = startOfMonth(today);
+      const to = endOfDay(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+      const monthLabel = today.toLocaleDateString('es-CO', { month:'long', year:'numeric' });
+      const report = buildCashReport(from, to);
+      const resumen = [
+        { Concepto:'Mes', Valor:monthLabel },
+        { Concepto:'Ventas pagadas', Valor:report.sales },
+        { Concepto:'Propinas', Valor:report.tips },
+        { Concepto:'Domicilios', Valor:report.deliveryFees },
+        { Concepto:'Ingresos manuales', Valor:report.income },
+        { Concepto:'Egresos', Valor:report.expense },
+        { Concepto:'Saldo efectivo estimado', Valor:report.finalAfterDelivery }
+      ];
+      const ventas = report.orders.map(o => ({
+        Fecha: formatDate(o.paidAt || o.updatedAt),
+        Mesa: o.tableName,
+        Cliente: o.customer,
+        Vendedor: o.seller || '',
+        Estado: o.status,
+        Metodo: paymentSummaryText(o),
+        Propina: o.tip || 0,
+        Domicilio: o.deliveryFee || 0,
+        Total: o.total || 0
+      }));
+      const productos = soldProductsSummaryFromOrders(report.orders, 'Todas').map(row => ({
+        Categoria: row.category,
+        Producto: row.product,
+        Cantidad: row.qty,
+        Total: row.total
+      }));
+      const movimientos = report.movements.map(m => ({
+        Fecha: formatDate(m.date),
+        Tipo: m.type,
+        Concepto: m.reason || m.concept || '',
+        Medio: m.source || 'EFECTIVO',
+        Valor: m.amount || 0
+      }));
+      const monthNum = String(today.getMonth() + 1).padStart(2, '0');
+      exportWorkbookOrCsv(`cierre_mes_combatti_${today.getFullYear()}_${monthNum}`, { Resumen:resumen, Ventas:ventas, Productos:productos, Movimientos:movimientos });
+      toast(`Cierre de mes exportado: ${monthLabel}`, 'success');
+    }
     // Excel de cierre NOCTURNO: incluye turno DÍA y turno NOCHE del mismo día completo.
     function exportDailyCloseExcelDualShift(nightRecord){
       if(typeof XLSX === 'undefined') return;
@@ -11695,7 +11840,6 @@ function parseMoneyValue(value){
       const today = new Date();
       let labels = [], incomes = [], expenses = [];
       if(period === 'month'){
-        // Últimas 4 semanas
         for(let w = 3; w >= 0; w--){
           const end = new Date(today); end.setDate(end.getDate() - w * 7);
           const start = new Date(end); start.setDate(start.getDate() - 6);
@@ -11705,7 +11849,6 @@ function parseMoneyValue(value){
           expenses.push(Number(r.expense || 0));
         }
       } else if(period === 'week'){
-        // Últimos 7 días
         for(let d = 6; d >= 0; d--){
           const date = new Date(today); date.setDate(date.getDate() - d);
           const r = buildCashReport(startOfDay(date), endOfDay(date));
@@ -11713,10 +11856,15 @@ function parseMoneyValue(value){
           incomes.push(Number(r.sales || 0) + Number(r.income || 0));
           expenses.push(Number(r.expense || 0));
         }
-      } else {
-        // Hoy (turno actual)
+      } else if(period === 'turno'){
         const from = state.cash.open ? cashPeriodStart() : startOfDay(today);
-        const r = buildCashReport(from, endOfDay(today));
+        const r = buildCashReport(from, new Date());
+        labels.push('Ingresos', 'Gastos');
+        incomes.push(Number(r.sales || 0) + Number(r.income || 0));
+        expenses.push(Number(r.expense || 0));
+      } else {
+        // day
+        const r = buildCashReport(startOfDay(today), endOfDay(today));
         labels.push('Ingresos', 'Gastos');
         incomes.push(Number(r.sales || 0) + Number(r.income || 0));
         expenses.push(Number(r.expense || 0));
@@ -11787,6 +11935,36 @@ function parseMoneyValue(value){
         });
       }
     }
+    function updatePaymentMethodsByFilter(){
+      const filter = byId('paymentMethodsChartFilter')?.value || 'month';
+      setValue('paymentMethodsDateFilter', '');
+      const today = new Date();
+      let orders;
+      if(filter === 'turno'){
+        const from = state.cash.open ? cashPeriodStart() : startOfDay(today);
+        orders = paidOrdersRange(from, new Date());
+      } else if(filter === 'day'){
+        orders = paidOrdersRange(startOfDay(today), endOfDay(today));
+      } else if(filter === 'week'){
+        const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
+        orders = paidOrdersRange(startOfDay(weekAgo), endOfDay(today));
+      } else {
+        orders = paidOrdersRange(startOfMonth(today), endOfDay(today));
+      }
+      const methodTotals = methodTotalsForOrders(orders);
+      const paymentEntries = PAYMENT_METHODS.map(method => [method, methodTotals[method] || 0]).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]);
+      updatePaymentMethodsChart(paymentEntries.map(x => x[0]), paymentEntries.map(x => x[1]));
+    }
+    function updatePaymentMethodsByDate(){
+      const dateVal = byId('paymentMethodsDateFilter')?.value;
+      if(!dateVal){ updatePaymentMethodsByFilter(); return; }
+      const date = parseLocalDate(dateVal);
+      if(!date){ updatePaymentMethodsByFilter(); return; }
+      const orders = paidOrdersRange(startOfDay(date), endOfDay(date));
+      const methodTotals = methodTotalsForOrders(orders);
+      const paymentEntries = PAYMENT_METHODS.map(method => [method, methodTotals[method] || 0]).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]);
+      updatePaymentMethodsChart(paymentEntries.map(x => x[0]), paymentEntries.map(x => x[1]));
+    }
     function updatePaymentMethodsChart(labels, data){
       const canvas = byId('paymentMethodsChart');
       const legend = byId('paymentMethodsLegend');
@@ -11815,11 +11993,14 @@ function parseMoneyValue(value){
       setValue('topProductsDateFilter', '');
       let orders;
       if(filter === 'turno'){
-        // Turno actual: desde apertura de caja
         const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
         orders = paidOrdersRange(from, new Date());
       } else if(filter === 'day'){
         orders = paidOrdersRange(startOfDay(new Date()), endOfDay(new Date()));
+      } else if(filter === 'week'){
+        const today = new Date();
+        const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
+        orders = paidOrdersRange(startOfDay(weekAgo), endOfDay(today));
       } else {
         orders = paidOrdersRange(startOfMonth(new Date()), endOfDay(new Date()));
       }

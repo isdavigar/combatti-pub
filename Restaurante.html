@@ -4513,6 +4513,7 @@
     }
     function requireCashOpen(action = 'realizar esta operacion'){
       if(state.cash.open) return true;
+      if(isSystemAdmin()) return true; // Admin sistema puede operar sin caja abierta
       toast(`Debes abrir caja antes de ${action}.`, 'warning');
       openView('caja');
       return false;
@@ -6305,8 +6306,8 @@
     }
     function toggleTheme(){ state.theme = state.theme === 'dark' ? 'light' : 'dark'; persistAll(false); applyTheme(); toast(`Modo ${state.theme === 'dark' ? 'oscuro' : 'claro'} activado`, 'info'); }
     function openView(view){
-      // Con caja cerrada: bloquear mesas y pantalla cocina (para todos)
-      if(!state.cash.open && (view === 'mesas')){
+      // Con caja cerrada: bloquear mesas (excepto admin del sistema que puede hacer pruebas)
+      if(!state.cash.open && (view === 'mesas') && !isSystemAdmin()){
         toast('Abre la caja para acceder a las mesas', 'warning');
         view = 'caja';
       }
@@ -7685,7 +7686,7 @@ const colors = [
         return;
       }
     }
-    const QUICK_ITEM_NOTES = ['Sin cebolla','Sin tomate','Sin salsa','Término medio','Bien cocido','Extra queso','Extra salsa','Sin hielo','Para llevar','Picante'];
+    const QUICK_ITEM_NOTES = ['Sin lechuga','Con criolla','Término medio','Término 3/4','Para llevar','Poca salsa','Bien cocido','Sin chongo','Sin maíz','Sin ensalada','A la plancha'];
     function quickNoteChipsHtml(it, idx){
       return `<div class="quick-note-chips">${QUICK_ITEM_NOTES.map(n => `<button type="button" class="quick-note-chip ${String(it.note || '').toLowerCase().includes(n.toLowerCase()) ? 'active' : ''}" onclick="toggleQuickNote(${idx}, '${n}')">${escapeHtml(n)}</button>`).join('')}</div>`;
     }
@@ -9690,10 +9691,19 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, vaciar todo',
         confirmClass:'btn-danger',
         onConfirm: async () => {
+          // Borrar TODOS los documentos de Firebase directamente
+          if(typeof firebaseDb !== 'undefined' && firebaseDb){
+            try {
+              const snap = await restaurantRoot().collection('deletedOrders').get();
+              const batch = firebaseDb.batch();
+              snap.forEach(doc => batch.delete(doc.ref));
+              await batch.commit();
+            } catch(_){}
+          }
           state.deletedOrders = [];
+          if(typeof cloudShadow !== 'undefined' && cloudShadow.deletedOrders) cloudShadow.deletedOrders = {};
           persistAll();
           await forceCloudSyncNow();
-          // Forzar que IndexedDB también quede limpio
           saveStateToDatabase(appStateSnapshot());
           renderDeletedOrders();
           toast('Auditoría de eliminados vaciada permanentemente', 'info');

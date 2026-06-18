@@ -11953,22 +11953,14 @@ function parseMoneyValue(value){
       updateIncomeExpenseBarChart(labels, incomes, expenses, period);
     }
     function incomeExpenseForRange(from, to){
-      const fromStart = startOfDay(from);
-      const toEnd = endOfDay(to);
-      // Income: sales in range (using business date for night shifts)
-      const sales = salesBetweenByBusiness(from, to);
-      // Income movements (registered in Gastos tab)
-      let manualIncome = 0, expense = 0;
-      state.movements.forEach(m => {
-        if(!m.date) return;
-        if(m.payroll) return; // Exclude payroll
-        const mDate = new Date(m.date);
-        if(mDate >= fromStart && mDate <= toEnd){
-          if(m.type === 'Ingreso') manualIncome += Number(m.amount || 0);
-          else if(m.type === 'Egreso') expense += Number(m.amount || 0);
-        }
-      });
-      return { income: sales + manualIncome, expense };
+      // Use buildCashReport which already handles date filtering correctly
+      const report = buildCashReport(from, to);
+      // Exclude payroll from expenses
+      const movements = state.movements.filter(m => m.date && new Date(m.date) >= from && new Date(m.date) <= to);
+      const payrollExpense = movements.filter(m => m.payroll && m.type === 'Egreso').reduce((a,b) => a + Number(b.amount || 0), 0);
+      const income = Number(report.sales || 0) + Number(report.income || 0);
+      const expense = Number(report.expense || 0) - payrollExpense;
+      return { income, expense: Math.max(0, expense) };
     }
     function updateIncomeExpenseByDate(){
       const dateVal = byId('incomeExpenseDateFilter')?.value;

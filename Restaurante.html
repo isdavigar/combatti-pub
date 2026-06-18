@@ -3702,7 +3702,7 @@
                   <input type="hidden" id="paymentMethodInput" value="EFECTIVO">
                   <div class="payment-method-btns" id="paymentMethodBtns">
                     <div class="payment-method-btn active" data-method="EFECTIVO" onclick="selectPaymentMethod('EFECTIVO')" title="Pago en efectivo">
-                      <div class="pm-icon"><svg viewBox="0 0 80 32" xmlns="http://www.w3.org/2000/svg"><text x="40" y="23" text-anchor="middle" font-size="16" font-weight="800" fill="#16a34a" font-family="Arial,sans-serif">EFECTIVO</text></svg></div>
+                      <div class="pm-icon"><svg viewBox="0 0 100 28" xmlns="http://www.w3.org/2000/svg"><text x="50" y="21" text-anchor="middle" font-size="18" font-weight="800" fill="#16a34a" font-family="Arial,sans-serif">EFECTIVO</text></svg></div>
                     </div>
                     <div class="payment-method-btn" data-method="NEQUI" onclick="selectPaymentMethod('NEQUI')" title="Pago con Nequi">
                       <div class="pm-icon"><svg viewBox="0 0 100 36" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="6" height="6" rx="1.5" fill="#e91e8c"/><text x="4" y="30" font-size="26" font-weight="900" fill="#200020" font-family="Arial Black,Arial,sans-serif" letter-spacing="-1.5">Nequi</text></svg></div>
@@ -3711,13 +3711,13 @@
                       <div class="pm-icon" style="max-width:100px"><svg viewBox="0 0 150 34" xmlns="http://www.w3.org/2000/svg"><text x="0" y="28" font-size="20" font-weight="800" fill="#002d72" font-family="Arial,sans-serif" letter-spacing="-0.3">Bancolombia</text><g transform="translate(130,1) rotate(-20)"><rect width="14" height="5" rx="2.5" fill="#002d72" y="14"/><rect width="14" height="5" rx="2.5" fill="#fdda24" y="7"/><rect width="14" height="5" rx="2.5" fill="#ce1126" y="0"/></g></svg></div>
                     </div>
                     <div class="payment-method-btn" data-method="BOLD" onclick="selectPaymentMethod('BOLD')" title="Pago con Bold (datáfono)">
-                      <div class="pm-icon"><svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="10" height="34" rx="1" fill="#1a0a4e"/><path d="M10 39 A15 15 0 0 1 10 5" fill="#1a0a4e"/><circle cx="38" cy="22" r="14" fill="#862158"/><line x1="24" y1="22" x2="52" y2="22" stroke="#fff" stroke-width="2.2"/><rect x="55" y="5" width="10" height="34" rx="1" fill="#a12a50"/><path d="M60 5 A15 15 0 0 1 60 39" fill="#a12a50"/><rect x="80" y="5" width="10" height="34" rx="1" fill="#e83e4e"/><path d="M85 39 A15 15 0 0 0 85 5" fill="#e83e4e"/></svg></div>
+                      <div class="pm-icon"><svg viewBox="0 0 100 28" xmlns="http://www.w3.org/2000/svg"><text x="50" y="21" text-anchor="middle" font-size="18" font-weight="800" fill="#7c3aed" font-family="Arial,sans-serif">DATÁFONO</text></svg></div>
                     </div>
                     <div class="payment-method-btn" data-method="LLAVE" onclick="selectPaymentMethod('LLAVE')" title="Pago con Bre-B (Llave)">
                       <div class="pm-icon"><svg viewBox="0 0 80 36" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="brebG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#00c9db"/><stop offset="100%" stop-color="#4ade80"/></linearGradient></defs><text x="4" y="29" font-size="28" font-weight="900" fill="url(#brebG)" font-family="Arial Black,Arial,sans-serif" letter-spacing="-1">Bre-B</text></svg></div>
                     </div>
                     <div class="payment-method-btn" data-method="MIXTA" onclick="selectPaymentMethod('MIXTA')" title="Pago mixto (varios métodos)">
-                      <div class="pm-icon"><svg viewBox="0 0 80 32" xmlns="http://www.w3.org/2000/svg"><text x="40" y="23" text-anchor="middle" font-size="16" font-weight="800" fill="#7c3aed" font-family="Arial,sans-serif">MIXTO</text></svg></div>
+                      <div class="pm-icon"><svg viewBox="0 0 100 28" xmlns="http://www.w3.org/2000/svg"><text x="50" y="21" text-anchor="middle" font-size="18" font-weight="800" fill="#f59e0b" font-family="Arial,sans-serif">MIXTO</text></svg></div>
                     </div>
                   </div>
                     </div>
@@ -4986,12 +4986,12 @@
     }
     function pmSvgIcon(method){
       const icons = {
-        EFECTIVO:'<svg viewBox="0 0 80 32" xmlns="http://www.w3.org/2000/svg"><text x="40" y="23" text-anchor="middle" font-size="16" font-weight="800" fill="#16a34a" font-family="Arial,sans-serif">EFECTIVO</text></svg>',
+        EFECTIVO:'<svg viewBox="0 0 100 28" xmlns="http://www.w3.org/2000/svg"><text x="50" y="21" text-anchor="middle" font-size="18" font-weight="800" fill="#16a34a" font-family="Arial,sans-serif">EFECTIVO</text></svg>',
         NEQUI:'<svg viewBox="0 0 100 36" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="6" height="6" rx="1.5" fill="#e91e8c"/><text x="4" y="30" font-size="26" font-weight="900" fill="#200020" font-family="Arial Black,Arial,sans-serif" letter-spacing="-1.5">Nequi</text></svg>',
         BANCOLOMBIA:'<svg viewBox="0 0 150 34" xmlns="http://www.w3.org/2000/svg"><text x="0" y="28" font-size="20" font-weight="800" fill="#002d72" font-family="Arial,sans-serif" letter-spacing="-0.3">Bancolombia</text><g transform="translate(130,1) rotate(-20)"><rect width="14" height="5" rx="2.5" fill="#002d72" y="14"/><rect width="14" height="5" rx="2.5" fill="#fdda24" y="7"/><rect width="14" height="5" rx="2.5" fill="#ce1126" y="0"/></g></svg>',
-        BOLD:'<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="10" height="34" rx="1" fill="#1a0a4e"/><path d="M10 39 A15 15 0 0 1 10 5" fill="#1a0a4e"/><circle cx="38" cy="22" r="14" fill="#862158"/><line x1="24" y1="22" x2="52" y2="22" stroke="#fff" stroke-width="2.2"/><rect x="55" y="5" width="10" height="34" rx="1" fill="#a12a50"/><path d="M60 5 A15 15 0 0 1 60 39" fill="#a12a50"/><rect x="80" y="5" width="10" height="34" rx="1" fill="#e83e4e"/><path d="M85 39 A15 15 0 0 0 85 5" fill="#e83e4e"/></svg>',
+        BOLD:'<svg viewBox="0 0 100 28" xmlns="http://www.w3.org/2000/svg"><text x="50" y="21" text-anchor="middle" font-size="18" font-weight="800" fill="#7c3aed" font-family="Arial,sans-serif">DATÁFONO</text></svg>',
         LLAVE:'<svg viewBox="0 0 80 36" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="brebDyn" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#00c9db"/><stop offset="100%" stop-color="#4ade80"/></linearGradient></defs><text x="4" y="29" font-size="28" font-weight="900" fill="url(#brebDyn)" font-family="Arial Black,Arial,sans-serif" letter-spacing="-1">Bre-B</text></svg>',
-        MIXTA:'<svg viewBox="0 0 80 32" xmlns="http://www.w3.org/2000/svg"><text x="40" y="23" text-anchor="middle" font-size="16" font-weight="800" fill="#7c3aed" font-family="Arial,sans-serif">MIXTO</text></svg>',
+        MIXTA:'<svg viewBox="0 0 100 28" xmlns="http://www.w3.org/2000/svg"><text x="50" y="21" text-anchor="middle" font-size="18" font-weight="800" fill="#f59e0b" font-family="Arial,sans-serif">MIXTO</text></svg>',
         RAPPI:'<svg viewBox="0 0 64 32" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="32" rx="6" fill="#ff441f"/><text x="32" y="22" text-anchor="middle" font-size="12" font-weight="900" fill="#fff" font-family="Arial,sans-serif">Rappi</text></svg>',
         DIDI:'<svg viewBox="0 0 64 32" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="32" rx="6" fill="#ff7733"/><text x="32" y="22" text-anchor="middle" font-size="12" font-weight="900" fill="#fff" font-family="Arial,sans-serif">DiDi</text></svg>'
       };

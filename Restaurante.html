@@ -11932,43 +11932,71 @@ function parseMoneyValue(value){
         for(let w = 3; w >= 0; w--){
           const end = new Date(today); end.setDate(end.getDate() - w * 7);
           const start = new Date(end); start.setDate(start.getDate() - 6);
-          const r = buildCashReport(startOfDay(start), endOfDay(end));
+          const r = incomeExpenseForRange(startOfDay(start), endOfDay(end));
           labels.push(`Sem ${4 - w}`);
-          incomes.push(Number(r.sales || 0) + Number(r.income || 0));
-          expenses.push(Number(r.expense || 0));
+          incomes.push(r.income);
+          expenses.push(r.expense);
         }
       } else if(period === 'week'){
         for(let d = 6; d >= 0; d--){
           const date = new Date(today); date.setDate(date.getDate() - d);
-          const r = buildCashReport(startOfDay(date), endOfDay(date));
+          const r = incomeExpenseForRange(startOfDay(date), endOfDay(date));
           labels.push(date.toLocaleDateString('es-CO', { weekday:'short', day:'2-digit' }));
-          incomes.push(Number(r.sales || 0) + Number(r.income || 0));
-          expenses.push(Number(r.expense || 0));
+          incomes.push(r.income);
+          expenses.push(r.expense);
         }
       } else if(period === 'turno'){
         const from = state.cash.open ? cashPeriodStart() : startOfDay(today);
-        const r = buildCashReport(from, new Date());
+        const r = incomeExpenseForRange(from, new Date());
         labels.push('Ingresos', 'Gastos');
-        incomes.push(Number(r.sales || 0) + Number(r.income || 0));
-        expenses.push(Number(r.expense || 0));
+        incomes.push(r.income);
+        expenses.push(r.expense);
       } else {
         // day
-        const r = buildCashReport(startOfDay(today), endOfDay(today));
+        const r = incomeExpenseForRange(startOfDay(today), endOfDay(today));
         labels.push('Ingresos', 'Gastos');
-        incomes.push(Number(r.sales || 0) + Number(r.income || 0));
-        expenses.push(Number(r.expense || 0));
+        incomes.push(r.income);
+        expenses.push(r.expense);
       }
       updateIncomeExpenseBarChart(labels, incomes, expenses, period);
+    }
+    function incomeExpenseForRange(from, to){
+      // Sales: use business date attribution for night shifts
+      const sales = salesBetweenByBusiness(from, to);
+      // Movements: distribute expenses proportionally by the shift they belong to
+      let income = 0, expense = 0;
+      state.movements.forEach(m => {
+        if(!m.date) return;
+        const mDate = new Date(m.date);
+        // Check if this movement's business date falls within our range
+        let businessDay = startOfDay(mDate);
+        // If movement is linked to a cash record (shift), use the shift's opening date
+        if(m.linkedCashRecord){
+          const record = (state.cash.history || []).find(r => r.id === m.linkedCashRecord);
+          if(record && record.openedAt){
+            const opened = new Date(record.openedAt);
+            if(mDate.getHours() < 6 && opened < startOfDay(mDate)){
+              businessDay = startOfDay(opened);
+            }
+          }
+        }
+        if(businessDay >= startOfDay(from) && businessDay <= endOfDay(to)){
+          if(m.type === 'Ingreso') income += Number(m.amount || 0);
+          else if(m.type === 'Egreso') expense += Number(m.amount || 0);
+        }
+      });
+      income += sales;
+      return { income, expense };
     }
     function updateIncomeExpenseByDate(){
       const dateVal = byId('incomeExpenseDateFilter')?.value;
       if(!dateVal){ updateIncomeExpenseByPeriod(); return; }
       const date = parseLocalDate(dateVal);
       if(!date){ updateIncomeExpenseByPeriod(); return; }
-      const r = buildCashReport(startOfDay(date), endOfDay(date));
+      const r = incomeExpenseForRange(startOfDay(date), endOfDay(date));
       const labels = ['Ingresos', 'Gastos'];
-      const incomes = [Number(r.sales || 0) + Number(r.income || 0)];
-      const expenses = [Number(r.expense || 0)];
+      const incomes = [r.income];
+      const expenses = [r.expense];
       updateIncomeExpenseBarChart(labels, incomes, expenses, 'day');
     }
     function clearIncomeExpenseDateFilter(){

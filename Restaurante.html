@@ -11961,34 +11961,22 @@ function parseMoneyValue(value){
       updateIncomeExpenseBarChart(labels, incomes, expenses, period);
     }
     function incomeExpenseForRange(from, to){
-      // Sales: use business date attribution for night shifts
+      const fromStart = startOfDay(from);
+      const toEnd = endOfDay(to);
+      // Income: sales in range (using business date for night shifts)
       const sales = salesBetweenByBusiness(from, to);
-      // Movements: only include non-payroll expenses that were registered during an open caja
-      let income = 0, expense = 0;
+      // Income movements (registered in Gastos tab)
+      let manualIncome = 0, expense = 0;
       state.movements.forEach(m => {
         if(!m.date) return;
-        // Exclude payroll expenses — only show expenses from open caja
-        if(m.payroll) return;
+        if(m.payroll) return; // Exclude payroll
         const mDate = new Date(m.date);
-        // Determine the business day for this movement
-        let businessDay = startOfDay(mDate);
-        // If movement is linked to a cash record (shift), use the shift's opening date for night shifts
-        if(m.linkedCashRecord){
-          const record = (state.cash.history || []).find(r => r.id === m.linkedCashRecord);
-          if(record && record.openedAt){
-            const opened = new Date(record.openedAt);
-            if(mDate.getHours() < 6 && opened < startOfDay(mDate)){
-              businessDay = startOfDay(opened);
-            }
-          }
-        }
-        if(businessDay >= startOfDay(from) && businessDay <= endOfDay(to)){
-          if(m.type === 'Ingreso') income += Number(m.amount || 0);
+        if(mDate >= fromStart && mDate <= toEnd){
+          if(m.type === 'Ingreso') manualIncome += Number(m.amount || 0);
           else if(m.type === 'Egreso') expense += Number(m.amount || 0);
         }
       });
-      income += sales;
-      return { income, expense };
+      return { income: sales + manualIncome, expense };
     }
     function updateIncomeExpenseByDate(){
       const dateVal = byId('incomeExpenseDateFilter')?.value;

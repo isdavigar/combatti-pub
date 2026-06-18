@@ -403,7 +403,6 @@
     /* Modernización general del panel: tarjetas con hover suave */
     .kpi-card, .stat-card, .chart-box, .glass-card{ transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
     .kpi-card:hover, .stat-card:hover{ transform:translateY(-3px); box-shadow:0 18px 42px rgba(15,23,42,.13); border-color:rgba(var(--primary-rgb),.28); }
-    .chart-box:hover{ box-shadow:0 18px 46px rgba(15,23,42,.12); }
     .dashboard-side-panel{ display:flex; flex-direction:column; gap:12px; }
     .dashboard-quick-panel{
       display:flex; flex-direction:column; gap:10px;
@@ -506,6 +505,7 @@
     .category-chip, .type-chip{
       display:inline-flex; align-items:center; gap:8px;
       padding:10px 14px; border-radius:999px;
+      white-space:nowrap; flex-shrink:0;
       border:1px solid var(--border); background:var(--card);
       cursor:pointer; transition:.2s; user-select:none;
     }
@@ -998,7 +998,7 @@
       padding:14px; display:flex; align-items:center; justify-content:space-between; gap:8px;
       overflow:hidden; min-width:0;
     }
-    .mini-table span{ font-size:.78rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex-shrink:1; }
+    .mini-table span{ font-size:.88rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex-shrink:1; }
     .mini-table strong{ font-size:.95rem; white-space:nowrap; text-align:right; flex-shrink:0; }
     .cash-control-card .mini-table{
       border-radius:14px;
@@ -1093,9 +1093,11 @@
     }
     .toast-container{ position:fixed; top:18px; right:18px; z-index:3000; }
     .chart-box{
-      background:var(--card); border:1px solid var(--border); border-radius:20px;
-      box-shadow:var(--shadow); padding:16px; height:100%; overflow:hidden;
+      background:var(--card); border:1px solid var(--border); border-radius:24px;
+      box-shadow:var(--shadow); padding:20px; height:100%; overflow:hidden;
+      transition:transform .18s ease, box-shadow .18s ease;
     }
+    .chart-box:hover{ transform:translateY(-2px); box-shadow:0 20px 50px rgba(15,23,42,.14); }
     .chart-head{
       display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
       margin-bottom:12px;
@@ -1153,14 +1155,16 @@
     }
     .chart-box canvas{ display:block; }
     .chart-legend{
-      display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;
-      font-size:.82rem;
+      display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px;
+      font-size:.83rem;
     }
     .chart-legend-item{
       display:flex; align-items:center; justify-content:space-between; gap:8px;
-      border:1px solid var(--border); border-radius:14px; padding:8px 10px;
-      background:rgba(148,163,184,.08); min-width:0;
+      border:1px solid var(--border); border-radius:16px; padding:10px 12px;
+      background:rgba(148,163,184,.06); min-width:0;
+      transition:background .15s ease, border-color .15s ease;
     }
+    .chart-legend-item:hover{ background:rgba(var(--primary-rgb),.06); border-color:rgba(var(--primary-rgb),.2); }
     .chart-legend-name{ display:flex; align-items:center; gap:8px; min-width:0; }
     .chart-legend-name span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .legend-dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
@@ -1775,6 +1779,11 @@
 
   color:#6c757d;
   border:1px solid rgba(0,0,0,.05);
+}
+   .product-avatar.product-emoji-avatar{
+  font-size:72px;
+  font-weight:normal;
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.08));
 }
     .kitchen-item .qty{
       width:42px;
@@ -2869,6 +2878,18 @@
           </div>
         </div>
 
+        <!-- Custom Dashboard Widgets (System Admin Only) -->
+        <div class="glass-card p-4 mb-4" id="customDashboardSection" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+              <h5 class="section-title mb-1"><i class="fa-solid fa-puzzle-piece me-2 text-primary"></i>Dashboard personalizado</h5>
+              <p class="section-subtitle mb-0">Agrega widgets con los datos que quieras monitorear.</p>
+            </div>
+            <button class="btn btn-success btn-pill" onclick="addCustomWidget()"><i class="fa-solid fa-plus me-2"></i>Agregar widget</button>
+          </div>
+          <div id="customWidgetsGrid" class="row g-3"></div>
+        </div>
+
       </section>
 
       <section id="view-mesas" class="view">
@@ -3184,6 +3205,14 @@
                   <option value="dark">Oscuro</option>
                 </select>
                 <div class="form-text">También puedes alternarlo desde el botón lateral.</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Imagen de productos</label>
+                <select id="brandProductPhotosInput" class="form-select">
+                  <option value="photos">Fotos / emojis por defecto</option>
+                  <option value="initials">Solo letra inicial</option>
+                </select>
+                <div class="form-text">Elige si los productos sin imagen propia muestran un emoji representativo o solo la inicial.</div>
               </div>
               <div class="mb-3">
                 <label class="form-label">Icono / logo principal</label>
@@ -3592,11 +3621,11 @@
                     </div>
                     <span class="badge-soft">Catálogo</span>
                   </div>
-                  <div class="d-flex gap-2 flex-wrap mb-3" id="orderCategoryFilters"></div>
+                  <div class="d-flex gap-2 mb-3" id="orderCategoryFilters" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;"></div>
                   <div class="channel-filter-bar mb-3" id="orderChannelFilters"></div>
                   <div class="input-group">
                     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                    <input id="orderSearchInput" class="form-control" placeholder="Buscar producto para agregar" oninput="renderOrderProducts()">
+                    <input id="orderSearchInput" class="form-control" placeholder="Buscar producto para agregar" oninput="onOrderSearchInput()">
                   </div>
                 </div>
                 <div id="orderProductsGrid" class="row g-3"></div>
@@ -6571,6 +6600,7 @@
       document.getElementById('statCash').textContent = money(cashTotal);
       updateSidebarCash();
       renderDashboardCharts(range);
+      renderCustomWidgets();
     }
 
     function setSalesGoalCard(suffix, value, goal){
@@ -7146,18 +7176,26 @@ const colors = [
       colors.length
     ];
 
+  // If product has a custom image, always show it
   if(p.image){
-
     return `
       <img
         src="${p.image}"
         class="product-image"
         onerror="
           this.outerHTML=
-          '<div class=&quot;product-avatar&quot; style=&quot;background:${bg}&quot;>${letter}</div>'
+          '${productFallbackMarkup(p, bg, letter)}'
         "
       >
     `;
+  }
+
+  // Setting: show photos (default food images) or initials
+  const showPhotos = state.brand?.showProductPhotos !== false;
+
+  if(showPhotos){
+    const emoji = productDefaultEmoji(p.name);
+    return `<div class="product-avatar product-emoji-avatar" style="background:${bg}">${emoji}</div>`;
   }
 
   return `
@@ -7167,6 +7205,41 @@ const colors = [
     </div>
   `;
 }
+    function productFallbackMarkup(p, bg, letter){
+      const showPhotos = state.brand?.showProductPhotos !== false;
+      if(showPhotos){
+        const emoji = productDefaultEmoji(p.name);
+        return `<div class=&quot;product-avatar product-emoji-avatar&quot; style=&quot;background:${bg}&quot;>${emoji}</div>`;
+      }
+      return `<div class=&quot;product-avatar&quot; style=&quot;background:${bg}&quot;>${letter}</div>`;
+    }
+    function productDefaultEmoji(name){
+      const n = (name || '').toLowerCase();
+      const map = [
+        [/hamburguesa|burger|hambur/,'🍔'],[/pizza/,'🍕'],[/pollo|chicken|alitas|wing/,'🍗'],
+        [/carne|steak|res|lomo|churrasco|filet/,'🥩'],[/cerdo|pork|costilla|chicharr/,'🥓'],
+        [/pescado|fish|trucha|salmon|mojarra/,'🐟'],[/camar[oó]n|shrimp|marisco/,'🦐'],
+        [/ensalad|salad/,'🥗'],[/taco|burrito|wrap|tortilla/,'🌮'],[/hot.?dog|perro|salchicha/,'🌭'],
+        [/sandwich|s[aá]ndwich|sub/,'🥪'],[/pasta|spaguetti|fettuccine|lasaña/,'🍝'],
+        [/sopa|crema|caldo/,'🍲'],[/arroz|rice/,'🍚'],[/huevo|egg/,'🍳'],
+        [/pan|bread|arepa|empanada|patac[oó]n/,'🫓'],[/papas|fries|frita/,'🍟'],
+        [/nachos|chips|snack/,'🧀'],[/mazorca|corn|elote|choclo/,'🌽'],
+        [/cerveza|beer|brew/,'🍺'],[/vino|wine/,'🍷'],[/cocktail|coctel|c[oó]ctel|mojito|margarita|daiquiri/,'🍹'],
+        [/whisky|whiskey|ron|vodka|tequila|aguardiente|licor/,'🥃'],[/michelada|clericot/,'🍻'],
+        [/jugo|juice|limonada|naranjada/,'🧃'],[/gaseosa|coca|soda|sprite|refresco/,'🥤'],
+        [/café|coffee|cappuccino|latte|americano|tinto/,'☕'],[/t[eé]|tea|arom[aá]tica/,'🍵'],
+        [/agua|water/,'💧'],[/milkshake|malteada|smoothie|batido/,'🥛'],
+        [/helado|ice.?cream|sundae/,'🍦'],[/torta|cake|pastel|brownie|postre|dessert/,'🍰'],
+        [/galleta|cookie/,'🍪'],[/waffle|pancake|crepe|crepa/,'🧇'],
+        [/chocolate|choco/,'🍫'],[/dulce|candy|caramelo/,'🍬'],
+        [/chuzo|pincho|brochet/,'🍢'],[/quesadilla|queso/,'🧀'],
+        [/limon|lemon|lime/,'🍋'],[/fresa|strawberry/,'🍓'],[/mango/,'🥭'],
+        [/piña|pineapple/,'🍍'],[/banan|plátano|platano/,'🍌'],
+        [/tomate|tomato/,'🍅'],[/cebolla|onion/,'🧅']
+      ];
+      for(const [regex, emoji] of map){ if(regex.test(n)) return emoji; }
+      return '🍽️';
+    }
     function saveProduct(){
       if(!requireAdmin('guardar productos')) return;
       const name = document.getElementById('productNameInput').value.trim();
@@ -7679,10 +7752,17 @@ const colors = [
       renderOrderProducts();
       renderOrderCategories();
     }
+    function onOrderSearchInput(){
+      renderOrderProducts();
+    }
     function renderOrderProducts(){
       const grid = document.getElementById('orderProductsGrid');
       if(!grid) return;
       const q = (byId('orderSearchInput')?.value || '').toLowerCase().trim();
+      if(q && orderCategoryFilter !== 'Todos'){
+        orderCategoryFilter = 'Todos';
+        renderOrderCategories();
+      }
       const channel = channelForOrder(currentOrder);
       renderChannelFilters('orderChannelFilters', channel, 'setOrderChannel');
       const list = state.products.filter(p => {
@@ -10550,6 +10630,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       document.getElementById('brandColorInput').value = state.brand.color || '#19c37d';
       document.getElementById('brandLogoInput').value = state.brand.logo || '';
       setValue('brandThemeInput', state.theme || state.brand.theme || 'light');
+      setValue('brandProductPhotosInput', state.brand.showProductPhotos === false ? 'initials' : 'photos');
       setLoginImageValue(state.brand.loginImage || '');
       document.getElementById('brandInfoInput').value = state.brand.info || '';
       setValue('brandNitInput', state.brand.nit || '');
@@ -10590,6 +10671,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       state.brand.name = document.getElementById('brandNameInput').value.trim() || 'Combatti PUB';
       state.brand.color = document.getElementById('brandColorInput').value;
       state.brand.logo = document.getElementById('brandLogoInput').value.trim();
+      state.brand.showProductPhotos = (byId('brandProductPhotosInput')?.value || 'photos') !== 'initials';
       state.theme = document.getElementById('brandThemeInput')?.value || state.theme || 'light';
       const gallery = normalizeLoginGallery(
         [
@@ -11534,6 +11616,77 @@ function parseMoneyValue(value){
       }, 0);
     }
 
+    // =====================================================================
+    // CUSTOM DASHBOARD WIDGETS (System Admin)
+    // =====================================================================
+    const WIDGET_TYPES = [
+      { id:'totalSales', label:'Total ventas (período)', compute:(from,to) => money(salesBetweenByBusiness(from,to)) },
+      { id:'orderCount', label:'Cantidad de pedidos', compute:(from,to) => paidOrdersRangeByBusiness(from,to).length },
+      { id:'avgTicket', label:'Ticket promedio', compute:(from,to) => { const o=paidOrdersRangeByBusiness(from,to); return o.length ? money(Math.round(o.reduce((a,b)=>a+(b.total||0),0)/o.length)) : '$0'; } },
+      { id:'topProduct', label:'Producto más vendido', compute:(from,to) => { const m=new Map(); paidOrdersRangeByBusiness(from,to).forEach(o=>(o.items||[]).forEach(i=>m.set(i.name,(m.get(i.name)||0)+i.qty))); const top=[...m.entries()].sort((a,b)=>b[1]-a[1])[0]; return top ? `${top[0]} (${top[1]})` : '-'; } },
+      { id:'topSeller', label:'Mejor vendedor', compute:(from,to) => { const m=new Map(); paidOrdersRangeByBusiness(from,to).forEach(o=>m.set(o.seller||'-',(m.get(o.seller||'-')||0)+(o.total||0))); const top=[...m.entries()].sort((a,b)=>b[1]-a[1])[0]; return top ? `${top[0]} · ${money(top[1])}` : '-'; } },
+      { id:'cashPayments', label:'Pagos en efectivo', compute:(from,to) => { const r=buildCashReport(from,to); return money(r.cashPayments||0); } },
+      { id:'transferPayments', label:'Pagos electrónicos', compute:(from,to) => { const r=buildCashReport(from,to); return money((r.sales||0)-(r.cashPayments||0)); } },
+      { id:'expenses', label:'Total egresos', compute:(from,to) => money(buildCashReport(from,to).expense||0) },
+      { id:'tips', label:'Total propinas', compute:(from,to) => money(buildCashReport(from,to).tips||0) },
+      { id:'openOrders', label:'Pedidos abiertos ahora', compute:() => state.orders.filter(o=>o.status==='Abierto').length },
+      { id:'closedToday', label:'Pedidos cerrados hoy', compute:() => closedOrdersRange(startOfDay(new Date()),endOfDay(new Date())).length }
+    ];
+    function getCustomWidgets(){ if(!Array.isArray(state.customWidgets)) state.customWidgets=[]; return state.customWidgets; }
+    function addCustomWidget(){
+      if(!isSystemAdmin()){ toast('Solo admin del sistema puede agregar widgets','warning'); return; }
+      const options = WIDGET_TYPES.map(w => `<option value="${w.id}">${escapeHtml(w.label)}</option>`).join('');
+      const periods = `<option value="turno">Turno actual</option><option value="day">Hoy</option><option value="week">Semana</option><option value="month" selected>Mes</option><option value="year">Año</option>`;
+      confirmAction({
+        title:'Agregar widget al dashboard',
+        body:`<div class="mb-3"><label class="form-label">Dato a mostrar</label><select id="widgetTypeInput" class="form-select">${options}</select></div><div class="mb-3"><label class="form-label">Período</label><select id="widgetPeriodInput" class="form-select">${periods}</select></div><div class="mb-3"><label class="form-label">Título personalizado (opcional)</label><input id="widgetTitleInput" class="form-control" placeholder="Dejar vacío para usar nombre por defecto"></div>`,
+        confirmLabel:'Agregar',
+        onConfirm:() => {
+          const typeId = byId('widgetTypeInput')?.value;
+          const period = byId('widgetPeriodInput')?.value || 'month';
+          const title = byId('widgetTitleInput')?.value?.trim() || '';
+          if(!typeId) return;
+          getCustomWidgets().push({ id:uid(), typeId, period, title });
+          persistAll(false);
+          renderCustomWidgets();
+          toast('Widget agregado','success');
+        }
+      });
+    }
+    function removeCustomWidget(widgetId){
+      if(!isSystemAdmin()) return;
+      state.customWidgets = getCustomWidgets().filter(w => w.id !== widgetId);
+      persistAll(false);
+      renderCustomWidgets();
+      toast('Widget eliminado','info');
+    }
+    function renderCustomWidgets(){
+      const section = byId('customDashboardSection');
+      if(!section) return;
+      if(!isSystemAdmin()){ section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      const grid = byId('customWidgetsGrid');
+      if(!grid) return;
+      const widgets = getCustomWidgets();
+      if(!widgets.length){ grid.innerHTML = '<div class="col-12 text-secondary p-3">No hay widgets personalizados. Agrega uno para monitorear los datos que necesites.</div>'; return; }
+      grid.innerHTML = widgets.map(w => {
+        const type = WIDGET_TYPES.find(t => t.id === w.typeId);
+        if(!type) return '';
+        const today = new Date();
+        let from, to;
+        if(w.period === 'turno'){ from = state.cash.open ? cashPeriodStart() : startOfDay(today); to = new Date(); }
+        else if(w.period === 'day'){ from = startOfDay(today); to = endOfDay(today); }
+        else if(w.period === 'week'){ from = new Date(today.getTime()-6*86400000); to = endOfDay(today); }
+        else if(w.period === 'year'){ from = startOfYear(today); to = endOfDay(today); }
+        else { from = startOfMonth(today); to = endOfDay(today); }
+        let value;
+        try { value = type.compute(from, to); } catch(e){ value = '-'; }
+        const label = w.title || type.label;
+        const periodLabel = { turno:'Turno', day:'Hoy', week:'Semana', month:'Mes', year:'Año' }[w.period] || '';
+        return `<div class="col-xl-3 col-lg-4 col-md-6"><div class="stat-card"><div class="d-flex justify-content-between align-items-start"><div><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${value}</div><div class="section-subtitle">${escapeHtml(periodLabel)}</div></div><button class="btn btn-sm btn-outline-danger btn-pill" onclick="removeCustomWidget('${w.id}')" title="Eliminar widget"><i class="fa-solid fa-xmark"></i></button></div></div></div>`;
+      }).join('');
+    }
+
     function chartTextColor(){ return getComputedStyle(document.body).getPropertyValue('--text').trim() || '#18212f'; }
     function chartMutedColor(){ return getComputedStyle(document.body).getPropertyValue('--muted').trim() || '#6b7280'; }
     function chartGridColor(){ return getComputedStyle(document.body).getPropertyValue('--border').trim() || '#e5e7eb'; }
@@ -11751,13 +11904,17 @@ function parseMoneyValue(value){
         options: {
           responsive:true,
           maintainAspectRatio:false,
+          animation:{ duration:800, easing:'easeOutQuart' },
           interaction:{ intersect:false, mode:'index' },
           plugins:{
-            legend:{ display: showLegend, labels:{ color:chartTextColor(), usePointStyle:true, boxWidth:8 } },
+            legend:{ display: showLegend, labels:{ color:chartTextColor(), usePointStyle:true, boxWidth:8, padding:14, font:{size:12, weight:'500'} } },
             tooltip:{
               backgroundColor:'rgba(15,23,42,.94)',
-              padding:12,
-              cornerRadius:12,
+              padding:14,
+              cornerRadius:14,
+              titleFont:{size:13, weight:'600'},
+              bodyFont:{size:12},
+              boxPadding:6,
               callbacks:{ label:item => `${item.dataset.label}: ${opts.money ? money(item.raw) : item.raw}` }
             }
           },

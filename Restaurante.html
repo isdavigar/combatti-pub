@@ -11963,14 +11963,16 @@ function parseMoneyValue(value){
     function incomeExpenseForRange(from, to){
       // Sales: use business date attribution for night shifts
       const sales = salesBetweenByBusiness(from, to);
-      // Movements: distribute expenses proportionally by the shift they belong to
+      // Movements: only include non-payroll expenses that were registered during an open caja
       let income = 0, expense = 0;
       state.movements.forEach(m => {
         if(!m.date) return;
+        // Exclude payroll expenses — only show expenses from open caja
+        if(m.payroll) return;
         const mDate = new Date(m.date);
-        // Check if this movement's business date falls within our range
+        // Determine the business day for this movement
         let businessDay = startOfDay(mDate);
-        // If movement is linked to a cash record (shift), use the shift's opening date
+        // If movement is linked to a cash record (shift), use the shift's opening date for night shifts
         if(m.linkedCashRecord){
           const record = (state.cash.history || []).find(r => r.id === m.linkedCashRecord);
           if(record && record.openedAt){

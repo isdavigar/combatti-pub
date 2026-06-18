@@ -3331,7 +3331,10 @@
                 </div>
                 <div class="col-xl-3 col-lg-4 col-md-6">
                   <label class="form-label">Contraseña</label>
-                  <input id="userPasswordInput" type="password" class="form-control" placeholder="Clave">
+                  <div class="input-group">
+                    <input id="userPasswordInput" type="password" class="form-control" placeholder="Clave">
+                    <button class="btn btn-outline-secondary" type="button" id="togglePasswordBtn" onclick="toggleUserPasswordVisibility()" title="Mostrar/ocultar contraseña" style="display:none"><i class="fa-solid fa-eye" id="togglePasswordIcon"></i></button>
+                  </div>
                 </div>
                 <div class="col-xl-3 col-lg-4 col-md-6">
                   <label class="form-label">Rol</label>
@@ -10675,6 +10678,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       editingUserId = null;
       setValue('userUsernameInput', '');
       setValue('userPasswordInput', '');
+      const pwInput = byId('userPasswordInput');
+      const toggleBtn = byId('togglePasswordBtn');
+      if(pwInput) pwInput.type = 'password';
+      if(toggleBtn) toggleBtn.style.display = 'none';
       setValue('userRoleInput', 'Administrador');
       renderUserPermissionGrid(permissionsForRole('Administrador'));
       setText('userSaveButton', 'Crear usuario');
@@ -10725,7 +10732,29 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       setValue('userRoleInput', user.role);
       renderUserPermissionGrid(getUserPermissions(user));
       setText('userSaveButton', 'Guardar cambios');
+      // System admin can see passwords
+      const pwInput = byId('userPasswordInput');
+      const toggleBtn = byId('togglePasswordBtn');
+      if(isSystemAdmin()){
+        if(pwInput) pwInput.type = 'text';
+        if(toggleBtn) toggleBtn.style.display = '';
+      } else {
+        if(pwInput) pwInput.type = 'password';
+        if(toggleBtn) toggleBtn.style.display = 'none';
+      }
       openView('marca');
+    }
+    function toggleUserPasswordVisibility(){
+      const input = byId('userPasswordInput');
+      const icon = byId('togglePasswordIcon');
+      if(!input) return;
+      if(input.type === 'password'){
+        input.type = 'text';
+        if(icon) icon.className = 'fa-solid fa-eye-slash';
+      } else {
+        input.type = 'password';
+        if(icon) icon.className = 'fa-solid fa-eye';
+      }
     }
     function activeAdminsCount(){
       return state.users.filter(u => u.active !== false && u.role === 'Administrador').length;

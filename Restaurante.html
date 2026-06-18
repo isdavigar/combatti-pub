@@ -11953,14 +11953,28 @@ function parseMoneyValue(value){
       updateIncomeExpenseBarChart(labels, incomes, expenses, period);
     }
     function incomeExpenseForRange(from, to){
-      // Use buildCashReport which already handles date filtering correctly
+      // Income: sales in range
       const report = buildCashReport(from, to);
-      // Exclude payroll from expenses
-      const movements = state.movements.filter(m => m.date && new Date(m.date) >= from && new Date(m.date) <= to);
-      const payrollExpense = movements.filter(m => m.payroll && m.type === 'Egreso').reduce((a,b) => a + Number(b.amount || 0), 0);
       const income = Number(report.sales || 0) + Number(report.income || 0);
-      const expense = Number(report.expense || 0) - payrollExpense;
-      return { income, expense: Math.max(0, expense) };
+      // Expenses: collect from state.movements (current shift) AND from
+      // closed cash records' movementsHistory (past shifts), since
+      // state.movements gets cleared on each caja close.
+      let expense = 0;
+      // Current shift movements
+      state.movements.forEach(m => {
+        if(!m.date || m.payroll || m.type !== 'Egreso') return;
+        const mDate = new Date(m.date);
+        if(mDate >= from && mDate <= to) expense += Number(m.amount || 0);
+      });
+      // Past shifts: search in cash history movementsHistory
+      (state.cash.history || []).forEach(record => {
+        (record.movementsHistory || []).forEach(m => {
+          if(!m.date || m.payroll || m.type !== 'Egreso') return;
+          const mDate = new Date(m.date);
+          if(mDate >= from && mDate <= to) expense += Number(m.amount || 0);
+        });
+      });
+      return { income, expense };
     }
     function updateIncomeExpenseByDate(){
       const dateVal = byId('incomeExpenseDateFilter')?.value;

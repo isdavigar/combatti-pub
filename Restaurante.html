@@ -7188,7 +7188,7 @@ const colors = [
   const showPhotos = state.brand?.showProductPhotos !== false;
 
   if(showPhotos){
-    const photoUrl = productDefaultEmoji(p.name);
+    const photoUrl = productDefaultEmoji(p.name, p.category);
     return `<img src="${photoUrl}" class="product-image" onerror="this.outerHTML='${productFallbackMarkup(p, bg, letter)}'">`;
   }
 
@@ -7202,53 +7202,58 @@ const colors = [
     function productFallbackMarkup(p, bg, letter){
       return `<div class=&quot;product-avatar&quot; style=&quot;background:${bg}&quot;>${letter}</div>`;
     }
-    function productDefaultEmoji(name){
+    function productDefaultEmoji(name, category){
       const n = (name || '').toLowerCase();
+      const c = (category || '').toLowerCase();
+      // Use loremflickr for reliable category-based food photos
+      // Format: https://loremflickr.com/300/300/keyword
       const photos = [
-        [/hamburguesa|burger|hambur/,'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=300&h=300&fit=crop'],
-        [/pizza/,'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&h=300&fit=crop'],
-        [/pollo|chicken|alitas|wing/,'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=300&h=300&fit=crop'],
-        [/carne|steak|res|lomo|churrasco|filet/,'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300&h=300&fit=crop'],
-        [/cerdo|pork|costilla|chicharr/,'https://images.unsplash.com/photo-1544025162-d76694265947?w=300&h=300&fit=crop'],
-        [/pescado|fish|trucha|salmon|mojarra/,'https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?w=300&h=300&fit=crop'],
-        [/camar[oó]n|shrimp|marisco/,'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=300&h=300&fit=crop'],
-        [/ensalad|salad/,'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=300&fit=crop'],
-        [/taco|burrito|wrap|tortilla/,'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=300&h=300&fit=crop'],
-        [/hot.?dog|perro|salchicha/,'https://images.unsplash.com/photo-1612392062798-1a8a5a3b1f8e?w=300&h=300&fit=crop'],
-        [/sandwich|s[aá]ndwich|sub/,'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=300&h=300&fit=crop'],
-        [/pasta|spaguetti|fettuccine|lasaña/,'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=300&h=300&fit=crop'],
-        [/sopa|crema|caldo/,'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=300&h=300&fit=crop'],
-        [/arroz|rice/,'https://images.unsplash.com/photo-1536304929831-ee1ca9d44726?w=300&h=300&fit=crop'],
-        [/huevo|egg/,'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=300&h=300&fit=crop'],
-        [/pan|bread|arepa|empanada|patac[oó]n/,'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=300&h=300&fit=crop'],
-        [/papas|fries|frita/,'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=300&h=300&fit=crop'],
-        [/nachos|chips|snack/,'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=300&h=300&fit=crop'],
-        [/cerveza|beer|brew/,'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=300&h=300&fit=crop'],
-        [/vino|wine/,'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=300&h=300&fit=crop'],
-        [/cocktail|coctel|c[oó]ctel|mojito|margarita|daiquiri/,'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=300&h=300&fit=crop'],
-        [/whisky|whiskey|ron|vodka|tequila|aguardiente|licor/,'https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=300&h=300&fit=crop'],
-        [/michelada/,'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=300&h=300&fit=crop'],
-        [/jugo|juice|limonada|naranjada/,'https://images.unsplash.com/photo-1534353473418-4cfa6c56fd38?w=300&h=300&fit=crop'],
-        [/gaseosa|coca|soda|sprite|refresco/,'https://images.unsplash.com/photo-1581006852262-e4307cf6283a?w=300&h=300&fit=crop'],
-        [/café|coffee|cappuccino|latte|americano|tinto/,'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=300&h=300&fit=crop'],
-        [/t[eé]|tea|arom[aá]tica/,'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=300&h=300&fit=crop'],
-        [/agua|water/,'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=300&h=300&fit=crop'],
-        [/milkshake|malteada|smoothie|batido/,'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=300&h=300&fit=crop'],
-        [/helado|ice.?cream|sundae/,'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=300&h=300&fit=crop'],
-        [/torta|cake|pastel|brownie|postre|dessert/,'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&h=300&fit=crop'],
-        [/waffle|pancake|crepe|crepa/,'https://images.unsplash.com/photo-1562376552-0d160a2f238d?w=300&h=300&fit=crop'],
-        [/chuzo|pincho|brochet/,'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=300&h=300&fit=crop'],
-        [/mazorca|corn|elote|choclo/,'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=300&h=300&fit=crop']
+        [/hamburguesa|burger|hambur/,'https://loremflickr.com/300/300/hamburger,food'],
+        [/pizza/,'https://loremflickr.com/300/300/pizza,food'],
+        [/pollo|chicken|alitas|wing/,'https://loremflickr.com/300/300/fried,chicken'],
+        [/carne|steak|res|lomo|churrasco|filet/,'https://loremflickr.com/300/300/steak,meat'],
+        [/cerdo|pork|costilla|chicharr/,'https://loremflickr.com/300/300/ribs,pork'],
+        [/pescado|fish|trucha|salmon|mojarra/,'https://loremflickr.com/300/300/fish,food'],
+        [/camar[oó]n|shrimp|marisco/,'https://loremflickr.com/300/300/shrimp,seafood'],
+        [/ensalad|salad/,'https://loremflickr.com/300/300/salad,food'],
+        [/taco|burrito|wrap|tortilla/,'https://loremflickr.com/300/300/tacos,mexican'],
+        [/hot.?dog|perro|salchicha/,'https://loremflickr.com/300/300/hotdog,food'],
+        [/sandwich|s[aá]ndwich|sub/,'https://loremflickr.com/300/300/sandwich,food'],
+        [/pasta|spaguetti|fettuccine|lasaña/,'https://loremflickr.com/300/300/pasta,italian'],
+        [/sopa|crema|caldo/,'https://loremflickr.com/300/300/soup,food'],
+        [/arroz|rice/,'https://loremflickr.com/300/300/rice,food'],
+        [/huevo|egg/,'https://loremflickr.com/300/300/eggs,breakfast'],
+        [/pan|bread|arepa|empanada|patac[oó]n/,'https://loremflickr.com/300/300/bread,bakery'],
+        [/papas|fries|frita/,'https://loremflickr.com/300/300/fries,potato'],
+        [/nachos|chips|snack/,'https://loremflickr.com/300/300/nachos,snack'],
+        [/cerveza|beer|brew/,'https://loremflickr.com/300/300/beer,drink'],
+        [/vino|wine/,'https://loremflickr.com/300/300/wine,drink'],
+        [/cocktail|coctel|c[oó]ctel|mojito|margarita|daiquiri/,'https://loremflickr.com/300/300/cocktail,drink'],
+        [/whisky|whiskey|ron|vodka|tequila|aguardiente|licor/,'https://loremflickr.com/300/300/whiskey,liquor'],
+        [/michelada/,'https://loremflickr.com/300/300/beer,michelada'],
+        [/jugo|juice|limonada|naranjada/,'https://loremflickr.com/300/300/juice,fresh'],
+        [/gaseosa|coca|soda|sprite|refresco/,'https://loremflickr.com/300/300/soda,drink'],
+        [/café|coffee|cappuccino|latte|americano|tinto/,'https://loremflickr.com/300/300/coffee,cafe'],
+        [/t[eé]|tea|arom[aá]tica/,'https://loremflickr.com/300/300/tea,drink'],
+        [/agua|water/,'https://loremflickr.com/300/300/water,bottle'],
+        [/milkshake|malteada|smoothie|batido/,'https://loremflickr.com/300/300/milkshake,drink'],
+        [/helado|ice.?cream|sundae/,'https://loremflickr.com/300/300/icecream,dessert'],
+        [/torta|cake|pastel|brownie|postre|dessert/,'https://loremflickr.com/300/300/cake,dessert'],
+        [/waffle|pancake|crepe|crepa/,'https://loremflickr.com/300/300/waffle,breakfast'],
+        [/chuzo|pincho|brochet/,'https://loremflickr.com/300/300/skewer,grill'],
+        [/mazorca|corn|elote|choclo/,'https://loremflickr.com/300/300/corn,food']
       ];
       for(const [regex, url] of photos){ if(regex.test(n)) return url; }
-      // Fallback by category keywords
-      const catPhotos = [
-        [/bebida|drink|licor|trago/,'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=300&h=300&fit=crop'],
-        [/comida|food|plato|entrada/,'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&h=300&fit=crop'],
-        [/postre|sweet|dulce/,'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=300&h=300&fit=crop']
+      // Fallback: use category name as keyword
+      const catMap = [
+        [/bebida|drink|licor|trago|coctel/,'https://loremflickr.com/300/300/drinks,bar'],
+        [/comida|rapida|fast/,'https://loremflickr.com/300/300/fastfood,restaurant'],
+        [/postre|sweet|dulce/,'https://loremflickr.com/300/300/dessert,sweet'],
+        [/entrada|appetizer|snack/,'https://loremflickr.com/300/300/appetizer,food'],
+        [/grill|asado|parrilla/,'https://loremflickr.com/300/300/grill,bbq']
       ];
-      for(const [regex, url] of catPhotos){ if(regex.test(n)) return url; }
-      return 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&h=300&fit=crop';
+      for(const [regex, url] of catMap){ if(regex.test(c)) return url; }
+      return 'https://loremflickr.com/300/300/food,restaurant';
     }
     function saveProduct(){
       if(!requireAdmin('guardar productos')) return;

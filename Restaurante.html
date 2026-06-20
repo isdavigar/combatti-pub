@@ -10501,8 +10501,21 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           items = [];
         }
       } else if(movementsViewMode === 'all'){
-        // Mostrar todos los movimientos actuales
-        items = [...state.movements].reverse();
+        // Mostrar TODOS los movimientos: actuales + historial de cierres
+        const allMovements = [];
+        const seen = new Set();
+        // From cash history (past shifts)
+        (state.cash.history || []).forEach(record => {
+          (record.movementsHistory || []).forEach(m => {
+            if(m.id && !seen.has(m.id)){ allMovements.push(m); seen.add(m.id); }
+          });
+        });
+        // From current state.movements (current shift)
+        state.movements.forEach(m => {
+          if(m.id && !seen.has(m.id)){ allMovements.push(m); seen.add(m.id); }
+          else if(!m.id){ allMovements.push(m); }
+        });
+        items = allMovements.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
       } else {
         // Turno actual: solo desde apertura de caja
         const from = state.cash.open ? cashPeriodStart() : null;
@@ -10808,7 +10821,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         const sessions = state.activeSessions || {};
         const lastSeen = sessions[user.username] ? new Date(sessions[user.username]).getTime() : 0;
         const isOnline = user.active !== false && (now - lastSeen) < 120000;
-        const onlineBadge = isSystemAdmin() ? (isOnline ? '<span class="badge text-bg-success"><i class="fa-solid fa-circle me-1" style="font-size:.5rem"></i>En línea</span>' : (lastSeen ? `<span class="badge text-bg-light text-dark">${timeAgo(lastSeen)}</span>` : '')) : '';
+        const onlineBadge = isSystemAdmin() ? (isOnline ? '<span class="badge text-bg-success"><i class="fa-solid fa-circle me-1" style="font-size:.5rem"></i>En línea</span>' : `<span class="badge text-bg-light text-dark">${lastSeen ? timeAgo(lastSeen) : 'Sin actividad'}</span>`) : '';
         return `
           <div class="user-row">
             <div>

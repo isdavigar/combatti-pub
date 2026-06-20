@@ -3766,7 +3766,6 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-outline-danger btn-pill me-auto" type="button" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>
           <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
           <button class="btn btn-success btn-pill" onclick="openCash()">Abrir caja</button>
         </div>
@@ -6301,6 +6300,9 @@
       renderUserAvatar();
       updateShiftUI();
       applyPermissions();
+      // Track active session
+      updateActiveSession();
+      if(!window._activeSessionInterval) window._activeSessionInterval = setInterval(updateActiveSession, 60000);
       // Si la caja ya está abierta (incluida la que sincroniza otro dispositivo),
       // se entra directo al software. Si está cerrada, se marca para reaccionar
       // cuando la nube traiga la caja abierta.
@@ -6399,7 +6401,7 @@
       return activeCashUserName();
     }
 
-    function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const logoutBtnHtml = '<button class="btn btn-outline-danger btn-pill" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar sesión</button>';       const openActionsHtml = `<div class="d-flex gap-2 flex-wrap align-items-center">${openBtnHtml}${logoutBtnHtml}</div>`;       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openActionsHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
+    function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openBtnHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
       return orderSales + historical;
@@ -9789,15 +9791,22 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
               const batch = firebaseDb.batch();
               snap.forEach(doc => batch.delete(doc.ref));
               await batch.commit();
-            } catch(_){}
+            } catch(e){ console.warn('Error borrando deletedOrders de Firebase:', e); }
           }
+          // Clear local state completely
           state.deletedOrders = [];
-          if(typeof cloudShadow !== 'undefined' && cloudShadow.deletedOrders) cloudShadow.deletedOrders = {};
-          persistAll();
-          await forceCloudSyncNow();
-          saveStateToDatabase(appStateSnapshot());
+          // Clear cloud shadow to prevent re-sync
+          if(typeof cloudShadow !== 'undefined'){
+            if(cloudShadow.deletedOrders) cloudShadow.deletedOrders = {};
+            delete cloudShadow.deletedOrders;
+          }
+          // Persist and force full sync
+          persistAll(false);
+          try { await pushIncremental(true); } catch(_){}
+          try { await forceCloudSyncNow(); } catch(_){}
+          try { saveStateToDatabase(appStateSnapshot()); } catch(_){}
           renderDeletedOrders();
-          toast('Auditoría de eliminados vaciada permanentemente', 'info');
+          toast('Auditoría de eliminados vaciada permanentemente (local + nube)', 'success');
         }
       });
     }
@@ -10790,10 +10799,16 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(!list) return;
       state.users = state.users.map(normalizeUser);
       const visibleUsers = state.users.filter(user => isSystemAdmin() || user.role !== SYSTEM_ADMIN_ROLE);
+      const now = Date.now();
       list.innerHTML = visibleUsers.map(user => {
         const permissions = getUserPermissions(user).map(p => PERMISSION_LABELS[p]).join(', ');
         const stateLabel = user.active === false ? 'Inactivo' : 'Activo';
         const badge = user.active === false ? 'text-bg-secondary' : 'text-bg-success';
+        // Online status: user is online if lastSeen within last 2 minutes
+        const sessions = state.activeSessions || {};
+        const lastSeen = sessions[user.username] ? new Date(sessions[user.username]).getTime() : 0;
+        const isOnline = user.active !== false && (now - lastSeen) < 120000;
+        const onlineBadge = isSystemAdmin() ? (isOnline ? '<span class="badge text-bg-success"><i class="fa-solid fa-circle me-1" style="font-size:.5rem"></i>En línea</span>' : (lastSeen ? `<span class="badge text-bg-light text-dark">${timeAgo(lastSeen)}</span>` : '')) : '';
         return `
           <div class="user-row">
             <div>
@@ -10801,6 +10816,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
                 <strong>${escapeHtml(user.username)}</strong>
                 <span class="badge ${badge}">${stateLabel}</span>
                 <span class="badge text-bg-light text-dark">${escapeHtml(user.role)}</span>
+                ${onlineBadge}
               </div>
               <div class="small text-secondary mt-1">${escapeHtml(permissions)}</div>
             </div>
@@ -10812,6 +10828,19 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           </div>
         `;
       }).join('') || '<div class="p-3 text-secondary">No hay usuarios registrados.</div>';
+    }
+    function updateActiveSession(){
+      if(!currentUser) return;
+      if(!state.activeSessions) state.activeSessions = {};
+      state.activeSessions[currentUser.username] = new Date().toISOString();
+      persistAll(false);
+    }
+    function timeAgo(timestamp){
+      const diff = Date.now() - timestamp;
+      if(diff < 60000) return 'Hace un momento';
+      if(diff < 3600000) return `Hace ${Math.floor(diff/60000)} min`;
+      if(diff < 86400000) return `Hace ${Math.floor(diff/3600000)}h`;
+      return `Hace ${Math.floor(diff/86400000)}d`;
     }
     function openOrderFromSearch(){
       const raw = document.getElementById('globalSearch').value.trim();

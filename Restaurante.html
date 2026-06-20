@@ -4709,7 +4709,8 @@
         users:state.users, tables:state.tables, products:state.products, orders:state.orders,
         movements:state.movements, cash:state.cash, brand:state.brand, categories:state.categories || [],
         supplies:state.supplies || [], deliveryZones:state.deliveryZones || [], kitchenTickets:state.kitchenTickets || [], deletedOrders:state.deletedOrders || [],
-        historicalSales:state.historicalSales || [],
+        historicalSales:state.historicalSales || [], activeSessions:state.activeSessions || {},
+        customWidgets:state.customWidgets || [],
         layoutVersion:DATA_VERSION, dataVersion:DATA_VERSION, tableLayoutVersion:state.tableLayoutVersion || TABLE_LAYOUT_VERSION, theme:state.theme, shift:normalizeShift(state.shift)
       };
     }
@@ -5284,6 +5285,8 @@
       const kitchenTickets = saved?.kitchenTickets || [];
       const deletedOrders = saved?.deletedOrders || legacy?.deletedOrders || [];
       const historicalSales = saved?.historicalSales || [];
+      const activeSessions = saved?.activeSessions || {};
+      const customWidgets = saved?.customWidgets || [];
       const dataVersion = saved?.dataVersion || saved?.layoutVersion || legacy?.dataVersion;
       const tableLayoutVersion = saved?.tableLayoutVersion || legacy?.tableLayoutVersion || '';
       const theme = saved?.theme || legacy?.theme || 'light';
@@ -5310,6 +5313,8 @@
         state.kitchenTickets = Array.isArray(kitchenTickets) ? kitchenTickets : [];
         state.deletedOrders = Array.isArray(deletedOrders) ? deletedOrders : [];
         state.historicalSales = Array.isArray(historicalSales) ? historicalSales : [];
+        state.activeSessions = (typeof activeSessions === 'object' && activeSessions) ? activeSessions : {};
+        state.customWidgets = Array.isArray(customWidgets) ? customWidgets : [];
         state.cash = cash || { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
         state.categories = Array.isArray(categories) ? categories : [];
         state.supplies = Array.isArray(supplies) ? supplies.map(normalizeSupply) : [];
@@ -12405,6 +12410,8 @@ function cloudConfigPayload() {
     shift: normalizeShift(state.shift),
     categories: state.categories || [],
     tableLayoutVersion: state.tableLayoutVersion || '',
+    activeSessions: state.activeSessions || {},
+    customWidgets: state.customWidgets || [],
     license: licenseConfigForSync(),
     _device: CLOUD_DEVICE_ID,
     _seq: Date.now()
@@ -12447,6 +12454,17 @@ function applyConfigRemote(data) {
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
   if (Array.isArray(data.categories)) state.categories = data.categories;
+  // Active sessions: MERGE (each device writes its own user's timestamp)
+  if (data.activeSessions && typeof data.activeSessions === 'object') {
+    if (!state.activeSessions) state.activeSessions = {};
+    Object.entries(data.activeSessions).forEach(([user, ts]) => {
+      // Keep the most recent timestamp between local and remote
+      const localTs = state.activeSessions[user] ? new Date(state.activeSessions[user]).getTime() : 0;
+      const remoteTs = ts ? new Date(ts).getTime() : 0;
+      if (remoteTs > localTs) state.activeSessions[user] = ts;
+    });
+  }
+  if (Array.isArray(data.customWidgets)) state.customWidgets = data.customWidgets;
   if (data.tableLayoutVersion != null) state.tableLayoutVersion = data.tableLayoutVersion;
   // Licencia compartida: al configurar la fecha de corte (u otros datos) en un
   // dispositivo, se aplica automáticamente en todos los demás.
@@ -12466,6 +12484,8 @@ function applyConfigRemote(data) {
     shift: normalizeShift(state.shift),
     categories: state.categories || [],
     tableLayoutVersion: state.tableLayoutVersion || '',
+    activeSessions: state.activeSessions || {},
+    customWidgets: state.customWidgets || [],
     license: licenseConfigForSync()
   });
   if(typeof updateCashActionButtons === 'function') updateCashActionButtons();

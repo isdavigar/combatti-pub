@@ -9144,6 +9144,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       }
     }
     function showCloseCashModal(){
+      try{
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
       // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
       const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
@@ -9161,8 +9162,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       setValue('closeCountedInput', '');
       updateCloseDiscrepancy();
       modals.cashClose.show();
+      }catch(e){ console.error('Error al abrir modal cierre:', e); toast('Error al preparar cierre: ' + (e.message || e), 'danger'); }
     }
     async function closeCash(){
+      try{
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
       // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
       const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
@@ -9216,6 +9219,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       toast('Caja cerrada e informe generado', 'success');
       renderCashView();
       if(currentView === 'movimientos') renderMovements();
+      }catch(e){ console.error('Error al cerrar caja:', e); toast('Error al cerrar caja: ' + (e.message || e), 'danger'); }
     }
     function printCloseReport(record = currentCashRecord()){
       const detail = cashRecordDetailHtml(record);

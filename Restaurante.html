@@ -1006,14 +1006,13 @@
     }
     .cash-summary-grid{
       display:grid;
-      grid-template-columns:repeat(auto-fit, minmax(130px,1fr));
-      gap:8px;
-      margin:16px 0;
-    }
+      grid-template-columns:repeat(3, 1fr);
       gap:10px;
       margin:16px 0;
     }
-    .cash-summary-grid .mini-table{ margin:0 !important; }
+    .cash-summary-grid .mini-table{ margin:0 !important; flex-direction:column; align-items:flex-start; gap:4px; }
+    .cash-summary-grid .mini-table span{ white-space:normal; font-size:.82rem; }
+    .cash-summary-grid .mini-table strong{ font-size:1.05rem; }
     .cash-summary-grid .cash-balance-row{
       grid-column:1 / -1;
       background:rgba(var(--primary-rgb),.10);

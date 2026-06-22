@@ -12594,14 +12594,18 @@ function applyConfigRemote(data) {
   // Caja: SIEMPRE aplicamos lo que viene de la nube. La nube es la fuente de verdad.
   // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
   if (data.cash != null) {
-    const previouslyOpen = state.cash && state.cash.open;
+    const prevOpen = state.cash && state.cash.open;
+    const prevOpenedAt = state.cash && state.cash.openedAt;
+    const prevOpenedBy = state.cash && (state.cash.openedByUser || '');
     state.cash = data.cash;
     // Auto-corregir inconsistencias en el estado de la caja recibido de la nube.
     if(typeof healCashState === 'function') healCashState();
-    // Si el estado de la caja cambió (de abierta a cerrada o viceversa),
-    // cancelar cualquier push pendiente para no revertir el cambio remoto
-    // y forzar re-render inmediato.
-    if (previouslyOpen !== state.cash.open) {
+    // Si el estado de la caja cambió (open/closed, quién abrió, o cuándo),
+    // cancelar cualquier push pendiente para no revertir el cambio remoto.
+    const cashDiffered = prevOpen !== state.cash.open ||
+      prevOpenedAt !== state.cash.openedAt ||
+      prevOpenedBy !== (state.cash.openedByUser || '');
+    if (cashDiffered) {
       clearTimeout(cloudPushTimer);
       // Actualizar shadow inmediatamente para evitar que un push posterior sobreescriba.
       cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
@@ -13096,14 +13100,16 @@ function setupRealtimeListener() {
       }
       // SIEMPRE verificar el estado de la caja al recibir cualquier cambio de config,
       // incluso si fue escrito por este dispositivo. Esto garantiza que si otro
-      // dispositivo cerró la caja y la nube ya tiene open:false, todos los
-      // dispositivos (incluyendo el que cerró) reflejen el estado correcto.
+      // dispositivo cerró/abrió la caja, todos reflejen el estado correcto.
       if (raw.cash != null && !doc.metadata?.hasPendingWrites) {
-        const remoteCashOpen = raw.cash.open;
-        if (remoteCashOpen !== state.cash.open) {
-          // Cancelar cualquier push pendiente para no sobreescribir el cierre remoto.
+        const cashChanged = raw.cash.open !== state.cash.open ||
+          raw.cash.openedAt !== state.cash.openedAt ||
+          raw.cash.closedAt !== state.cash.closedAt ||
+          (raw.cash.openedByUser || '') !== (state.cash.openedByUser || '');
+        if (cashChanged) {
+          // Cancelar cualquier push pendiente para no sobreescribir el cambio remoto.
           clearTimeout(cloudPushTimer);
-          // El estado de caja en la nube difiere del local: aplicar inmediatamente.
+          // Aplicar inmediatamente.
           state.cash = raw.cash;
           if(typeof healCashState === 'function') healCashState();
           // Actualizar el shadow para que el próximo push NO sobreescriba la caja.
@@ -13213,14 +13219,28 @@ async function refreshConfigFromCloud() {
     const doc = await configRef().get();
     if (doc.exists) {
       const raw = doc.data() || {};
-      // Solo aplicar si la caja cambió para no sobreescribir estado local.
-      if (raw.cash != null && raw.cash.open !== state.cash.open) {
-        state.cash = raw.cash;
-        if (typeof healCashState === 'function') healCashState();
-        cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
-        saveStateToDatabase(appStateSnapshot());
-        renderAll();
-        if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
+      // Aplicar si el estado de caja difiere: comparar no solo open/closed sino
+      // también quién abrió y cuándo (para detectar cierre+reapertura por otro usuario).
+      if (raw.cash != null) {
+        const cashChanged = raw.cash.open !== state.cash.open ||
+          raw.cash.openedAt !== state.cash.openedAt ||
+          raw.cash.closedAt !== state.cash.closedAt ||
+          (raw.cash.openedByUser || '') !== (state.cash.openedByUser || '');
+        if (cashChanged) {
+          state.cash = raw.cash;
+          if (typeof healCashState === 'function') healCashState();
+          cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+          saveStateToDatabase(appStateSnapshot());
+          renderAll();
+          if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
+        }
+      }
+      // También aplicar cambios en brand, shift, categories si difieren.
+      if (raw.brand != null && JSON.stringify(raw.brand) !== JSON.stringify(state.brand)) {
+        state.brand = raw.brand;
+      }
+      if (raw.shift != null && raw.shift !== state.shift) {
+        state.shift = normalizeShift(raw.shift);
       }
     }
     // También re-leer las colecciones para detectar cambios perdidos en pedidos/mesas.

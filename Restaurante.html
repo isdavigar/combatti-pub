@@ -9781,10 +9781,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         'Efectivo esperado': r.expectedCash || 0,
         'Efectivo contado': r.countedCash || 0,
         'Descuadre': r.discrepancy || 0,
-        'Pedidos (IDs)': Array.isArray(r.orders) ? r.orders.join(', ') : '',
-        'Metodos JSON': JSON.stringify(r.methodTotals || {}),
-        'Movimientos JSON': JSON.stringify(r.movementsHistory || []),
-        'Gastos JSON': JSON.stringify(r.expenseHistory || [])
+        '_REGISTRO_COMPLETO': JSON.stringify(r)
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
@@ -9804,38 +9801,47 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           const ws = wb.Sheets[wb.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(ws);
           if(!rows.length){ toast('El archivo está vacío', 'warning'); return; }
-          const imported = rows.map(r => ({
-            id: r['ID'] || uid(),
-            status: r['Estado'] || 'Cerrada',
-            responsible: r['Responsable'] || '',
-            shift: r['Turno'] || '',
-            openedAt: r['Apertura'] || null,
-            closedAt: r['Cierre'] || null,
-            openingAmount: Number(r['Monto apertura'] || 0),
-            sales: Number(r['Ventas'] || 0),
-            tips: Number(r['Propinas'] || 0),
-            deliveryFees: Number(r['Domicilios'] || 0),
-            income: Number(r['Ingresos'] || 0),
-            expense: Number(r['Egresos'] || 0),
-            cashExpense: Number(r['Egresos efectivo'] || 0),
-            creditCardExpense: Number(r['Egresos tarjeta'] || 0),
-            cashPayments: Number(r['Efectivo'] || 0),
-            transferPayments: Number(r['Transferencias'] || 0),
-            cardPayments: Number(r['Tarjeta'] || 0),
-            creditSales: Number(r['Creditos'] || 0),
-            courtesyTotal: Number(r['Cortesias'] || 0),
-            final: Number(r['Saldo final'] || 0),
-            finalAfterDelivery: Number(r['Saldo tras domicilios'] || 0),
-            expectedCash: Number(r['Efectivo esperado'] || 0),
-            countedCash: r['Efectivo contado'] != null ? Number(r['Efectivo contado']) : null,
-            discrepancy: Number(r['Descuadre'] || 0),
-            orders: r['Pedidos (IDs)'] ? String(r['Pedidos (IDs)']).split(',').map(s => s.trim()).filter(Boolean) : [],
-            methodTotals: safeJsonParse(r['Metodos JSON'], {}),
-            movementsHistory: safeJsonParse(r['Movimientos JSON'], []),
-            expenseHistory: safeJsonParse(r['Gastos JSON'], [])
-          }));
+          const imported = rows.map(r => {
+            // Si tiene el registro completo en JSON, usarlo directamente
+            if(r['_REGISTRO_COMPLETO']){
+              const full = safeJsonParse(r['_REGISTRO_COMPLETO'], null);
+              if(full && full.id) return full;
+            }
+            // Fallback: construir desde las columnas
+            return {
+              id: r['ID'] || uid(),
+              status: r['Estado'] || 'Cerrada',
+              responsible: r['Responsable'] || '',
+              shift: r['Turno'] || '',
+              openedAt: r['Apertura'] || null,
+              closedAt: r['Cierre'] || null,
+              openingAmount: Number(r['Monto apertura'] || 0),
+              sales: Number(r['Ventas'] || 0),
+              tips: Number(r['Propinas'] || 0),
+              deliveryFees: Number(r['Domicilios'] || 0),
+              income: Number(r['Ingresos'] || 0),
+              expense: Number(r['Egresos'] || 0),
+              cashExpense: Number(r['Egresos efectivo'] || 0),
+              creditCardExpense: Number(r['Egresos tarjeta'] || 0),
+              cashPayments: Number(r['Efectivo'] || 0),
+              transferPayments: Number(r['Transferencias'] || 0),
+              cardPayments: Number(r['Tarjeta'] || 0),
+              creditSales: Number(r['Creditos'] || 0),
+              courtesyTotal: Number(r['Cortesias'] || 0),
+              final: Number(r['Saldo final'] || 0),
+              finalAfterDelivery: Number(r['Saldo tras domicilios'] || 0),
+              expectedCash: Number(r['Efectivo esperado'] || 0),
+              countedCash: r['Efectivo contado'] != null ? Number(r['Efectivo contado']) : null,
+              discrepancy: Number(r['Descuadre'] || 0),
+              orders: [],
+              methodTotals: {},
+              movementsHistory: [],
+              expenseHistory: []
+            };
+          }).filter(Boolean);
           // Merge: agregar cuadres que no existan por ID
-          const existingIds = new Set((state.cash.history || []).map(r => r.id));
+          state.cash.history = Array.isArray(state.cash.history) ? state.cash.history : [];
+          const existingIds = new Set(state.cash.history.map(r => r.id));
           let added = 0;
           imported.forEach(r => {
             if(!existingIds.has(r.id)){
@@ -9846,7 +9852,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           if(added > 0){
             persistAll();
             renderCashHistory();
-            toast(`${added} cuadre(s) importado(s) correctamente`, 'success');
+            toast(`${added} cuadre(s) importado(s) correctamente. Los botones Ver, Gasto, Nómina y Excel funcionan.`, 'success');
           } else {
             toast('Todos los cuadres del archivo ya existen en el sistema', 'info');
           }

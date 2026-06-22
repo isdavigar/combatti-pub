@@ -12815,7 +12815,12 @@ async function cloudInitialSync() {
     } catch (e) { console.warn('lectura inicial ' + coll, e); cloudLastError = friendlyCloudError(e); }
   }
   let cfgData = null;
-  try { const cfgDoc = await configRef().get(); if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; } } catch (e) { cloudLastError = friendlyCloudError(e); }
+  try {
+    // Intentar leer del servidor directamente para datos frescos de caja.
+    let cfgDoc;
+    try { cfgDoc = await configRef().get({ source: 'server' }); } catch(_){ cfgDoc = await configRef().get(); }
+    if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; }
+  } catch (e) { cloudLastError = friendlyCloudError(e); }
   if (hasRemote) {
     isApplyingRemoteState = true;
     try {

@@ -12472,6 +12472,7 @@ let cloudSizeWarned = false;
 let cloudAutoStarted = false;
 let cloudReconnecting = false;
 let cloudWatchdogTimer = null;
+let cloudLastHeartbeat = Date.now(); // Marca de tiempo del último dato recibido del listener
 let cloudLastError = '';
 // Set de IDs de documentos suprimidos localmente (para evitar que el listener los re-agregue).
 // Cuando se eliminan documentos en batch (ej: vaciar deletedOrders), los IDs se
@@ -13041,6 +13042,7 @@ function setupRealtimeListener() {
     const unsub = collRef(coll).onSnapshot({ includeMetadataChanges: false }, snap => {
       cloudConnected = true;
       cloudLastError = '';
+      cloudLastHeartbeat = Date.now();
       let touched = false;
       snap.docChanges().forEach(ch => {
         // Ignora escrituras locales aún sin confirmar (eco inmediato).
@@ -13080,6 +13082,7 @@ function setupRealtimeListener() {
   const cfgUnsub = configRef().onSnapshot({ includeMetadataChanges: false }, doc => {
     cloudConnected = true;
     cloudLastError = '';
+    cloudLastHeartbeat = Date.now();
     if (doc.exists) {
       const raw = doc.data() || {};
       if (!(doc.metadata && doc.metadata.hasPendingWrites) && raw._device !== CLOUD_DEVICE_ID) {
@@ -13144,7 +13147,14 @@ async function reconnectCloud(doInitialSync = false) {
   try {
     const ok = await initFirebase();
     if (!ok) { cloudConnected = false; updateCloudStatus(); return; }
-    if (doInitialSync || !cloudUnsubs.length) { await cloudInitialSync(); }
+    if (doInitialSync || !cloudUnsubs.length) {
+      try { await cloudInitialSync(); } catch (syncErr) {
+        console.warn('cloudInitialSync falló, montando listeners de todas formas:', syncErr);
+        cloudInitialSyncDone = true; // Permitir pushes aunque la sync inicial haya fallado
+      }
+    }
+    // SIEMPRE montar listeners para recibir cambios en tiempo real,
+    // incluso si la initial sync falló.
     setupRealtimeListener();
     updateCloudStatus();
   } catch (e) {
@@ -13164,7 +13174,91 @@ function startCloudWatchdog() {
     if (!cloudSyncEnabled) return;
     if (navigator.onLine === false) { cloudConnected = false; updateCloudStatus(); return; }
     if (!cloudUnsubs.length) reconnectCloud(true);
+    // Si el listener lleva más de 60s sin recibir datos y estamos online,
+    // puede haberse "congelado". Forzar re-lectura.
+    else if (Date.now() - cloudLastHeartbeat > 60000 && navigator.onLine !== false) {
+      console.info('[watchdog] Listener sin actividad >60s. Refrescando desde la nube...');
+      refreshConfigFromCloud();
+      cloudLastHeartbeat = Date.now(); // Evitar spam
+    }
   }, 15000);
+  // Cuando la página vuelve a estar visible (después de tab en background,
+  // pantalla apagada del celular, etc.), forzar una re-lectura del config
+  // para detectar cambios que el listener pudo perder.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && cloudSyncEnabled && firebaseDb) {
+      refreshConfigFromCloud();
+    }
+  });
+  // También al recuperar la conexión de red.
+  window.addEventListener('online', () => {
+    updateCloudStatus();
+    if (cloudSyncEnabled) {
+      setTimeout(() => {
+        if (!cloudUnsubs.length) reconnectCloud(true);
+        else {
+          refreshConfigFromCloud();
+          pushIncremental(); // Subir cambios locales pendientes
+        }
+      }, 1000);
+    }
+  });
+}
+
+// Lee el config directamente de Firestore (sin depender del listener) y aplica
+// si la caja cambió. Esto cubre el caso donde el listener se "congeló".
+async function refreshConfigFromCloud() {
+  if (!firebaseDb || !cloudSyncEnabled) return;
+  try {
+    const doc = await configRef().get();
+    if (doc.exists) {
+      const raw = doc.data() || {};
+      // Solo aplicar si la caja cambió para no sobreescribir estado local.
+      if (raw.cash != null && raw.cash.open !== state.cash.open) {
+        state.cash = raw.cash;
+        if (typeof healCashState === 'function') healCashState();
+        cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+        saveStateToDatabase(appStateSnapshot());
+        renderAll();
+        if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
+      }
+    }
+    // También re-leer las colecciones para detectar cambios perdidos en pedidos/mesas.
+    let touched = false;
+    for (const coll of CLOUD_COLLECTIONS) {
+      try {
+        const snap = await collRef(coll).get();
+        const remoteItems = [];
+        snap.forEach(d => {
+          const data = cloudStripMeta(d.data());
+          remoteItems.push(data);
+          cloudShadow[coll] = cloudShadow[coll] || {};
+          cloudShadow[coll][d.id] = cloudShadowKey(data);
+        });
+        // Si la cantidad de documentos remotos difiere del local, hay cambios perdidos.
+        if (remoteItems.length !== (state[coll] || []).length) {
+          if (remoteItems.length > 0) state[coll] = cloudSortByOrd(remoteItems);
+          touched = true;
+        } else {
+          // Verificar si algún documento cambió comparando IDs y contenido.
+          const localIds = new Set((state[coll] || []).map(it => cloudDocId(it)));
+          const remoteIds = new Set(remoteItems.map(it => cloudDocId(it)));
+          const hasDiff = remoteItems.some(it => !localIds.has(cloudDocId(it))) ||
+                          (state[coll] || []).some(it => !remoteIds.has(cloudDocId(it)));
+          if (hasDiff) {
+            if (remoteItems.length > 0) state[coll] = cloudSortByOrd(remoteItems);
+            touched = true;
+          }
+        }
+      } catch (_) {}
+    }
+    if (touched) {
+      relinkCurrentOrder();
+      syncAllTableOrderSnapshots();
+      saveStateToDatabase(appStateSnapshot());
+      renderAll();
+    }
+  } catch (e) { console.warn('refreshConfigFromCloud:', e); }
 }
 
 function updateCloudStatus() {
@@ -13229,10 +13323,7 @@ function updateCloudStatus() {
   }
 }
 
-window.addEventListener('online', () => {
-  updateCloudStatus();
-  if (cloudSyncEnabled) { reconnectCloud(false); pushIncremental(); }
-});
+// Los listeners de online/offline se manejan en startCloudWatchdog()
 window.addEventListener('offline', () => { cloudConnected = false; updateCloudStatus(); });
 // autoStartCloudSync ya se llama desde DOMContentLoaded; no se duplica aqui.
 

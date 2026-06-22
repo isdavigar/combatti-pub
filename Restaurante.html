@@ -12802,7 +12802,9 @@ async function cloudInitialSync() {
   const remoteColls = {};
   for (const coll of CLOUD_COLLECTIONS) {
     try {
-      const snap = await collRef(coll).get();
+      // Leer del servidor para datos frescos. Fallback a cache si no hay red.
+      let snap;
+      try { snap = await collRef(coll).get({ source: 'server' }); } catch(_){ snap = await collRef(coll).get(); }
       const items = [];
       cloudShadow[coll] = {};
       snap.forEach(d => {

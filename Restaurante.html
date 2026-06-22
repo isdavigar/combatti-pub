@@ -12595,15 +12595,6 @@ async function initFirebase() {
     if (!firebaseApp) {
       firebaseApp = (firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(cfg);
       firebaseDb = firebase.firestore();
-      // Limpieza única del cache de Firestore para corregir datos stale.
-      // Se ejecuta una vez por dispositivo y no vuelve a ejecutarse.
-      const CACHE_CLEAR_KEY = 'combatti_cache_cleared_v2';
-      if (!localStorage.getItem(CACHE_CLEAR_KEY)) {
-        try { await firebaseDb.clearPersistence(); } catch(_){}
-        localStorage.setItem(CACHE_CLEAR_KEY, '1');
-        // Reinicializar firestore después de limpiar
-        firebaseDb = firebase.firestore();
-      }
       // Persistencia offline: se puede seguir trabajando sin internet y sincroniza al volver.
       await firebaseDb.enablePersistence({ synchronizeTabs: true }).catch(() => {});
       // Inicio de sesión anónimo (necesario para las reglas de seguridad recomendadas).

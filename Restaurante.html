@@ -12560,6 +12560,7 @@ function applyConfigRemote(data) {
   // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
   if (data.cash != null) {
     state.cash = data.cash;
+    if(typeof healCashState === 'function') healCashState();
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
@@ -12802,9 +12803,7 @@ async function cloudInitialSync() {
   const remoteColls = {};
   for (const coll of CLOUD_COLLECTIONS) {
     try {
-      // Leer del servidor para datos frescos. Fallback a cache si no hay red.
-      let snap;
-      try { snap = await collRef(coll).get({ source: 'server' }); } catch(_){ snap = await collRef(coll).get(); }
+      const snap = await collRef(coll).get();
       const items = [];
       cloudShadow[coll] = {};
       snap.forEach(d => {
@@ -12817,12 +12816,7 @@ async function cloudInitialSync() {
     } catch (e) { console.warn('lectura inicial ' + coll, e); cloudLastError = friendlyCloudError(e); }
   }
   let cfgData = null;
-  try {
-    // Intentar leer del servidor directamente para datos frescos de caja.
-    let cfgDoc;
-    try { cfgDoc = await configRef().get({ source: 'server' }); } catch(_){ cfgDoc = await configRef().get(); }
-    if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; }
-  } catch (e) { cloudLastError = friendlyCloudError(e); }
+  try { const cfgDoc = await configRef().get(); if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; } } catch (e) { cloudLastError = friendlyCloudError(e); }
   if (hasRemote) {
     isApplyingRemoteState = true;
     try {
@@ -12850,6 +12844,9 @@ async function cloudInitialSync() {
     if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
     // Sube a la nube lo que cambio local: mesas/domicilios por defecto, layout
     // corregido y la eliminacion de los productos sembrados.
+    // IMPORTANTE: forzar el shadow del config para que pushIncremental NO suba
+    // el config (y así no sobreescriba la caja/turno que ya está en la nube).
+    cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
     await pushIncremental(true);
   } else {
     ensureDefaultTablesAndZones();

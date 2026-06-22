@@ -12776,6 +12776,9 @@ async function cloudInitialSync() {
   try { const cfgDoc = await configRef().get(); if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; } } catch (e) { cloudLastError = friendlyCloudError(e); }
   if (hasRemote) {
     isApplyingRemoteState = true;
+    // Guardar el historial de cuadres local ANTES de sobreescribir con la nube,
+    // para recuperarlo si la nube tiene una versión más corta (datos perdidos).
+    const localCashHistory = Array.isArray(state.cash?.history) ? [...state.cash.history] : [];
     try {
       // Solo reemplazamos con la nube cuando esa coleccion tiene datos.
       // Si la nube esta vacia para una coleccion, conservamos lo local
@@ -12784,6 +12787,11 @@ async function cloudInitialSync() {
         if (remoteColls[coll] && remoteColls[coll].length) state[coll] = cloudSortByOrd(remoteColls[coll]);
       });
       if (cfgData) applyConfigRemote(cfgData);
+      // Preservar historial de cuadres local si la nube tiene menos registros
+      // (protege contra sobreescrituras accidentales del config).
+      if (cfgData && cfgData.cash && localCashHistory.length > (state.cash.history || []).length) {
+        state.cash.history = localCashHistory;
+      }
       ensureDefaultTablesAndZones();
       // Corrige la distribucion de mesas si la nube traia un layout viejo.
       applyTableLayoutPresetOnce();

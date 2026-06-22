@@ -12862,9 +12862,13 @@ async function cloudInitialSync() {
   cloudInitialSyncDone = false;   // cerramos el "candado" mientras leemos la nube
   let hasRemote = false;
   const remoteColls = {};
+  // Forzar lectura del SERVIDOR (no del cache local) para tener datos frescos.
+  const getOpts = { source: 'server' };
   for (const coll of CLOUD_COLLECTIONS) {
     try {
-      const snap = await collRef(coll).get();
+      let snap;
+      try { snap = await collRef(coll).get(getOpts); }
+      catch(_) { snap = await collRef(coll).get(); } // Fallback a cache si no hay red
       const items = [];
       cloudShadow[coll] = {};
       snap.forEach(d => {
@@ -12877,7 +12881,12 @@ async function cloudInitialSync() {
     } catch (e) { console.warn('lectura inicial ' + coll, e); cloudLastError = friendlyCloudError(e); }
   }
   let cfgData = null;
-  try { const cfgDoc = await configRef().get(); if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; } } catch (e) { cloudLastError = friendlyCloudError(e); }
+  try {
+    let cfgDoc;
+    try { cfgDoc = await configRef().get(getOpts); }
+    catch(_) { cfgDoc = await configRef().get(); }
+    if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; }
+  } catch (e) { cloudLastError = friendlyCloudError(e); }
   if (hasRemote) {
     isApplyingRemoteState = true;
     try {
@@ -13105,6 +13114,10 @@ async function autoStartCloudSync() {
   cloudSyncEnabled = true;
   await reconnectCloud(true);
   startCloudWatchdog();
+  // Después de la sync inicial, forzar re-evaluación del estado de la UI.
+  // Esto cubre el caso donde el estado local era stale y la nube lo corrigió.
+  if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
+  renderAll();
 }
 
 // Reestablece la conexión (init + escuchas). doInitialSync solo en el primer enganche.
@@ -13178,7 +13191,10 @@ function startCloudWatchdog() {
 async function refreshConfigFromCloud() {
   if (!firebaseDb || !cloudSyncEnabled) return;
   try {
-    const doc = await configRef().get();
+    // Forzar lectura del servidor para datos frescos.
+    let doc;
+    try { doc = await configRef().get({ source: 'server' }); }
+    catch(_) { doc = await configRef().get(); }
     if (doc.exists) {
       const raw = doc.data() || {};
       // Aplicar si el estado de caja difiere: comparar timestamps y usuario
@@ -13211,7 +13227,9 @@ async function refreshConfigFromCloud() {
     let touched = false;
     for (const coll of CLOUD_COLLECTIONS) {
       try {
-        const snap = await collRef(coll).get();
+        let snap;
+        try { snap = await collRef(coll).get({ source: 'server' }); }
+        catch(_) { snap = await collRef(coll).get(); }
         const remoteItems = [];
         snap.forEach(d => {
           const data = cloudStripMeta(d.data());

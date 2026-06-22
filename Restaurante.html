@@ -3092,6 +3092,9 @@
                   <p class="section-subtitle mb-0">Ventas, aperturas y cierres de caja.</p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
+                  <button class="btn btn-outline-success btn-pill" onclick="exportCashHistoryExcel()"><i class="fa-solid fa-file-excel me-2"></i>Exportar</button>
+                  <input id="importCashHistoryInput" type="file" accept=".xlsx,.xls" class="d-none" onchange="importCashHistoryExcel(event)">
+                  <button class="btn btn-outline-primary btn-pill" onclick="document.getElementById('importCashHistoryInput').click()"><i class="fa-solid fa-file-import me-2"></i>Importar</button>
                   <button class="btn btn-warning btn-pill" id="payrollButton" onclick="openPayrollModal()"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pagar nómina</button>
                   <button class="btn btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-print me-2"></i>Inventario</button>
                 </div>
@@ -9747,6 +9750,118 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         }
       });
       if(changed) persistAll(false);
+    }
+
+    // Exportar todo el historial de cuadres a Excel
+    function exportCashHistoryExcel(){
+      const history = state.cash.history || [];
+      if(!history.length){ toast('No hay cuadres para exportar', 'info'); return; }
+      const rows = history.map(r => ({
+        'ID': r.id || '',
+        'Estado': r.status || '',
+        'Responsable': r.responsible || '',
+        'Turno': r.shift || '',
+        'Apertura': r.openedAt || '',
+        'Cierre': r.closedAt || '',
+        'Monto apertura': r.openingAmount || 0,
+        'Ventas': r.sales || 0,
+        'Propinas': r.tips || 0,
+        'Domicilios': r.deliveryFees || 0,
+        'Ingresos': r.income || 0,
+        'Egresos': r.expense || 0,
+        'Egresos efectivo': r.cashExpense || 0,
+        'Egresos tarjeta': r.creditCardExpense || 0,
+        'Efectivo': r.cashPayments || 0,
+        'Transferencias': r.transferPayments || 0,
+        'Tarjeta': r.cardPayments || 0,
+        'Creditos': r.creditSales || 0,
+        'Cortesias': r.courtesyTotal || 0,
+        'Saldo final': r.final || 0,
+        'Saldo tras domicilios': r.finalAfterDelivery || 0,
+        'Efectivo esperado': r.expectedCash || 0,
+        'Efectivo contado': r.countedCash || 0,
+        'Descuadre': r.discrepancy || 0,
+        'Pedidos (IDs)': Array.isArray(r.orders) ? r.orders.join(', ') : '',
+        'Metodos JSON': JSON.stringify(r.methodTotals || {}),
+        'Movimientos JSON': JSON.stringify(r.movementsHistory || []),
+        'Gastos JSON': JSON.stringify(r.expenseHistory || [])
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Historial de cuadres');
+      XLSX.writeFile(wb, `historial_cuadres_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast('Historial de cuadres exportado', 'success');
+    }
+
+    // Importar historial de cuadres desde Excel
+    function importCashHistoryExcel(event){
+      const file = event.target.files?.[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e){
+        try {
+          const wb = XLSX.read(e.target.result, { type:'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws);
+          if(!rows.length){ toast('El archivo está vacío', 'warning'); return; }
+          const imported = rows.map(r => ({
+            id: r['ID'] || uid(),
+            status: r['Estado'] || 'Cerrada',
+            responsible: r['Responsable'] || '',
+            shift: r['Turno'] || '',
+            openedAt: r['Apertura'] || null,
+            closedAt: r['Cierre'] || null,
+            openingAmount: Number(r['Monto apertura'] || 0),
+            sales: Number(r['Ventas'] || 0),
+            tips: Number(r['Propinas'] || 0),
+            deliveryFees: Number(r['Domicilios'] || 0),
+            income: Number(r['Ingresos'] || 0),
+            expense: Number(r['Egresos'] || 0),
+            cashExpense: Number(r['Egresos efectivo'] || 0),
+            creditCardExpense: Number(r['Egresos tarjeta'] || 0),
+            cashPayments: Number(r['Efectivo'] || 0),
+            transferPayments: Number(r['Transferencias'] || 0),
+            cardPayments: Number(r['Tarjeta'] || 0),
+            creditSales: Number(r['Creditos'] || 0),
+            courtesyTotal: Number(r['Cortesias'] || 0),
+            final: Number(r['Saldo final'] || 0),
+            finalAfterDelivery: Number(r['Saldo tras domicilios'] || 0),
+            expectedCash: Number(r['Efectivo esperado'] || 0),
+            countedCash: r['Efectivo contado'] != null ? Number(r['Efectivo contado']) : null,
+            discrepancy: Number(r['Descuadre'] || 0),
+            orders: r['Pedidos (IDs)'] ? String(r['Pedidos (IDs)']).split(',').map(s => s.trim()).filter(Boolean) : [],
+            methodTotals: safeJsonParse(r['Metodos JSON'], {}),
+            movementsHistory: safeJsonParse(r['Movimientos JSON'], []),
+            expenseHistory: safeJsonParse(r['Gastos JSON'], [])
+          }));
+          // Merge: agregar cuadres que no existan por ID
+          const existingIds = new Set((state.cash.history || []).map(r => r.id));
+          let added = 0;
+          imported.forEach(r => {
+            if(!existingIds.has(r.id)){
+              state.cash.history.push(r);
+              added++;
+            }
+          });
+          if(added > 0){
+            persistAll();
+            renderCashHistory();
+            toast(`${added} cuadre(s) importado(s) correctamente`, 'success');
+          } else {
+            toast('Todos los cuadres del archivo ya existen en el sistema', 'info');
+          }
+        } catch(err){
+          console.error('Error importando cuadres:', err);
+          toast('Error al leer el archivo Excel', 'danger');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      event.target.value = '';
+    }
+
+    function safeJsonParse(str, fallback){
+      if(!str || str === 'undefined' || str === 'null') return fallback;
+      try { return JSON.parse(str); } catch(_){ return fallback; }
     }
 
     function renderCashHistory(){

@@ -13010,6 +13010,17 @@ function setupRealtimeListener() {
       if (!(doc.metadata && doc.metadata.hasPendingWrites) && raw._device !== CLOUD_DEVICE_ID) {
         applyConfigRemote(raw);
         scheduleRemoteApply();
+      } else if (!(doc.metadata && doc.metadata.hasPendingWrites)) {
+        // Escritura propia confirmada. Pero verificar si la caja cambió
+        // (otro dispositivo la abrió/cerró y luego este dispositivo hizo un push
+        // que sobreescribió _device pero conservó la caja correcta de la nube).
+        if (raw.cash != null && (raw.cash.openedAt !== state.cash.openedAt || raw.cash.open !== state.cash.open)) {
+          state.cash = raw.cash;
+          if(typeof healCashState === 'function') healCashState();
+          if(typeof updateCashActionButtons === 'function') updateCashActionButtons();
+          scheduleRemoteApply();
+        }
+        cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
       } else {
         cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
       }

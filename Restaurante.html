@@ -5192,6 +5192,15 @@
     function ensureCashHistory(){
       state.cash = state.cash || { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
       state.cash.history = Array.isArray(state.cash.history) ? state.cash.history : [];
+      // Si la caja está cerrada pero hay registros huérfanos "Abierta", cerrarlos.
+      if(!state.cash.open){
+        state.cash.history.forEach(r => {
+          if(r.status === 'Abierta' && !r.closedAt){
+            r.status = 'Cerrada';
+            r.closedAt = state.cash.closedAt || new Date().toISOString();
+          }
+        });
+      }
       const openRecord = state.cash.history.find(r => r.status === 'Abierta' && !r.closedAt);
       if(state.cash.open && state.cash.openedAt && !openRecord){
         state.cash.history.push({ id: uid(), responsible: currentUser?.username || 'Sin usuario', openingAmount:state.cash.openingAmount || 0, openedAt:state.cash.openedAt, closedAt:null, status:'Abierta', movementsHistory:[], expenseHistory:[] });

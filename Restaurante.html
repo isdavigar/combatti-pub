@@ -7806,7 +7806,10 @@ const colors = [
                 <button class="qty-btn" onclick="changeQty(${idx}, 1)"><i class="fa-solid fa-plus"></i></button>
               </div>
               <div class="fw-bold">${money(it.price * it.qty)}</div>
-              ${canRemoveOrderItem(currentOrder, it) ? `<button class="btn btn-sm btn-outline-danger mt-2" onclick="removeItem(${idx})">Quitar</button>` : ''}
+              <div class="d-flex gap-1 mt-2 flex-wrap justify-content-end">
+                <button class="btn btn-sm btn-outline-primary" onclick="moveItemToTable(${idx})" title="Mover a otra mesa"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+                ${canRemoveOrderItem(currentOrder, it) ? `<button class="btn btn-sm btn-outline-danger" onclick="removeItem(${idx})" title="Quitar"><i class="fa-solid fa-trash"></i></button>` : ''}
+              </div>
             </div>
           </div>
         </div>
@@ -7865,6 +7868,68 @@ const colors = [
       const clean = reason.trim();
       if(!clean){ toast('Debes indicar el motivo de eliminacion', 'warning'); return ''; }
       return clean;
+    }
+    function moveItemToTable(index){
+      if(!currentOrder) return;
+      const item = currentOrder.items[index];
+      if(!item){ toast('Producto no encontrado', 'warning'); return; }
+      // Build list of other tables (excluding current)
+      const otherTables = state.tables.filter(t => t.id !== currentOrderTableId);
+      const options = otherTables.map(t => `<option value="${t.id}">${escapeHtml(t.name)} · ${escapeHtml(t.kind)}</option>`).join('');
+      const qtyOptions = Array.from({length: item.qty}, (_, i) => `<option value="${i+1}" ${i+1 === item.qty ? 'selected' : ''}>${i+1}</option>`).join('');
+      confirmAction({
+        title:`Mover "${item.name}" a otra mesa`,
+        message:`<div class="mb-3"><label class="form-label">Mesa destino</label><select id="moveItemTargetTable" class="form-select">${options}</select></div><div class="mb-3"><label class="form-label">Cantidad a mover (tiene ${item.qty})</label><select id="moveItemQty" class="form-select">${qtyOptions}</select></div>`,
+        confirmLabel:'Mover producto',
+        confirmClass:'btn-primary',
+        onConfirm:() => {
+          const targetTableId = byId('moveItemTargetTable')?.value;
+          const qtyToMove = Number(byId('moveItemQty')?.value || item.qty);
+          if(!targetTableId){ toast('Selecciona una mesa destino', 'warning'); return; }
+          executeItemMove(index, targetTableId, qtyToMove);
+        }
+      });
+    }
+    function executeItemMove(index, targetTableId, qtyToMove){
+      if(!currentOrder) return;
+      const item = currentOrder.items[index];
+      if(!item) return;
+      const targetTable = state.tables.find(t => t.id === targetTableId);
+      if(!targetTable){ toast('Mesa destino no encontrada', 'warning'); return; }
+      // Find or create order on target table
+      let targetOrder = state.orders.find(o => o.tableId === targetTableId && !isClosedOrder(o));
+      if(!targetOrder){
+        const saleChannel = targetTable.kind === 'Rappi' ? 'Rappi' : targetTable.kind === 'Didi' ? 'Didi' : 'Local';
+        targetOrder = { id:uid(), tableId:targetTableId, tableName:targetTable.name, type:targetTable.kind, saleChannel, customer:'', phone:'', address:'', contact:'', items:[], status:'Abierto', subtotal:0, tipPercent:0, applyTip:orderAllowsTip(targetTable), tip:0, tipManual:false, discount:0, deliveryFee:0, total:0, paymentMethod:'EFECTIVO', payments:emptyPaymentMap(), cashAmount:0, transferAmount:0, cardAmount:0, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), printed:false, seller:currentUser?.username || 'Sin usuario', paidAt:null };
+        state.orders.push(targetOrder);
+        targetTable.status = targetTable.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
+        targetTable.orderId = targetOrder.id;
+      }
+      // Move item (or partial qty)
+      const movedItem = { ...item, qty: qtyToMove };
+      // Add to target order
+      const existingInTarget = targetOrder.items.find(i => i.productId === item.productId && i.price === item.price && (i.note || '') === (item.note || ''));
+      if(existingInTarget){
+        existingInTarget.qty += qtyToMove;
+      } else {
+        targetOrder.items.push(movedItem);
+      }
+      // Remove from current order
+      if(qtyToMove >= item.qty){
+        currentOrder.items.splice(index, 1);
+      } else {
+        item.qty -= qtyToMove;
+      }
+      // Update totals
+      targetOrder.subtotal = targetOrder.items.reduce((a,b) => a + (b.price * b.qty), 0);
+      targetOrder.total = targetOrder.subtotal + (targetOrder.tip || 0) + (targetOrder.deliveryFee || 0) - (targetOrder.discount || 0);
+      targetOrder.updatedAt = new Date().toISOString();
+      currentOrder.updatedAt = new Date().toISOString();
+      syncTableOrderSnapshot(targetTable, targetOrder);
+      persistAll(false);
+      renderCurrentOrderItems();
+      renderOrderTotals();
+      toast(`${movedItem.name} (x${qtyToMove}) movido a ${targetTable.name}`, 'success');
     }
     function removeItem(index){
       if(!currentOrder) return;

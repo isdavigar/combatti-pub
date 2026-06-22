@@ -5322,6 +5322,10 @@
       }
       state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
       ensureBaselineData(dataVersion !== DATA_VERSION);
+      // Auto-corregir estado de la caja: si closedAt es más reciente que openedAt,
+      // la caja fue cerrada pero el flag "open" quedó inconsistente (ej. por otro
+      // dispositivo que cerró y el estado local no se actualizó antes de recargar).
+      healCashState();
       // Limpia (una vez) los productos sembrados por defecto. Si no hay nube
       // configurada, se marca como hecho; si la hay, la limpieza también se
       // aplica y se sube al conectar (ver cloudInitialSync).
@@ -6316,11 +6320,19 @@
     }
     // Cuando la nube indica que la caja pasó a ABIERTA (otro dispositivo la abrió)
     // y este equipo estaba esperando en la vista de caja, entra al software normal.
+    // También reacciona cuando la nube indica que la caja se CERRÓ (otro dispositivo
+    // la cerró) y este equipo la mostraba como abierta.
      function reactToCashStateForSync(){
       if(currentUser && state.cash.open && cashGateView){
         cashGateView = false;
         openView(firstAllowedView());
         renderAll();
+      }
+      // Si la nube dice que la caja está cerrada y el usuario no es admin,
+      // forzar la vista de caja para que vea el estado correcto.
+      if(currentUser && !state.cash.open && !cashGateView && !isAdmin()){
+        cashGateView = true;
+        openView('caja');
       }
       updateCashActionButtons();
       renderCashView();
@@ -6418,6 +6430,43 @@
     function paidOrdersRange(fromDate, toDate){ return state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate); }
     function closedOrdersRange(fromDate, toDate){ return state.orders.filter(o => isClosedOrder(o) && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate); }
     function cashPeriodStart(){ return state.cash.openedAt ? new Date(state.cash.openedAt) : startOfDay(new Date()); }
+
+    // Auto-corrige el estado de la caja si las marcas de tiempo son inconsistentes.
+    // Caso típico: otro dispositivo cerró la caja, el cierre se guardó en la nube
+    // pero el IndexedDB local aún dice "open:true" porque el listener no logró
+    // actualizar antes de que el usuario cerrara el navegador.
+    function healCashState(){
+      if(!state.cash) return;
+      // Si la caja dice estar abierta pero closedAt es más reciente que openedAt,
+      // la caja en realidad fue cerrada.
+      if(state.cash.open){
+        const openedTime = state.cash.openedAt ? new Date(state.cash.openedAt).getTime() : 0;
+        const closedTime = state.cash.closedAt ? new Date(state.cash.closedAt).getTime() : 0;
+        if(closedTime > 0 && closedTime > openedTime){
+          console.info('[healCashState] Caja marcada como abierta pero closedAt > openedAt. Corrigiendo a cerrada.');
+          state.cash.open = false;
+          state.cash.openedBy = null;
+          state.cash.openedByUser = null;
+        }
+      }
+      // Si la caja dice estar abierta pero el último registro del historial dice
+      // "Cerrada", también corregimos el estado.
+      if(state.cash.open && Array.isArray(state.cash.history) && state.cash.history.length > 0){
+        const lastRecord = state.cash.history[state.cash.history.length - 1];
+        if(lastRecord && lastRecord.status === 'Cerrada' && lastRecord.closedAt){
+          const recordClosed = new Date(lastRecord.closedAt).getTime();
+          const openedTime = state.cash.openedAt ? new Date(state.cash.openedAt).getTime() : 0;
+          // Solo corregir si el cierre del historial es posterior o igual a la apertura
+          if(recordClosed >= openedTime){
+            console.info('[healCashState] Último registro de historial cerrado. Corrigiendo caja a cerrada.');
+            state.cash.open = false;
+            state.cash.openedBy = null;
+            state.cash.openedByUser = null;
+          }
+        }
+      }
+    }
+
     function parseLocalDate(value){
       if(!value) return null;
       if(value instanceof Date) return value;
@@ -9834,6 +9883,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmClass:'btn-danger',
         onConfirm: async () => {
           const removedIds = new Set((state.orders || []).filter(isClosedOrder).map(o => o.id));
+          // Suprimir los IDs para que el listener no los re-agregue desde la nube.
+          removedIds.forEach(id => suppressCloudDoc('orders', id));
           state.orders = (state.orders || []).filter(o => !isClosedOrder(o));
           state.cash.history = (state.cash.history || []).map(record => ({
             ...record,
@@ -9857,12 +9908,19 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, vaciar todo',
         confirmClass:'btn-danger',
         onConfirm: async () => {
+          // Suprimir TODOS los IDs actuales para que el listener no los re-agregue.
+          (state.deletedOrders || []).forEach(entry => {
+            if(entry && entry.id) suppressCloudDoc('deletedOrders', entry.id);
+          });
           // Borrar TODOS los documentos de Firebase directamente
           if(typeof firebaseDb !== 'undefined' && firebaseDb){
             try {
               const snap = await restaurantRoot().collection('deletedOrders').get();
               const batch = firebaseDb.batch();
-              snap.forEach(doc => batch.delete(doc.ref));
+              snap.forEach(doc => {
+                suppressCloudDoc('deletedOrders', doc.id);
+                batch.delete(doc.ref);
+              });
               await batch.commit();
             } catch(e){ console.warn('Error borrando deletedOrders de Firebase:', e); }
           }
@@ -9999,6 +10057,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
         onConfirm: async () => {
+          // Suprimir este ID para que el listener no lo re-agregue.
+          suppressCloudDoc('deletedOrders', id);
           // Borrar directamente de Firebase primero
           if(firebaseDb){
             try { await restaurantRoot().collection('deletedOrders').doc(id).delete(); } catch(_){}
@@ -10476,6 +10536,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(!order || !isClosedOrder(order)) return;
       recordDeletedOrder({ kind:'Pedido', reason:'Eliminado por administrador desde historial', order:JSON.parse(JSON.stringify(order)) });
       restoreInventoryForOrder(order);
+      // Suprimir el ID del pedido para que el listener no lo re-agregue desde la nube.
+      suppressCloudDoc('orders', orderId);
       state.cash.history = (state.cash.history || []).map(record => ({
         ...record,
         orders:Array.isArray(record.orders) ? record.orders.filter(id => id !== orderId) : record.orders
@@ -12411,6 +12473,20 @@ let cloudAutoStarted = false;
 let cloudReconnecting = false;
 let cloudWatchdogTimer = null;
 let cloudLastError = '';
+// Set de IDs de documentos suprimidos localmente (para evitar que el listener los re-agregue).
+// Cuando se eliminan documentos en batch (ej: vaciar deletedOrders), los IDs se
+// agregan aquí y el listener ignora cualquier evento "added" para ellos.
+const cloudSuppressedIds = {};  // { coleccion: Set<docId> }
+function suppressCloudDoc(coll, docId) {
+  if (!cloudSuppressedIds[coll]) cloudSuppressedIds[coll] = new Set();
+  cloudSuppressedIds[coll].add(docId);
+}
+function isCloudDocSuppressed(coll, docId) {
+  return cloudSuppressedIds[coll] && cloudSuppressedIds[coll].has(docId);
+}
+function unsuppressCloudDoc(coll, docId) {
+  if (cloudSuppressedIds[coll]) cloudSuppressedIds[coll].delete(docId);
+}
 
 // Identificador único de este dispositivo/navegador (para ignorar nuestros propios cambios).
 const CLOUD_DEVICE_ID = (() => {
@@ -12518,6 +12594,8 @@ function applyConfigRemote(data) {
   // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
   if (data.cash != null) {
     state.cash = data.cash;
+    // Auto-corregir inconsistencias en el estado de la caja recibido de la nube.
+    if(typeof healCashState === 'function') healCashState();
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
@@ -12945,7 +13023,12 @@ function setupRealtimeListener() {
           const idx = (state[coll] || []).findIndex(it => cloudDocId(it) === docId);
           if (idx >= 0) { state[coll].splice(idx, 1); touched = true; }
           delete cloudShadow[coll][docId];
+          // Si estaba suprimido, limpiar de la lista de supresión al confirmarse borrado.
+          unsuppressCloudDoc(coll, docId);
         } else {
+          // Si este documento fue suprimido localmente (ej: se vació la auditoría),
+          // no re-agregarlo aunque venga de otro dispositivo o cache.
+          if (isCloudDocSuppressed(coll, docId)) return;
           const data = cloudStripMeta(raw);
           cloudShadow[coll][docId] = cloudShadowKey(data);
           state[coll] = state[coll] || [];

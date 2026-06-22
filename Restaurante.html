@@ -9114,14 +9114,14 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       state.cash.openedByUser = currentUser?.username || 'Sin usuario';
       state.cash.history = Array.isArray(state.cash.history) ? state.cash.history : [];
       state.cash.history.push({ id:uid(), responsible: currentUser?.username || 'Sin usuario', shift:state.shift, openingAmount: amount, openedAt: state.cash.openedAt, closedAt:null, status:'Abierta', sales:0, income:0, expense:0, final:amount, orders:[], movementsHistory:[], expenseHistory:[] });
-      // Importante: forzar push inmediato a la nube para que la caja ABIERTA
-      // se vea en todos los dispositivos en tiempo real, sin esperar el debounce.
-      persistAll(false);
-      await pushIncremental(true);
+      // Cerrar modal y actualizar UI inmediatamente
       modals.cashOpen?.hide?.();
       setValue('cashOpenAmount', '');
-      toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
+      persistAll(false);
       renderAll();
+      toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
+      // Push a la nube en segundo plano (no bloquear UI)
+      pushIncremental(true).catch(() => {});
     }
     let closeExpectedCash = 0;
     function updateCloseDiscrepancy(){
@@ -9265,11 +9265,9 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
       // los movimientos, para que el informe incluya ingresos/egresos del turno.
       persistAll(false);
-      // Forzar push inmediato a la nube para que el cierre se vea en todos los
-      // dispositivos en tiempo real, sin esperar el debounce ni que isApplyingRemoteState
-      // lo bloquee.
-      await pushIncremental(true);
+      // Cerrar modal y actualizar UI inmediatamente (no esperar push a la nube)
       modals.cashClose.hide();
+      renderAll();
       // Excel: solo descargar automáticamente en cierre de NOCHE (incluye día + noche)
       if(normalizeShift(state.shift) === 'Noche'){
         exportDailyCloseExcelDualShift(lastHistory);
@@ -9282,11 +9280,11 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       }
       state.movements = [];
       persistAll(false);
-      // Segundo push para subir los movimientos ya vaciados.
-      await pushIncremental(true);
       toast('Caja cerrada e informe generado', 'success');
       renderCashView();
       if(currentView === 'movimientos') renderMovements();
+      // Push a la nube en segundo plano (no bloquear UI)
+      pushIncremental(true).catch(() => {});
       }catch(e){ console.error('Error al cerrar caja:', e); toast('Error al cerrar caja: ' + (e.message || e), 'danger'); }
     }
     function printCloseReport(record = currentCashRecord()){

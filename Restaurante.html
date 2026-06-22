@@ -5322,9 +5322,6 @@
       }
       state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
       ensureBaselineData(dataVersion !== DATA_VERSION);
-      // Auto-corregir estado de la caja: si closedAt es más reciente que openedAt,
-      // la caja fue cerrada pero el flag "open" quedó inconsistente (ej. por otro
-      // dispositivo que cerró y el estado local no se actualizó antes de recargar).
       healCashState();
       // Limpia (una vez) los productos sembrados por defecto. Si no hay nube
       // configurada, se marca como hecho; si la hay, la limpieza también se
@@ -6320,19 +6317,11 @@
     }
     // Cuando la nube indica que la caja pasó a ABIERTA (otro dispositivo la abrió)
     // y este equipo estaba esperando en la vista de caja, entra al software normal.
-    // También reacciona cuando la nube indica que la caja se CERRÓ (otro dispositivo
-    // la cerró) y este equipo la mostraba como abierta.
      function reactToCashStateForSync(){
       if(currentUser && state.cash.open && cashGateView){
         cashGateView = false;
         openView(firstAllowedView());
         renderAll();
-      }
-      // Si la nube dice que la caja está cerrada y el usuario no es admin,
-      // forzar la vista de caja para que vea el estado correcto.
-      if(currentUser && !state.cash.open && !cashGateView && !isAdmin()){
-        cashGateView = true;
-        openView('caja');
       }
       updateCashActionButtons();
       renderCashView();
@@ -6431,34 +6420,24 @@
     function closedOrdersRange(fromDate, toDate){ return state.orders.filter(o => isClosedOrder(o) && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate); }
     function cashPeriodStart(){ return state.cash.openedAt ? new Date(state.cash.openedAt) : startOfDay(new Date()); }
 
-    // Auto-corrige el estado de la caja si las marcas de tiempo son inconsistentes.
-    // Caso típico: otro dispositivo cerró la caja, el cierre se guardó en la nube
-    // pero el IndexedDB local aún dice "open:true" porque el listener no logró
-    // actualizar antes de que el usuario cerrara el navegador.
+    // Auto-corrige estado de la caja si timestamps son inconsistentes.
     function healCashState(){
       if(!state.cash) return;
-      // Si la caja dice estar abierta pero closedAt es más reciente que openedAt,
-      // la caja en realidad fue cerrada.
       if(state.cash.open){
         const openedTime = state.cash.openedAt ? new Date(state.cash.openedAt).getTime() : 0;
         const closedTime = state.cash.closedAt ? new Date(state.cash.closedAt).getTime() : 0;
         if(closedTime > 0 && closedTime > openedTime){
-          console.info('[healCashState] Caja marcada como abierta pero closedAt > openedAt. Corrigiendo a cerrada.');
           state.cash.open = false;
           state.cash.openedBy = null;
           state.cash.openedByUser = null;
         }
       }
-      // Si la caja dice estar abierta pero el último registro del historial dice
-      // "Cerrada", también corregimos el estado.
       if(state.cash.open && Array.isArray(state.cash.history) && state.cash.history.length > 0){
         const lastRecord = state.cash.history[state.cash.history.length - 1];
         if(lastRecord && lastRecord.status === 'Cerrada' && lastRecord.closedAt){
           const recordClosed = new Date(lastRecord.closedAt).getTime();
           const openedTime = state.cash.openedAt ? new Date(state.cash.openedAt).getTime() : 0;
-          // Solo corregir si el cierre del historial es posterior o igual a la apertura
           if(recordClosed >= openedTime){
-            console.info('[healCashState] Último registro de historial cerrado. Corrigiendo caja a cerrada.');
             state.cash.open = false;
             state.cash.openedBy = null;
             state.cash.openedByUser = null;
@@ -9163,7 +9142,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // Importante: forzar push inmediato a la nube para que la caja ABIERTA
       // se vea en todos los dispositivos en tiempo real, sin esperar el debounce.
       persistAll(false);
-      await pushIncrementalWithRetry(true);
+      await pushIncremental(true);
       modals.cashOpen?.hide?.();
       setValue('cashOpenAmount', '');
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
@@ -9313,8 +9292,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       persistAll(false);
       // Forzar push inmediato a la nube para que el cierre se vea en todos los
       // dispositivos en tiempo real, sin esperar el debounce ni que isApplyingRemoteState
-      // lo bloquee. Reintentar si falla para garantizar la sincronización.
-      await pushIncrementalWithRetry(true);
+      // lo bloquee.
+      await pushIncremental(true);
       modals.cashClose.hide();
       // Excel: solo descargar automáticamente en cierre de NOCHE (incluye día + noche)
       if(normalizeShift(state.shift) === 'Noche'){
@@ -9329,7 +9308,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       state.movements = [];
       persistAll(false);
       // Segundo push para subir los movimientos ya vaciados.
-      await pushIncrementalWithRetry(true);
+      await pushIncremental(true);
       toast('Caja cerrada e informe generado', 'success');
       renderCashView();
       if(currentView === 'movimientos') renderMovements();
@@ -9883,8 +9862,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmClass:'btn-danger',
         onConfirm: async () => {
           const removedIds = new Set((state.orders || []).filter(isClosedOrder).map(o => o.id));
-          // Suprimir los IDs para que el listener no los re-agregue desde la nube.
-          removedIds.forEach(id => suppressCloudDoc('orders', id));
           state.orders = (state.orders || []).filter(o => !isClosedOrder(o));
           state.cash.history = (state.cash.history || []).map(record => ({
             ...record,
@@ -9908,7 +9885,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, vaciar todo',
         confirmClass:'btn-danger',
         onConfirm: async () => {
-          // Suprimir TODOS los IDs actuales para que el listener no los re-agregue.
+          // Suprimir IDs para que el listener no los re-agregue.
           (state.deletedOrders || []).forEach(entry => {
             if(entry && entry.id) suppressCloudDoc('deletedOrders', entry.id);
           });
@@ -9917,10 +9894,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             try {
               const snap = await restaurantRoot().collection('deletedOrders').get();
               const batch = firebaseDb.batch();
-              snap.forEach(doc => {
-                suppressCloudDoc('deletedOrders', doc.id);
-                batch.delete(doc.ref);
-              });
+              snap.forEach(doc => { suppressCloudDoc('deletedOrders', doc.id); batch.delete(doc.ref); });
               await batch.commit();
             } catch(e){ console.warn('Error borrando deletedOrders de Firebase:', e); }
           }
@@ -10057,8 +10031,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
         onConfirm: async () => {
-          // Suprimir este ID para que el listener no lo re-agregue.
-          suppressCloudDoc('deletedOrders', id);
           // Borrar directamente de Firebase primero
           if(firebaseDb){
             try { await restaurantRoot().collection('deletedOrders').doc(id).delete(); } catch(_){}
@@ -10536,7 +10508,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(!order || !isClosedOrder(order)) return;
       recordDeletedOrder({ kind:'Pedido', reason:'Eliminado por administrador desde historial', order:JSON.parse(JSON.stringify(order)) });
       restoreInventoryForOrder(order);
-      // Suprimir el ID del pedido para que el listener no lo re-agregue desde la nube.
       suppressCloudDoc('orders', orderId);
       state.cash.history = (state.cash.history || []).map(record => ({
         ...record,
@@ -12472,21 +12443,15 @@ let cloudSizeWarned = false;
 let cloudAutoStarted = false;
 let cloudReconnecting = false;
 let cloudWatchdogTimer = null;
-let cloudLastHeartbeat = Date.now(); // Marca de tiempo del último dato recibido del listener
 let cloudLastError = '';
-// Set de IDs de documentos suprimidos localmente (para evitar que el listener los re-agregue).
-// Cuando se eliminan documentos en batch (ej: vaciar deletedOrders), los IDs se
-// agregan aquí y el listener ignora cualquier evento "added" para ellos.
-const cloudSuppressedIds = {};  // { coleccion: Set<docId> }
+// IDs de documentos suprimidos localmente para evitar que el listener los re-agregue.
+const cloudSuppressedIds = {};
 function suppressCloudDoc(coll, docId) {
   if (!cloudSuppressedIds[coll]) cloudSuppressedIds[coll] = new Set();
   cloudSuppressedIds[coll].add(docId);
 }
 function isCloudDocSuppressed(coll, docId) {
   return cloudSuppressedIds[coll] && cloudSuppressedIds[coll].has(docId);
-}
-function unsuppressCloudDoc(coll, docId) {
-  if (cloudSuppressedIds[coll]) cloudSuppressedIds[coll].delete(docId);
 }
 
 // Identificador único de este dispositivo/navegador (para ignorar nuestros propios cambios).
@@ -12595,8 +12560,6 @@ function applyConfigRemote(data) {
   // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
   if (data.cash != null) {
     state.cash = data.cash;
-    // Auto-corregir inconsistencias en el estado de la caja recibido de la nube.
-    if(typeof healCashState === 'function') healCashState();
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
@@ -12830,31 +12793,6 @@ function queueCloudPush() {
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }
 
-// Push con reintento: para operaciones críticas como cierre de caja.
-// Reintenta hasta 3 veces con delay exponencial si falla.
-async function pushIncrementalWithRetry(force = false, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await pushIncremental(force);
-      return; // éxito
-    } catch (e) {
-      console.warn(`pushIncrementalWithRetry intento ${attempt}/${maxRetries} falló:`, e);
-      if (attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 500 * attempt)); // 500ms, 1000ms, 1500ms
-      }
-    }
-  }
-  // Último intento falló: forzar escritura directa del config de caja a Firestore
-  // para que al menos la caja quede cerrada en la nube.
-  try {
-    if (firebaseDb) {
-      await configRef().set(cloudConfigPayload(), { merge: true });
-      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
-      console.info('[pushIncrementalWithRetry] Config de caja forzado directamente a Firestore.');
-    }
-  } catch (e2) { console.warn('Forzar config a Firestore también falló:', e2); }
-}
-
 // Primera sincronización al conectar: si la nube tiene datos, manda la nube;
 // si está vacía, sube todo lo local.
 async function cloudInitialSync() {
@@ -12862,13 +12800,9 @@ async function cloudInitialSync() {
   cloudInitialSyncDone = false;   // cerramos el "candado" mientras leemos la nube
   let hasRemote = false;
   const remoteColls = {};
-  // Forzar lectura del SERVIDOR (no del cache local) para tener datos frescos.
-  const getOpts = { source: 'server' };
   for (const coll of CLOUD_COLLECTIONS) {
     try {
-      let snap;
-      try { snap = await collRef(coll).get(getOpts); }
-      catch(_) { snap = await collRef(coll).get(); } // Fallback a cache si no hay red
+      const snap = await collRef(coll).get();
       const items = [];
       cloudShadow[coll] = {};
       snap.forEach(d => {
@@ -12881,12 +12815,7 @@ async function cloudInitialSync() {
     } catch (e) { console.warn('lectura inicial ' + coll, e); cloudLastError = friendlyCloudError(e); }
   }
   let cfgData = null;
-  try {
-    let cfgDoc;
-    try { cfgDoc = await configRef().get(getOpts); }
-    catch(_) { cfgDoc = await configRef().get(); }
-    if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; }
-  } catch (e) { cloudLastError = friendlyCloudError(e); }
+  try { const cfgDoc = await configRef().get(); if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; } } catch (e) { cloudLastError = friendlyCloudError(e); }
   if (hasRemote) {
     isApplyingRemoteState = true;
     try {
@@ -13041,7 +12970,6 @@ function setupRealtimeListener() {
     const unsub = collRef(coll).onSnapshot({ includeMetadataChanges: false }, snap => {
       cloudConnected = true;
       cloudLastError = '';
-      cloudLastHeartbeat = Date.now();
       let touched = false;
       snap.docChanges().forEach(ch => {
         // Ignora escrituras locales aún sin confirmar (eco inmediato).
@@ -13059,11 +12987,7 @@ function setupRealtimeListener() {
           const idx = (state[coll] || []).findIndex(it => cloudDocId(it) === docId);
           if (idx >= 0) { state[coll].splice(idx, 1); touched = true; }
           delete cloudShadow[coll][docId];
-          // Si estaba suprimido, limpiar de la lista de supresión al confirmarse borrado.
-          unsuppressCloudDoc(coll, docId);
         } else {
-          // Si este documento fue suprimido localmente (ej: se vació la auditoría),
-          // no re-agregarlo aunque venga de otro dispositivo o cache.
           if (isCloudDocSuppressed(coll, docId)) return;
           const data = cloudStripMeta(raw);
           cloudShadow[coll][docId] = cloudShadowKey(data);
@@ -13081,7 +13005,6 @@ function setupRealtimeListener() {
   const cfgUnsub = configRef().onSnapshot({ includeMetadataChanges: false }, doc => {
     cloudConnected = true;
     cloudLastError = '';
-    cloudLastHeartbeat = Date.now();
     if (doc.exists) {
       const raw = doc.data() || {};
       if (!(doc.metadata && doc.metadata.hasPendingWrites) && raw._device !== CLOUD_DEVICE_ID) {
@@ -13114,10 +13037,6 @@ async function autoStartCloudSync() {
   cloudSyncEnabled = true;
   await reconnectCloud(true);
   startCloudWatchdog();
-  // Después de la sync inicial, forzar re-evaluación del estado de la UI.
-  // Esto cubre el caso donde el estado local era stale y la nube lo corrigió.
-  if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
-  renderAll();
 }
 
 // Reestablece la conexión (init + escuchas). doInitialSync solo en el primer enganche.
@@ -13128,14 +13047,7 @@ async function reconnectCloud(doInitialSync = false) {
   try {
     const ok = await initFirebase();
     if (!ok) { cloudConnected = false; updateCloudStatus(); return; }
-    if (doInitialSync || !cloudUnsubs.length) {
-      try { await cloudInitialSync(); } catch (syncErr) {
-        console.warn('cloudInitialSync falló, montando listeners de todas formas:', syncErr);
-        cloudInitialSyncDone = true; // Permitir pushes aunque la sync inicial haya fallado
-      }
-    }
-    // SIEMPRE montar listeners para recibir cambios en tiempo real,
-    // incluso si la initial sync falló.
+    if (doInitialSync || !cloudUnsubs.length) { await cloudInitialSync(); }
     setupRealtimeListener();
     updateCloudStatus();
   } catch (e) {
@@ -13155,112 +13067,7 @@ function startCloudWatchdog() {
     if (!cloudSyncEnabled) return;
     if (navigator.onLine === false) { cloudConnected = false; updateCloudStatus(); return; }
     if (!cloudUnsubs.length) reconnectCloud(true);
-    // Si el listener lleva más de 60s sin recibir datos y estamos online,
-    // puede haberse "congelado". Forzar re-lectura.
-    else if (Date.now() - cloudLastHeartbeat > 60000 && navigator.onLine !== false) {
-      console.info('[watchdog] Listener sin actividad >60s. Refrescando desde la nube...');
-      refreshConfigFromCloud();
-      cloudLastHeartbeat = Date.now(); // Evitar spam
-    }
   }, 15000);
-  // Cuando la página vuelve a estar visible (después de tab en background,
-  // pantalla apagada del celular, etc.), forzar una re-lectura del config
-  // para detectar cambios que el listener pudo perder.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && cloudSyncEnabled && firebaseDb) {
-      refreshConfigFromCloud();
-    }
-  });
-  // También al recuperar la conexión de red.
-  window.addEventListener('online', () => {
-    updateCloudStatus();
-    if (cloudSyncEnabled) {
-      setTimeout(() => {
-        if (!cloudUnsubs.length) reconnectCloud(true);
-        else {
-          refreshConfigFromCloud();
-          pushIncremental(); // Subir cambios locales pendientes
-        }
-      }, 1000);
-    }
-  });
-}
-
-// Lee el config directamente de Firestore (sin depender del listener) y aplica
-// si la caja cambió. Esto cubre el caso donde el listener se "congeló".
-async function refreshConfigFromCloud() {
-  if (!firebaseDb || !cloudSyncEnabled) return;
-  try {
-    // Forzar lectura del servidor para datos frescos.
-    let doc;
-    try { doc = await configRef().get({ source: 'server' }); }
-    catch(_) { doc = await configRef().get(); }
-    if (doc.exists) {
-      const raw = doc.data() || {};
-      // Aplicar si el estado de caja difiere: comparar timestamps y usuario
-      // para detectar cierre+reapertura por otro usuario.
-      if (raw.cash != null) {
-        const cashChanged = raw.cash.open !== state.cash.open ||
-          raw.cash.openedAt !== state.cash.openedAt ||
-          raw.cash.closedAt !== state.cash.closedAt ||
-          (raw.cash.openedByUser || '') !== (state.cash.openedByUser || '');
-        if (cashChanged) {
-          state.cash = raw.cash;
-          if (typeof healCashState === 'function') healCashState();
-        }
-      }
-      // También aplicar cambios en brand, shift, categories si difieren.
-      if (raw.brand != null && JSON.stringify(raw.brand) !== JSON.stringify(state.brand)) {
-        state.brand = raw.brand;
-      }
-      if (raw.shift != null && raw.shift !== state.shift) {
-        state.shift = normalizeShift(raw.shift);
-      }
-      // Actualizar shadow con lo que tiene la nube para evitar pushes innecesarios.
-      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
-      // Guardar y re-renderizar si algo del config cambió.
-      saveStateToDatabase(appStateSnapshot());
-      renderAll();
-      if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
-    }
-    // También re-leer las colecciones para detectar cambios perdidos en pedidos/mesas.
-    let touched = false;
-    for (const coll of CLOUD_COLLECTIONS) {
-      try {
-        let snap;
-        try { snap = await collRef(coll).get({ source: 'server' }); }
-        catch(_) { snap = await collRef(coll).get(); }
-        const remoteItems = [];
-        snap.forEach(d => {
-          const data = cloudStripMeta(d.data());
-          remoteItems.push(data);
-          cloudShadow[coll] = cloudShadow[coll] || {};
-          cloudShadow[coll][d.id] = cloudShadowKey(data);
-        });
-        // Si la cantidad de documentos remotos difiere del local, hay cambios perdidos.
-        if (remoteItems.length !== (state[coll] || []).length) {
-          if (remoteItems.length > 0) state[coll] = cloudSortByOrd(remoteItems);
-          touched = true;
-        } else {
-          // Verificar si algún documento cambió comparando IDs y contenido.
-          const localIds = new Set((state[coll] || []).map(it => cloudDocId(it)));
-          const remoteIds = new Set(remoteItems.map(it => cloudDocId(it)));
-          const hasDiff = remoteItems.some(it => !localIds.has(cloudDocId(it))) ||
-                          (state[coll] || []).some(it => !remoteIds.has(cloudDocId(it)));
-          if (hasDiff) {
-            if (remoteItems.length > 0) state[coll] = cloudSortByOrd(remoteItems);
-            touched = true;
-          }
-        }
-      } catch (_) {}
-    }
-    if (touched) {
-      relinkCurrentOrder();
-      syncAllTableOrderSnapshots();
-      saveStateToDatabase(appStateSnapshot());
-      renderAll();
-    }
-  } catch (e) { console.warn('refreshConfigFromCloud:', e); }
 }
 
 function updateCloudStatus() {
@@ -13325,7 +13132,10 @@ function updateCloudStatus() {
   }
 }
 
-// Los listeners de online/offline se manejan en startCloudWatchdog()
+window.addEventListener('online', () => {
+  updateCloudStatus();
+  if (cloudSyncEnabled) { reconnectCloud(false); pushIncremental(); }
+});
 window.addEventListener('offline', () => { cloudConnected = false; updateCloudStatus(); });
 // autoStartCloudSync ya se llama desde DOMContentLoaded; no se duplica aqui.
 

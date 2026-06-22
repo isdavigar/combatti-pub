@@ -9163,7 +9163,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // Importante: forzar push inmediato a la nube para que la caja ABIERTA
       // se vea en todos los dispositivos en tiempo real, sin esperar el debounce.
       persistAll(false);
-      await pushIncremental(true);
+      await pushIncrementalWithRetry(true);
       modals.cashOpen?.hide?.();
       setValue('cashOpenAmount', '');
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
@@ -9313,8 +9313,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       persistAll(false);
       // Forzar push inmediato a la nube para que el cierre se vea en todos los
       // dispositivos en tiempo real, sin esperar el debounce ni que isApplyingRemoteState
-      // lo bloquee.
-      await pushIncremental(true);
+      // lo bloquee. Reintentar si falla para garantizar la sincronización.
+      await pushIncrementalWithRetry(true);
       modals.cashClose.hide();
       // Excel: solo descargar automáticamente en cierre de NOCHE (incluye día + noche)
       if(normalizeShift(state.shift) === 'Noche'){
@@ -9329,7 +9329,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       state.movements = [];
       persistAll(false);
       // Segundo push para subir los movimientos ya vaciados.
-      await pushIncremental(true);
+      await pushIncrementalWithRetry(true);
       toast('Caja cerrada e informe generado', 'success');
       renderCashView();
       if(currentView === 'movimientos') renderMovements();
@@ -12593,9 +12593,19 @@ function applyConfigRemote(data) {
   // Caja: SIEMPRE aplicamos lo que viene de la nube. La nube es la fuente de verdad.
   // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
   if (data.cash != null) {
+    const previouslyOpen = state.cash && state.cash.open;
     state.cash = data.cash;
     // Auto-corregir inconsistencias en el estado de la caja recibido de la nube.
     if(typeof healCashState === 'function') healCashState();
+    // Si el estado de la caja cambió (de abierta a cerrada o viceversa),
+    // cancelar cualquier push pendiente para no revertir el cambio remoto
+    // y forzar re-render inmediato.
+    if (previouslyOpen !== state.cash.open) {
+      clearTimeout(cloudPushTimer);
+      // Actualizar shadow inmediatamente para evitar que un push posterior sobreescriba.
+      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+      saveStateToDatabase(appStateSnapshot());
+    }
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
@@ -12829,6 +12839,31 @@ function queueCloudPush() {
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }
 
+// Push con reintento: para operaciones críticas como cierre de caja.
+// Reintenta hasta 3 veces con delay exponencial si falla.
+async function pushIncrementalWithRetry(force = false, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await pushIncremental(force);
+      return; // éxito
+    } catch (e) {
+      console.warn(`pushIncrementalWithRetry intento ${attempt}/${maxRetries} falló:`, e);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 500 * attempt)); // 500ms, 1000ms, 1500ms
+      }
+    }
+  }
+  // Último intento falló: forzar escritura directa del config de caja a Firestore
+  // para que al menos la caja quede cerrada en la nube.
+  try {
+    if (firebaseDb) {
+      await configRef().set(cloudConfigPayload(), { merge: true });
+      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+      console.info('[pushIncrementalWithRetry] Config de caja forzado directamente a Firestore.');
+    }
+  } catch (e2) { console.warn('Forzar config a Firestore también falló:', e2); }
+}
+
 // Primera sincronización al conectar: si la nube tiene datos, manda la nube;
 // si está vacía, sube todo lo local.
 async function cloudInitialSync() {
@@ -13050,8 +13085,30 @@ function setupRealtimeListener() {
       if (!(doc.metadata && doc.metadata.hasPendingWrites) && raw._device !== CLOUD_DEVICE_ID) {
         applyConfigRemote(raw);
         scheduleRemoteApply();
+      } else if (!(doc.metadata && doc.metadata.hasPendingWrites)) {
+        // Escritura propia confirmada por el servidor: actualizar shadow.
+        cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
       } else {
         cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+      }
+      // SIEMPRE verificar el estado de la caja al recibir cualquier cambio de config,
+      // incluso si fue escrito por este dispositivo. Esto garantiza que si otro
+      // dispositivo cerró la caja y la nube ya tiene open:false, todos los
+      // dispositivos (incluyendo el que cerró) reflejen el estado correcto.
+      if (raw.cash != null && !doc.metadata?.hasPendingWrites) {
+        const remoteCashOpen = raw.cash.open;
+        if (remoteCashOpen !== state.cash.open) {
+          // Cancelar cualquier push pendiente para no sobreescribir el cierre remoto.
+          clearTimeout(cloudPushTimer);
+          // El estado de caja en la nube difiere del local: aplicar inmediatamente.
+          state.cash = raw.cash;
+          if(typeof healCashState === 'function') healCashState();
+          // Actualizar el shadow para que el próximo push NO sobreescriba la caja.
+          cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+          saveStateToDatabase(appStateSnapshot());
+          renderAll();
+          if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
+        }
       }
     }
     updateCloudStatus();

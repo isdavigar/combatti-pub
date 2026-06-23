@@ -9296,7 +9296,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(currentView === 'movimientos') renderMovements();
       // Push a la nube en segundo plano (no bloquear UI)
       pushIncremental(true).catch(() => {});
-      }catch(e){ console.error('Error al cerrar caja:', e); toast('Error al cerrar caja: ' + (e.message || e), 'danger'); }
+      }catch(e){
+        console.error('Error al cerrar caja:', e);
+        // Asegurar que el cierre se guarde incluso si algo falló después
+        if(!state.cash.open) persistAll(false);
+        toast('Error al cerrar caja: ' + (e.message || e), 'danger');
+      }
     }
     function printCloseReport(record = currentCashRecord()){
       const detail = cashRecordDetailHtml(record);

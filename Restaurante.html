@@ -6319,6 +6319,8 @@
       // Track active session
       updateActiveSession();
       if(!window._activeSessionInterval) window._activeSessionInterval = setInterval(updateActiveSession, 60000);
+      // Asegurar consistencia del estado de la caja antes de decidir la vista.
+      ensureCashHistory();
       // Si la caja ya está abierta (incluida la que sincroniza otro dispositivo),
       // se entra directo al software. Si está cerrada, se marca para reaccionar
       // cuando la nube traiga la caja abierta.
@@ -9290,7 +9292,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       state.movements = [];
       persistAll(false);
       toast('Caja cerrada e informe generado', 'success');
-      renderCashView();
+      renderAll();
       if(currentView === 'movimientos') renderMovements();
       // Push a la nube en segundo plano (no bloquear UI)
       pushIncremental(true).catch(() => {});

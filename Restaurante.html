@@ -10016,7 +10016,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               <button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>
-              ${isAdmin() ? `<button class="btn btn-sm btn-outline-warning btn-pill" onclick="viewPayrollForRecord('${record.id}')"><i class="fa-solid fa-hand-holding-dollar me-1"></i>Nómina</button>` : ''}
+              ${isAdmin() ? `<button class="btn btn-sm ${recordHasPayroll(record) ? 'btn-warning' : 'btn-outline-warning'} btn-pill" onclick="${recordHasPayroll(record) ? `viewPayrollForRecord('${record.id}')` : `addPayrollToRecord('${record.id}')`}"><i class="fa-solid fa-hand-holding-dollar me-1"></i>${recordHasPayroll(record) ? 'Ver nómina' : 'Pagar nómina'}</button>` : ''}
               <button class="btn btn-sm btn-outline-success btn-pill" onclick="exportCashRecordExcel('${record.id}')"><i class="fa-solid fa-file-excel me-1"></i>Excel</button>
               <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printCashRecord('${record.id}')"><i class="fa-solid fa-receipt me-1"></i>Comprobante</button>
               <button class="btn btn-sm btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-print me-1"></i>Inventario</button>
@@ -10258,6 +10258,38 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     }
     function findCashRecord(id){
       return (state.cash.history || []).find(r => r.id === id) || currentCashRecord();
+    }
+    function recordHasPayroll(record){
+      const allExp = Array.isArray(record.expenseHistory) ? record.expenseHistory : [];
+      return allExp.some(m => m.payroll || (m.concept || '').toLowerCase().includes('nómina'));
+    }
+    function addPayrollToRecord(id){
+      const record = (state.cash.history || []).find(r => r.id === id);
+      if(!record){ toast('No se encontró el cuadre', 'warning'); return; }
+      const empleado = prompt(`Pagar nómina - ${formatDate(record.closedAt || record.openedAt)} (${shiftLabel(record.shift)})\n\nNombre del empleado:`);
+      if(!empleado) return;
+      const monto = prompt(`Monto a pagar a ${empleado} ($):`);
+      if(!monto) return;
+      const amount = clampNumber(monto);
+      if(amount <= 0){ toast('El monto debe ser mayor a cero', 'warning'); return; }
+      const source = prompt('Medio de pago (EFECTIVO, NEQUI, BANCOLOMBIA, BOLD):', 'EFECTIVO');
+      if(!source) return;
+      const payrollEntry = {
+        id: uid(),
+        type: 'Egreso',
+        concept: `Nómina - ${empleado}`,
+        amount: amount,
+        source: source.toUpperCase(),
+        date: record.closedAt || record.openedAt || new Date().toISOString(),
+        payroll: true
+      };
+      record.expenseHistory = Array.isArray(record.expenseHistory) ? record.expenseHistory : [];
+      record.expenseHistory.push(payrollEntry);
+      record.expense = (record.expense || 0) + amount;
+      if(source.toUpperCase() === 'EFECTIVO') record.cashExpense = (record.cashExpense || 0) + amount;
+      persistAll();
+      renderCashHistory();
+      toast(`Nómina de ${empleado} ($${groupThousands(amount)}) registrada`, 'success');
     }
     function viewPayrollForRecord(id){
       const record = findCashRecord(id);

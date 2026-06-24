@@ -12818,10 +12818,10 @@ function sendAWS(data) {
 
 function requestInitialSync() {
   // Request config first
-  sendAWS({ action: 'getConfig' });
+  sendAWS({ action: 'sync', type: 'getConfig' });
   // Request all collections
   CLOUD_COLLECTIONS.forEach(coll => {
-    sendAWS({ action: 'getAll', collection: coll });
+    sendAWS({ action: 'sync', type: 'getAll', collection: coll });
   });
 }
 
@@ -12912,13 +12912,13 @@ async function pushIncremental(force = false) {
       const key = cloudShadowKey(item);
       if (shadow[docId] !== key) {
         const payload = { ...item, _ord: index, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
-        sendAWS({ action: 'put', collection: coll, docId, payload });
+        sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
         shadow[docId] = key;
       }
     });
     Object.keys(shadow).forEach(docId => {
       if (!seen.has(docId)) {
-        sendAWS({ action: 'delete', collection: coll, docId });
+        sendAWS({ action: 'sync', type: 'delete', collection: coll, docId });
         delete shadow[docId];
       }
     });
@@ -12927,7 +12927,7 @@ async function pushIncremental(force = false) {
   const cfgPayload = cloudConfigPayload();
   const cfgKey = cloudConfigKey(cfgPayload);
   if (cfgKey !== cloudConfigShadow) {
-    sendAWS({ action: 'putConfig', payload: cfgPayload });
+    sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
     cloudConfigShadow = cfgKey;
   }
 }

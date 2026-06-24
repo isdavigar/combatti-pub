@@ -12964,8 +12964,8 @@ function updateCloudStatus() {
     badge.className = (map[st] || map.off)[1];
     badge.title = cloudLastError || (map[st] || map.off)[0];
   }
-  const ind = byId('cloudIndicator');
-  const indText = byId('cloudIndicatorText');
+  const ind = byId('cloudTopIndicator');
+  const indText = byId('cloudTopIndicatorText');
   if (ind) {
     ind.classList.remove('cloud-live', 'cloud-syncing', 'cloud-offline', 'cloud-off');
     const cmap = { live: ['cloud-live', 'En vivo'], syncing: ['cloud-syncing', 'Sincronizando'], offline: ['cloud-offline', 'Sin conexión'], off: ['cloud-off', 'Local'] };

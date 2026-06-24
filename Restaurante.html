@@ -9513,6 +9513,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     }
     function openPayrollModal(){
       if(state.cash.open){ toast('Primero cierra la caja para pagar la nómina del día.', 'warning'); return; }
+      window._payrollTargetRecordId = null; // Limpiar referencia (viene del botón principal)
       payrollDraft = buildPayrollDraft();
       renderPayrollBalances();
       renderPayrollList();
@@ -9528,7 +9529,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       setText('payrollTotalLabel', money(total));
     }
     function confirmPayroll(){
-      if(state.cash.open){ toast('Primero cierra la caja para pagar la nómina del día.', 'warning'); return; }
+      if(state.cash.open && !window._payrollTargetRecordId){ toast('Primero cierra la caja para pagar la nómina del día.', 'warning'); return; }
       const selections = collectPayrollSelections();
       if(!selections.length){ toast('Marca quién trabajó, escribe su nombre y un valor mayor a cero', 'warning'); return; }
       const total = selections.reduce((a, b) => a + b.amount, 0);
@@ -9545,8 +9546,12 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmClass:'btn-warning',
         onConfirm: () => {
           const now = new Date().toISOString();
-          // Buscar el último cierre de caja para vincular los gastos de nómina
-          const lastClosed = [...(state.cash.history || [])].reverse().find(r => r.status === 'Cerrada' && r.closedAt);
+          // Si hay un cuadre destino específico (desde "Pagar nómina" en historial),
+          // vincular a ese cuadre. Si no, vincular al último cierre.
+          const targetRecord = window._payrollTargetRecordId
+            ? (state.cash.history || []).find(r => r.id === window._payrollTargetRecordId)
+            : [...(state.cash.history || [])].reverse().find(r => r.status === 'Cerrada' && r.closedAt);
+          window._payrollTargetRecordId = null; // Limpiar referencia
           selections.forEach(sel => {
             const movement = {
               id:uid(),
@@ -9556,15 +9561,15 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
               source:sel.source,
               payroll:true,
               date:now,
-              linkedCashRecord: lastClosed?.id || null
+              linkedCashRecord: targetRecord?.id || null
             };
             state.movements.push(movement);
-            // Vincular al historial de la última caja cerrada (solo informativo, no resta)
-            if(lastClosed){
-              if(!Array.isArray(lastClosed.expenseHistory)) lastClosed.expenseHistory = [];
-              lastClosed.expenseHistory.push(movement);
-              if(!Array.isArray(lastClosed.movementsHistory)) lastClosed.movementsHistory = [];
-              lastClosed.movementsHistory.push(movement);
+            // Vincular al cuadre destino
+            if(targetRecord){
+              if(!Array.isArray(targetRecord.expenseHistory)) targetRecord.expenseHistory = [];
+              targetRecord.expenseHistory.push(movement);
+              if(!Array.isArray(targetRecord.movementsHistory)) targetRecord.movementsHistory = [];
+              targetRecord.movementsHistory.push(movement);
             }
           });
           persistAll();
@@ -9572,6 +9577,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           printPayrollReport(selections);
           exportPayrollExcel(selections);
           renderCashView();
+          renderCashHistory();
           if(currentView === 'movimientos') renderMovements();
           toast(`Nómina pagada: ${money(total)} a ${selections.length} empleado(s)`, 'success');
         }
@@ -10266,30 +10272,12 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     function addPayrollToRecord(id){
       const record = (state.cash.history || []).find(r => r.id === id);
       if(!record){ toast('No se encontró el cuadre', 'warning'); return; }
-      const empleado = prompt(`Pagar nómina - ${formatDate(record.closedAt || record.openedAt)} (${shiftLabel(record.shift)})\n\nNombre del empleado:`);
-      if(!empleado) return;
-      const monto = prompt(`Monto a pagar a ${empleado} ($):`);
-      if(!monto) return;
-      const amount = clampNumber(monto);
-      if(amount <= 0){ toast('El monto debe ser mayor a cero', 'warning'); return; }
-      const source = prompt('Medio de pago (EFECTIVO, NEQUI, BANCOLOMBIA, BOLD):', 'EFECTIVO');
-      if(!source) return;
-      const payrollEntry = {
-        id: uid(),
-        type: 'Egreso',
-        concept: `Nómina - ${empleado}`,
-        amount: amount,
-        source: source.toUpperCase(),
-        date: record.closedAt || record.openedAt || new Date().toISOString(),
-        payroll: true
-      };
-      record.expenseHistory = Array.isArray(record.expenseHistory) ? record.expenseHistory : [];
-      record.expenseHistory.push(payrollEntry);
-      record.expense = (record.expense || 0) + amount;
-      if(source.toUpperCase() === 'EFECTIVO') record.cashExpense = (record.cashExpense || 0) + amount;
-      persistAll();
-      renderCashHistory();
-      toast(`Nómina de ${empleado} ($${groupThousands(amount)}) registrada`, 'success');
+      // Guardar referencia al cuadre destino para que confirmPayroll lo use
+      window._payrollTargetRecordId = id;
+      payrollDraft = buildPayrollDraft();
+      renderPayrollBalances();
+      renderPayrollList();
+      modals.payroll.show();
     }
     function viewPayrollForRecord(id){
       const record = findCashRecord(id);

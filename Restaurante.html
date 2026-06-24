@@ -12728,6 +12728,23 @@ function relinkCurrentOrder() {
 
 function resetCloudShadow() { cloudShadow = {}; cloudConfigShadow = ''; }
 
+// Quita duplicados por id en las colecciones.
+function dedupeStateCollections(){
+  CLOUD_COLLECTIONS.forEach(coll => {
+    const arr = state[coll];
+    if (!Array.isArray(arr)) return;
+    const seen = new Set();
+    const out = [];
+    arr.forEach(it => {
+      const id = it && it.id != null ? String(it.id) : '';
+      if (id && seen.has(id)) return;
+      if (id) seen.add(id);
+      out.push(it);
+    });
+    if (out.length !== arr.length) state[coll] = out;
+  });
+}
+
 function scheduleRemoteApply() {
   clearTimeout(cloudApplyTimer);
   cloudApplyTimer = setTimeout(() => {

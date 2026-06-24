@@ -10559,7 +10559,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     function initSoldCategoryFilters(){
       const from = byId('soldCategoryFrom');
       const to = byId('soldCategoryTo');
-      if(from && !from.value) from.value = dateInputValue(startOfMonth(new Date()));
+      if(from && !from.value) from.value = dateInputValue(startOfYear(new Date()));
       if(to && !to.value) to.value = dateInputValue(new Date());
       renderSoldCategoryOptions();
     }

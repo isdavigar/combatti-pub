@@ -7764,7 +7764,7 @@ const colors = [
         const channelName = channelProductName(p, channel);
         const channelDescription = channelProductDescription(p, channel);
         const searchOk = !q || [p.name, channelName, p.description, channelDescription].some(value => String(value || '').toLowerCase().includes(q));
-        return catOk && searchOk && p.active && productAvailableForChannel(p, channel);
+        return catOk && searchOk && productAvailableForChannel(p, channel);
       });
       grid.innerHTML = list.map(p => {
         const disabled = isStockManaged(p) && Number(p.stock || 0) <= 0;
@@ -11312,7 +11312,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const rappiDescription = String(get('Descripcion Rappi','Descripción Rappi','rappiDescription') || '').trim();
       const didiDescription = String(get('Descripcion Didi','Descripción Didi','didiDescription') || '').trim();
       if(!name || price <= 0) return null;
-      return { id, name, category, price, rappiPrice, didiPrice, rappiAvailable, didiAvailable, rappiName, didiName, rappiDescription, didiDescription, stock, stockManaged, minStock, description, active, image };
+      return { id, name, category, price, rappiPrice, didiPrice, rappiAvailable, didiAvailable, rappiName, didiName, rappiDescription, didiDescription, stock, stockManaged, minStock, description, active: true, image };
     }
 
     // ---- Respaldo / exportacion de datos ----

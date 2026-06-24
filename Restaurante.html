@@ -4767,6 +4767,12 @@
       toast(`Solo administrador puede ${action}.`, 'warning');
       return false;
     }
+    function requireAdminOrCajero(action = 'realizar esta accion'){
+      if(isAdmin()) return true;
+      if(currentUser && currentUser.role === 'Cajero') return true;
+      toast(`Solo administrador o cajero puede ${action}.`, 'warning');
+      return false;
+    }
     function validateSystemAdminCredentials(){
       const username = prompt('Usuario administrador del sistema');
       if(username === null) return false;
@@ -7058,7 +7064,7 @@
     }
 
     function openProductModal(id=null){
-      if(!requireAdmin(id ? 'editar productos' : 'crear productos')) return;
+      if(!requireAdminOrCajero(id ? 'editar productos' : 'crear productos')) return;
       editingProductId = id; const p = id ? state.products.find(x => x.id === id) : null;
       document.getElementById('productModalTitle').textContent = id ? 'Editar producto' : 'Crear producto';
       document.getElementById('productNameInput').value = p?.name || '';
@@ -7201,7 +7207,7 @@ const colors = [
       return `<div class=&quot;product-avatar&quot; style=&quot;background:${bg}&quot;>${letter}</div>`;
     }
     function saveProduct(){
-      if(!requireAdmin('guardar productos')) return;
+      if(!requireAdminOrCajero('guardar productos')) return;
       const name = document.getElementById('productNameInput').value.trim();
       const price = clampNumber(document.getElementById('productPriceInput').value);
       const rappiPrice = clampNumber(byId('productRappiPriceInput')?.value || price);
@@ -11174,7 +11180,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     function escapeHtmlAttr(str){ return escapeHtml(str).replace(/'/g,'&#39;'); }
 
     function importProductsExcel(event){
-      if(!requireAdmin('importar productos')){
+      if(!requireAdminOrCajero('importar productos')){
         event.target.value = '';
         return;
       }

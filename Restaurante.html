@@ -5227,17 +5227,9 @@
       Object.values(CHANNEL_PRODUCT_DEFAULTS).forEach(list => list.forEach(e => { add(e.category, e.name); (e.aliases || []).forEach(a => add(e.category, a)); }));
       return keys;
     }
-    // Elimina UNA sola vez los productos que antes se inyectaban automáticamente
-    // (catálogo de canales Rappi/DiDi). No toca los productos que el usuario importe.
-    function purgeSeededDefaultProducts(){
-      const keys = defaultSeededProductKeys();
-      const before = (state.products || []).length;
-      state.products = (state.products || []).filter(p => {
-        const k = `${normalizeCategory(p.category).toLowerCase()}|${String(p.name || '').trim().toLowerCase()}`;
-        return !keys.has(k);
-      });
-      return before - (state.products || []).length;
-    }
+    // Desactivado: NUNCA eliminar productos automáticamente.
+    // Los productos del usuario son sagrados.
+    function purgeSeededDefaultProducts(){ return 0; }
     function ensureBaselineData(forceLayout = false){
       if(forceLayout || state.layoutVersion !== DATA_VERSION) {
         const existingByName = new Map((state.tables || []).map(t => [String(t.name || '').toLowerCase(), t]));

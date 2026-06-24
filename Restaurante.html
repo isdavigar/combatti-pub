@@ -10,10 +10,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <!-- AWS WebSocket (no external SDK needed) -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     :root{
@@ -4454,8 +4451,7 @@
       refreshLoginCarousel(true);
       ensureLoginCarouselTimer();
       initLicenseSystem();
-      // Firebase desactivado temporalmente - solo modo local
-      // autoStartCloudSync();
+      autoStartCloudSync();
       loadPrintStationFlag();
       if(isPrintStation) setTimeout(() => startPrintQueueListener(), 3000);
       setInterval(cleanOldPrintJobs, 600000);
@@ -10064,7 +10060,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     // que al recargar la página los datos eliminados NO regresen desde la nube.
     async function forceCloudSyncNow(){
       try{
-        if(typeof firebaseDb !== 'undefined' && firebaseDb && typeof pushIncremental === 'function'){
+        if(typeof pushIncremental === 'function'){
           await pushIncremental(true);
         }
       }catch(_){}
@@ -10104,16 +10100,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, vaciar todo',
         confirmClass:'btn-danger',
         onConfirm: async () => {
-          // Borrar TODOS los documentos de Firebase directamente
-          if(typeof firebaseDb !== 'undefined' && firebaseDb){
-            try {
-              const snap = await restaurantRoot().collection('deletedOrders').get();
-              const batch = firebaseDb.batch();
-              snap.forEach(doc => batch.delete(doc.ref));
-              await batch.commit();
-            } catch(e){ console.warn('Error borrando deletedOrders de Firebase:', e); }
-          }
-          // Clear local state completely
+          // Borrar deletedOrders via sync
           state.deletedOrders = [];
           // Clear cloud shadow to prevent re-sync
           if(typeof cloudShadow !== 'undefined'){
@@ -10247,9 +10234,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmClass:'btn-danger',
         onConfirm: async () => {
           // Borrar directamente de Firebase primero
-          if(firebaseDb){
-            try { await restaurantRoot().collection('deletedOrders').doc(id).delete(); } catch(_){}
-          }
+          // Borrar de la nube via sync
           state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== id);
           // Limpiar del cloudShadow para que no vuelva
           if(typeof cloudShadow !== 'undefined' && cloudShadow.deletedOrders){
@@ -12626,112 +12611,52 @@ function parseMoneyValue(value){
       });
     }
 // =====================================================
-// SINCRONIZACIÓN EN LA NUBE CON FIREBASE
-// Modelo por COLECCIONES y por DOCUMENTO (cada pedido, mesa, producto, etc.
-// es un documento independiente). Esto permite que varios cajeros editen
-// cosas distintas al mismo tiempo sin pisarse, y evita el límite de 1 MB
-// que tendría un único documento con todo el estado.
+// SINCRONIZACIÓN EN LA NUBE CON AWS (WebSocket + DynamoDB)
+// Reemplaza Firebase. Cada pedido, mesa, producto es un documento
+// independiente en DynamoDB. La sincronización en tiempo real se
+// logra con WebSockets a través de API Gateway.
 // =====================================================
-// Colecciones del negocio que se guardan documento por documento.
 const CLOUD_COLLECTIONS = ['users','tables','products','orders','movements','supplies','deliveryZones','kitchenTickets','deletedOrders','historicalSales'];
-// Campos internos de sincronización (no forman parte del negocio).
-const CLOUD_META_FIELDS = ['_device','_seq','_updatedAt'];
-const CLOUD_DEVICE_KEY = 'combatti_cloud_device_id_v1';
-const CLOUD_PUSH_DEBOUNCE_MS = 250;
+const CLOUD_PUSH_DEBOUNCE_MS = 300;
+const AWS_WS_URL = 'wss://4qf3jjqn3j.execute-api.us-east-1.amazonaws.com/production/';
 
-// Configuración de Firebase integrada por defecto: la app se conecta sola,
-// sin que el usuario tenga que escribir nada.
-const DEFAULT_FIREBASE_CONFIG = {
-  projectId: 'combatti-pub-pos',
-  apiKey: 'AIzaSyDtI_OqtNzB80y86IR7Zg6amRZ5ISHSdC4',
-  authDomain: 'combatti-pub-pos.firebaseapp.com',
-  appId: '1:806259569476:web:de5e2804af7ca679879d11',
-  messagingSenderId: '806259569476'
-};
-// Siempre devuelve la configuracion integrada por defecto.
-function effectiveFirebaseConfig() {
-  // La app SIEMPRE se conecta al proyecto Firebase integrado por defecto
-  // (combatti-pub-pos). Se ignora cualquier configuracion antigua guardada
-  // en el navegador para garantizar la conexion por defecto.
-  return DEFAULT_FIREBASE_CONFIG;
-}
-
-let firebaseApp = null;
-let firebaseDb = null;
-let cloudSyncEnabled = true;   // la nube SIEMPRE esta activa (no se puede apagar)
+let cloudSyncEnabled = true;
 let cloudConnected = false;
 let cloudPushTimer = null;
 let cloudApplyTimer = null;
-let isApplyingRemoteState = false;   // evita re-enviar lo que acabamos de recibir
-let cloudInitialSyncDone = false;    // la PRIMERA lectura de la nube ya termino (no subir defaults antes)
-let cloudUnsubs = [];                // listeners activos (para poder desconectar)
-let cloudShadow = {};                // { coleccion: { docId: jsonDelItem } } -> último estado sincronizado
-let cloudConfigShadow = '';          // último config (caja/marca/turno/categorías) sincronizado
-let cloudSizeWarned = false;
-let cloudAutoStarted = false;
-let cloudReconnecting = false;
-let cloudWatchdogTimer = null;
+let isApplyingRemoteState = false;
+let cloudInitialSyncDone = false;
+let cloudShadow = {};
+let cloudConfigShadow = '';
 let cloudLastError = '';
+let awsSocket = null;
+let awsReconnectTimer = null;
+let awsReconnecting = false;
 
-// Identificador único de este dispositivo/navegador (para ignorar nuestros propios cambios).
 const CLOUD_DEVICE_ID = (() => {
   let id = '';
-  try { id = localStorage.getItem(CLOUD_DEVICE_KEY) || ''; } catch (_) {}
+  try { id = localStorage.getItem('combatti_cloud_device_id_v1') || ''; } catch (_) {}
   if (!id) {
     id = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-    try { localStorage.setItem(CLOUD_DEVICE_KEY, id); } catch (_) {}
+    try { localStorage.setItem('combatti_cloud_device_id_v1', id); } catch (_) {}
   }
   return id;
 })();
 
-// ---- Referencias de Firestore ----
-function restaurantRoot() { return firebaseDb.collection('restaurants').doc(getRestaurantId()); }
-function collRef(name) { return restaurantRoot().collection(name); }
-function configRef() { return restaurantRoot().collection('config').doc('business'); }
-// Traduce errores de Firebase a un mensaje claro para el usuario.
-function friendlyCloudError(e){
-  const code = (e && e.code) || '';
-  const msg = String((e && e.message) || e || '');
-  if (code.includes('permission-denied') || /permission/i.test(msg)) return 'Permiso denegado por las reglas de Firestore. Revisa las reglas y activa Authentication > Anonymous en Firebase.';
-  if (code.includes('unauthenticated')) return 'Falta autenticación. Activa Authentication > Anonymous en Firebase.';
-  if (code.includes('unavailable') || /offline|network|transport/i.test(msg)) return 'Sin conexión con la nube. Reintentando…';
-  return msg || 'Error de conexión con la nube.';
-}
-
-// ---- Utilidades ----
-// Id de documento estable para un item (usa su id; si no tiene, le asigna uno).
 function cloudDocId(item) {
   if (item && item.id != null && item.id !== '') return String(item.id);
   if (item && !item._sid) item._sid = uid();
   return String(item && item._sid);
 }
-// Clave de comparación: el item sin campos internos ni el índice de orden.
 function cloudShadowKey(item) {
   const clone = {};
-  Object.keys(item || {}).forEach(k => { if (CLOUD_META_FIELDS.includes(k) || k === '_ord') return; clone[k] = item[k]; });
+  Object.keys(item || {}).forEach(k => { if (['_device','_seq','_updatedAt','_ord'].includes(k)) return; clone[k] = item[k]; });
   try { return JSON.stringify(clone); } catch (_) { return Math.random().toString(); }
 }
-// Quita los campos internos de control (conserva _ord para poder ordenar).
-function cloudStripMeta(data) {
-  const out = {};
-  Object.keys(data || {}).forEach(k => { if (k === '_device' || k === '_seq' || k === '_updatedAt') return; out[k] = data[k]; });
-  return out;
-}
 function cloudSortByOrd(arr) {
-  return (arr || []).slice().sort((a, b) => ((a && a._ord != null ? a._ord : 1e9) - (b && b._ord != null ? b._ord : 1e9)));
+  if (!Array.isArray(arr)) return arr;
+  return arr.slice().sort((a, b) => (Number(a._ord) || 0) - (Number(b._ord) || 0));
 }
-function resetCloudShadow() { cloudShadow = {}; cloudConfigShadow = ''; }
-function ensureCloudIds() {
-  CLOUD_COLLECTIONS.forEach(coll => { (state[coll] || []).forEach(it => { if (it && typeof it === 'object') cloudDocId(it); }); });
-}
-function relinkCurrentOrder() {
-  if (currentOrder) {
-    const r = (state.orders || []).find(o => o.id === currentOrder.id);
-    currentOrder = r || null;
-    if (!currentOrder) currentOrderTableId = null;
-  }
-}
-// Config = datos únicos del negocio (no son listas por documento).
 function cloudConfigPayload() {
   return {
     cash: state.cash ?? null,
@@ -12746,9 +12671,6 @@ function cloudConfigPayload() {
     _seq: Date.now()
   };
 }
-// Subconjunto de la licencia que se comparte entre dispositivos (fecha de corte,
-// valor, datos del administrador y conexión remota). Se excluye nada sensible
-// porque el sistema usa la config de Firebase integrada por defecto.
 function licenseConfigForSync() {
   const l = licenseState.local || {};
   return {
@@ -12766,28 +12688,16 @@ function licenseConfigForSync() {
   };
 }
 function cloudConfigKey(p) { const c = { ...p }; delete c._device; delete c._seq; try { return JSON.stringify(c); } catch (_) { return ''; } }
-// Momento del ultimo cambio de la caja (apertura o cierre), para comparar versiones.
-function cashChangeTime(cash) {
-  if (!cash) return 0;
-  const o = cash.openedAt ? Date.parse(cash.openedAt) : 0;
-  const c = cash.closedAt ? Date.parse(cash.closedAt) : 0;
-  return Math.max(o || 0, c || 0);
-}
+
 function applyConfigRemote(data) {
   if (!data) return;
-  // Caja: SIEMPRE aplicamos lo que viene de la nube. La nube es la fuente de verdad.
-  // Esto garantiza que solo exista UNA caja abierta en todos los dispositivos.
-  if (data.cash != null) {
-    state.cash = data.cash;
-  }
+  if (data.cash != null) { state.cash = data.cash; }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
   if (Array.isArray(data.categories)) state.categories = data.categories;
-  // Active sessions: MERGE (each device writes its own user's timestamp)
   if (data.activeSessions && typeof data.activeSessions === 'object') {
     if (!state.activeSessions) state.activeSessions = {};
     Object.entries(data.activeSessions).forEach(([user, ts]) => {
-      // Keep the most recent timestamp between local and remote
       const localTs = state.activeSessions[user] ? new Date(state.activeSessions[user]).getTime() : 0;
       const remoteTs = ts ? new Date(ts).getTime() : 0;
       if (remoteTs > localTs) state.activeSessions[user] = ts;
@@ -12795,171 +12705,182 @@ function applyConfigRemote(data) {
   }
   if (Array.isArray(data.customWidgets)) state.customWidgets = data.customWidgets;
   if (data.tableLayoutVersion != null) state.tableLayoutVersion = data.tableLayoutVersion;
-  // Licencia compartida: al configurar la fecha de corte (u otros datos) en un
-  // dispositivo, se aplica automáticamente en todos los demás.
   if (data.license && typeof data.license === 'object') {
     saveLicenseLocalSettings(data.license);
     if (typeof renderLicenseUi === 'function') renderLicenseUi();
-    // Si la URL de la base de datos o el clientId cambiaron, refrescar el estado
-    // de la licencia remota para que este dispositivo use la nueva conexión.
     if (typeof refreshLicenseStatus === 'function') refreshLicenseStatus(false);
   }
-  // El "shadow" refleja lo que HAY en la nube. Si conservamos una caja local mas
-  // reciente, dejamos el shadow con la caja remota para que el siguiente push
-  // suba la caja correcta (abierta) y la nube quede sincronizada.
-  cloudConfigShadow = cloudConfigKey({
-    cash: state.cash ?? null,
-    brand: state.brand ?? null,
-    shift: normalizeShift(state.shift),
-    categories: state.categories || [],
-    tableLayoutVersion: state.tableLayoutVersion || '',
-    activeSessions: state.activeSessions || {},
-    customWidgets: state.customWidgets || [],
-    license: licenseConfigForSync()
-  });
+  cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
   if(typeof updateCashActionButtons === 'function') updateCashActionButtons();
 }
 
-function saveFirebaseConfig() {
-  const cfg = {
-    projectId: (byId('firebaseProjectId')?.value || '').trim(),
-    apiKey: (byId('firebaseApiKey')?.value || '').trim(),
-    authDomain: (byId('firebaseAuthDomain')?.value || '').trim(),
-    appId: (byId('firebaseAppId')?.value || '').trim()
-  };
-  if (!cfg.projectId || !cfg.apiKey) { toast('Project ID y API Key son obligatorios', 'warning'); return; }
-  if (!cfg.authDomain) cfg.authDomain = cfg.projectId + '.firebaseapp.com';
-  licenseState.local.firebaseConfig = cfg;
-  if (byId('currentRestaurantId')?.value) licenseState.local.clientId = byId('currentRestaurantId').value.trim();
-  saveLicenseLocalSettings(licenseState.local);
-  toast('Configuración guardada', 'success');
-  updateCloudStatus();
-  // Configurar = quedar conectado. Se activa la sincronización automáticamente
-  // (y así seguirá conectada al recargar la página, hasta que se pulse "Desconectar").
-  enableCloudSync();
+function ensureCloudIds() {
+  CLOUD_COLLECTIONS.forEach(coll => { (state[coll] || []).forEach(it => { if (it && typeof it === 'object') cloudDocId(it); }); });
 }
 
-async function initFirebase() {
-  if (typeof firebase === 'undefined') {
-    cloudLastError = 'No se pudo cargar Firebase (sin internet o bloqueado).';
-    toast('No se pudo cargar Firebase (revisa tu conexión a internet)', 'danger');
-    return false;
-  }
-  // Firebase funciona mejor con https. Si se abre como file://, se intenta de todas
-  // formas (funciona con persistencia offline habilitada), pero puede fallar la auth.
-  if (location.protocol === 'file:') {
-    cloudLastError = 'Abriendo desde archivo local (file://). Para sincronización en tiempo real usa un enlace web (https).';
-  }
-  const cfg = effectiveFirebaseConfig();
-  if (!cfg || !cfg.projectId || !cfg.apiKey) { toast('Falta la configuración de Firebase', 'warning'); return false; }
-  try {
-    if (!firebaseApp) {
-      firebaseApp = (firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(cfg);
-      firebaseDb = firebase.firestore();
-      // Persistencia offline: se puede seguir trabajando sin internet y sincroniza al volver.
-      await firebaseDb.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-      // Inicio de sesión anónimo (necesario para las reglas de seguridad recomendadas).
-      if (firebase.auth) {
-        try { await firebase.auth().signInAnonymously(); }
-        catch (e) {
-          const code = e?.code || '';
-          if (code.includes('unauthorized-domain')) cloudLastError = 'Agrega este dominio en Firebase: Authentication > Settings > Authorized domains.';
-          else if (code.includes('operation-not-allowed') || code.includes('admin-restricted')) cloudLastError = 'Activa el inicio de sesión Anónimo en Firebase: Authentication > Sign-in method.';
-          else cloudLastError = 'Auth: ' + (e?.message || code);
-        }
-      }
-    }
-    return true;
-  } catch (e) {
-    cloudLastError = 'Error Firebase: ' + (e?.message || e);
-    toast('Error Firebase: ' + (e?.message || e), 'danger');
-    return false;
+function relinkCurrentOrder() {
+  if (currentOrder) {
+    const r = (state.orders || []).find(o => o.id === currentOrder.id);
+    currentOrder = r || null;
+    if (!currentOrder) currentOrderTableId = null;
   }
 }
 
-async function testFirebaseConnection() {
-  const ok = await initFirebase();
-  if (!ok) return;
+function resetCloudShadow() { cloudShadow = {}; cloudConfigShadow = ''; }
+
+function scheduleRemoteApply() {
+  clearTimeout(cloudApplyTimer);
+  cloudApplyTimer = setTimeout(() => {
+    relinkCurrentOrder();
+    syncAllTableOrderSnapshots();
+    saveStateToDatabase(appStateSnapshot());
+    _isRemoteRender = true;
+    renderAll();
+    _isRemoteRender = false;
+    if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
+  }, 140);
+}
+
+// ===== AWS WebSocket Connection =====
+function connectAWS() {
+  if (awsSocket && (awsSocket.readyState === WebSocket.OPEN || awsSocket.readyState === WebSocket.CONNECTING)) return;
+  if (awsReconnecting) return;
   try {
-    await restaurantRoot().set({ lastPing: new Date().toISOString(), device: CLOUD_DEVICE_ID }, { merge: true });
-    cloudConnected = true;
-    toast('Conexión exitosa con la nube', 'success');
-  } catch (e) {
+    awsSocket = new WebSocket(AWS_WS_URL);
+    awsSocket.onopen = () => {
+      cloudConnected = true;
+      cloudLastError = '';
+      awsReconnecting = false;
+      updateCloudStatus();
+      // Request initial data
+      requestInitialSync();
+    };
+    awsSocket.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleAWSMessage(msg);
+      } catch(_){}
+    };
+    awsSocket.onclose = () => {
+      cloudConnected = false;
+      updateCloudStatus();
+      scheduleReconnect();
+    };
+    awsSocket.onerror = (err) => {
+      cloudConnected = false;
+      cloudLastError = 'Error de conexión WebSocket';
+      updateCloudStatus();
+    };
+  } catch(e) {
     cloudConnected = false;
-    toast('Error de conexión: ' + (e?.message || e), 'danger');
+    cloudLastError = e.message || 'No se pudo conectar';
+    updateCloudStatus();
+    scheduleReconnect();
   }
-  updateCloudStatus();
 }
 
-async function enableCloudSync() {
-  const chk = byId('enableCloudSync');
-  const ok = await initFirebase();
-  if (!ok) { if (chk) chk.checked = false; return false; }
-  cloudSyncEnabled = true;
-  licenseState.local.cloudSyncEnabled = true;
-  saveLicenseLocalSettings(licenseState.local);
-  try { localStorage.removeItem('combatti_cloud_disconnected'); } catch(_){}
-  await cloudInitialSync();
-  setupRealtimeListener();
-  startCloudWatchdog();
-  updateCloudStatus();
-  toast('Sincronización en la nube activada', 'success');
-  return true;
+function scheduleReconnect() {
+  if (awsReconnectTimer) return;
+  awsReconnecting = true;
+  awsReconnectTimer = setTimeout(() => {
+    awsReconnectTimer = null;
+    awsReconnecting = false;
+    connectAWS();
+  }, 5000);
 }
 
-// La sincronizacion en la nube SIEMPRE esta activa: estas funciones quedan
-// desactivadas a proposito para que la conexion nunca se pueda apagar.
-function disableCloudSync() { /* no-op: la nube permanece conectada siempre */ }
-
-function toggleCloudSync() { /* no-op: la nube permanece conectada siempre */ }
-
-function getRestaurantId() {
-  const value = (licenseState.local.clientId || byId('currentRestaurantId')?.value || 'restaurante-combatti').trim();
-  return value || 'restaurante-combatti';
-}
-
-// Cambia al restaurante indicado (mismo Firebase, otro grupo de datos).
-async function switchRestaurant() {
-  const id = (byId('currentRestaurantId')?.value || '').trim();
-  if (!id) { toast('Escribe el ID del restaurante', 'warning'); return; }
-  licenseState.local.clientId = id;
-  saveLicenseLocalSettings(licenseState.local);
-  if (cloudSyncEnabled) {
-    const ok = await initFirebase();
-    if (ok) { detachCloudListeners(); await cloudInitialSync(); setupRealtimeListener(); }
+function sendAWS(data) {
+  if (awsSocket && awsSocket.readyState === WebSocket.OPEN) {
+    awsSocket.send(JSON.stringify(data));
+    return true;
   }
-  updateCloudStatus();
-  toast('Restaurante activo: ' + id, 'success');
+  return false;
 }
 
-// Crea un restaurante nuevo con los datos actuales y cambia a él.
-async function createNewRestaurant() {
-  const input = byId('newRestaurantId');
-  const id = (input?.value || '').trim();
-  if (!id) { toast('Escribe el ID del nuevo restaurante', 'warning'); return; }
-  licenseState.local.clientId = id;
-  saveLicenseLocalSettings(licenseState.local);
-  if (byId('currentRestaurantId')) byId('currentRestaurantId').value = id;
-  if (input) input.value = '';
-  if (cloudSyncEnabled) {
-    const ok = await initFirebase();
-    if (ok) { detachCloudListeners(); resetCloudShadow(); await pushIncremental(true); setupRealtimeListener(); }
+function requestInitialSync() {
+  // Request config first
+  sendAWS({ action: 'getConfig' });
+  // Request all collections
+  CLOUD_COLLECTIONS.forEach(coll => {
+    sendAWS({ action: 'getAll', collection: coll });
+  });
+}
+
+function handleAWSMessage(msg) {
+  if (msg.type === 'config') {
+    // Initial config load
+    if (msg.payload) {
+      isApplyingRemoteState = true;
+      applyConfigRemote(msg.payload);
+      isApplyingRemoteState = false;
+      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+    }
+    if (!cloudInitialSyncDone) {
+      cloudInitialSyncDone = true;
+      scheduleRemoteApply();
+    }
+    updateCloudStatus();
+    return;
   }
-  updateCloudStatus();
-  toast('Restaurante creado y activado: ' + id, 'success');
+
+  if (msg.type === 'configChange') {
+    // Real-time config update from another device
+    if (msg.payload && msg.payload._device !== CLOUD_DEVICE_ID) {
+      isApplyingRemoteState = true;
+      applyConfigRemote(msg.payload);
+      isApplyingRemoteState = false;
+      scheduleRemoteApply();
+    }
+    return;
+  }
+
+  if (msg.type === 'snapshot') {
+    // Initial collection load
+    const coll = msg.collection;
+    const items = msg.items || [];
+    cloudShadow[coll] = {};
+    items.forEach(item => {
+      const docId = cloudDocId(item);
+      cloudShadow[coll][docId] = cloudShadowKey(item);
+    });
+    if (items.length > 0) {
+      state[coll] = cloudSortByOrd(items);
+    }
+    scheduleRemoteApply();
+    return;
+  }
+
+  if (msg.type === 'change') {
+    // Real-time document update from another device
+    const { collection: coll, docId, payload } = msg;
+    if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
+    cloudShadow[coll] = cloudShadow[coll] || {};
+    cloudShadow[coll][docId] = cloudShadowKey(payload);
+    state[coll] = state[coll] || [];
+    const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
+    if (idx >= 0) state[coll][idx] = payload; else state[coll].push(payload);
+    state[coll] = cloudSortByOrd(state[coll]);
+    scheduleRemoteApply();
+    return;
+  }
+
+  if (msg.type === 'remove') {
+    // Real-time document deletion from another device
+    const { collection: coll, docId } = msg;
+    cloudShadow[coll] = cloudShadow[coll] || {};
+    delete cloudShadow[coll][docId];
+    const idx = (state[coll] || []).findIndex(it => cloudDocId(it) === docId);
+    if (idx >= 0) { state[coll].splice(idx, 1); scheduleRemoteApply(); }
+    return;
+  }
 }
 
-// Envía a la nube SOLO lo que cambió (documentos nuevos, modificados o borrados).
+// ===== Push changes to AWS =====
 async function pushIncremental(force = false) {
-  if ((!cloudSyncEnabled && !force) || !firebaseDb) return;
-  // No subir NADA hasta que la primera lectura de la nube haya terminado.
-  // Asi los datos por defecto locales (mesas/usuarios) NO sobreescriben ni
-  // duplican la nube al abrir sesion en otro dispositivo. Solo la sync inicial
-  // sube con force=true (despues de haber leido y aplicado lo que hay en la nube).
+  if ((!cloudSyncEnabled && !force) || !awsSocket || awsSocket.readyState !== WebSocket.OPEN) return;
   if (!cloudInitialSyncDone && !force) return;
   ensureCloudIds();
-  const ops = [];
-  let oversize = false;
+
   CLOUD_COLLECTIONS.forEach(coll => {
     const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
     const seen = new Set();
@@ -12970,340 +12891,49 @@ async function pushIncremental(force = false) {
       const key = cloudShadowKey(item);
       if (shadow[docId] !== key) {
         const payload = { ...item, _ord: index, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
-        try { if (new Blob([JSON.stringify(payload)]).size > 950000) oversize = true; } catch (_) {}
-        ops.push({ type: 'set', coll, docId, data: payload, key });
+        sendAWS({ action: 'put', collection: coll, docId, payload });
+        shadow[docId] = key;
       }
     });
-    Object.keys(shadow).forEach(docId => { if (!seen.has(docId)) ops.push({ type: 'delete', coll, docId }); });
+    Object.keys(shadow).forEach(docId => {
+      if (!seen.has(docId)) {
+        sendAWS({ action: 'delete', collection: coll, docId });
+        delete shadow[docId];
+      }
+    });
   });
+
   const cfgPayload = cloudConfigPayload();
   const cfgKey = cloudConfigKey(cfgPayload);
-  const cfgChanged = cfgKey !== cloudConfigShadow;
-  if (!ops.length && !cfgChanged) return;
-  if (oversize && !cloudSizeWarned) {
-    cloudSizeWarned = true;
-    toast('Una imagen es demasiado pesada (>1 MB). Usa imágenes por URL.', 'warning');
-  } else if (!oversize) { cloudSizeWarned = false; }
-  try {
-    for (let i = 0; i < ops.length; i += 450) {
-      const batch = firebaseDb.batch();
-      ops.slice(i, i + 450).forEach(op => {
-        const ref = collRef(op.coll).doc(op.docId);
-        if (op.type === 'delete') batch.delete(ref); else batch.set(ref, op.data);
-      });
-      await batch.commit();
-    }
-    if (cfgChanged) { await configRef().set(cfgPayload, { merge: true }); cloudConfigShadow = cfgKey; }
-    ops.forEach(op => {
-      cloudShadow[op.coll] = cloudShadow[op.coll] || {};
-      if (op.type === 'delete') delete cloudShadow[op.coll][op.docId];
-      else cloudShadow[op.coll][op.docId] = op.key;
-    });
-    cloudConnected = true;
-    cloudLastError = '';
-    updateCloudStatus();
-  } catch (e) { console.warn('push nube:', e); cloudConnected = false; cloudLastError = friendlyCloudError(e); updateCloudStatus(); }
+  if (cfgKey !== cloudConfigShadow) {
+    sendAWS({ action: 'putConfig', payload: cfgPayload });
+    cloudConfigShadow = cfgKey;
+  }
 }
 
-// Debounce: lo invoca persistAll en cada cambio local.
 function queueCloudPush() {
   if (!cloudSyncEnabled || isApplyingRemoteState || !cloudInitialSyncDone) return;
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }
 
-// Primera sincronización al conectar: si la nube tiene datos, manda la nube;
-// si está vacía, sube todo lo local.
-async function cloudInitialSync() {
-  resetCloudShadow();
-  cloudInitialSyncDone = false;   // cerramos el "candado" mientras leemos la nube
-  let hasRemote = false;
-  const remoteColls = {};
-  for (const coll of CLOUD_COLLECTIONS) {
-    try {
-      const snap = await collRef(coll).get();
-      const items = [];
-      cloudShadow[coll] = {};
-      snap.forEach(d => {
-        const data = cloudStripMeta(d.data());
-        items.push(data);
-        cloudShadow[coll][d.id] = cloudShadowKey(data);
-      });
-      remoteColls[coll] = items;
-      if (snap.size > 0) hasRemote = true;
-    } catch (e) { console.warn('lectura inicial ' + coll, e); cloudLastError = friendlyCloudError(e); }
-  }
-  let cfgData = null;
-  try { const cfgDoc = await configRef().get(); if (cfgDoc.exists) { cfgData = cfgDoc.data(); hasRemote = true; } } catch (e) { cloudLastError = friendlyCloudError(e); }
-  if (hasRemote) {
-    isApplyingRemoteState = true;
-    // Guardar el historial de cuadres local ANTES de sobreescribir con la nube,
-    // para recuperarlo si la nube tiene una versión más corta (datos perdidos).
-    const localCashHistory = Array.isArray(state.cash?.history) ? [...state.cash.history] : [];
-    try {
-      // Solo reemplazamos con la nube cuando esa coleccion tiene datos.
-      // Si la nube esta vacia para una coleccion, conservamos lo local
-      // (asi no se borran las mesas/domicilios por defecto al conectar).
-      CLOUD_COLLECTIONS.forEach(coll => {
-        if (remoteColls[coll] && remoteColls[coll].length) state[coll] = cloudSortByOrd(remoteColls[coll]);
-      });
-      if (cfgData) applyConfigRemote(cfgData);
-      // Preservar historial de cuadres local si la nube tiene menos registros
-      // (protege contra sobreescrituras accidentales del config).
-      if (cfgData && cfgData.cash && localCashHistory.length > (state.cash.history || []).length) {
-        state.cash.history = localCashHistory;
-      }
-      ensureDefaultTablesAndZones();
-      // Corrige la distribucion de mesas si la nube traia un layout viejo.
-      applyTableLayoutPresetOnce();
-      // Limpieza por unica vez de los productos por defecto (tambien en la nube).
-      if (!defaultProductsPurgeDone()) { purgeSeededDefaultProducts(); markDefaultProductsPurged(); }
-      // Colapsa mesas/usuarios/zonas duplicadas que ya pudieran existir en la nube.
-      dedupeStateCollections();
-      relinkCurrentOrder();
-      syncAllTableOrderSnapshots();
-      saveStateToDatabase(appStateSnapshot());
-      renderAll();
-    } finally { isApplyingRemoteState = false; }
-    cloudConnected = true;
-    cloudLastError = '';
-    if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
-    // Sube a la nube lo que cambio local: mesas/domicilios por defecto, layout
-    // corregido y la eliminacion de los productos sembrados.
-    await pushIncremental(true);
-  } else {
-    ensureDefaultTablesAndZones();
-    applyTableLayoutPresetOnce();
-    if (!defaultProductsPurgeDone()) { purgeSeededDefaultProducts(); markDefaultProductsPurged(); }
-    dedupeStateCollections();
-    await pushIncremental(true);
-  }
-  // La primera sincronizacion termino: ya es seguro subir cambios locales.
-  cloudInitialSyncDone = true;
-}
-
-// Quita duplicados creados por sincronizaciones anteriores (mesas y "roles"/usuarios
-// repetidos). Es deterministico: todos los dispositivos eligen el MISMO sobreviviente,
-// asi la limpieza converge sin pelearse entre dispositivos.
-function dedupeStateCollections(){
-  let changed = false;
-
-  // 1) Duplicados por id exacto en cualquier coleccion (se conserva el primero).
-  CLOUD_COLLECTIONS.forEach(coll => {
-    const arr = state[coll];
-    if (!Array.isArray(arr)) return;
-    const seen = new Set();
-    const out = [];
-    arr.forEach(it => {
-      const id = it && it.id != null ? String(it.id) : '';
-      if (id && seen.has(id)) { changed = true; return; }
-      if (id) seen.add(id);
-      out.push(it);
-    });
-    if (out.length !== arr.length) { state[coll] = out; changed = true; }
-  });
-
-  // 2) Mesas por defecto repetidas por nombre -> se unifican en una sola.
-  if (Array.isArray(state.tables)) {
-    const defaultNames = new Set(DEFAULT_TABLE_LAYOUT.map(t => String(t.name || '').toLowerCase()));
-    const groups = new Map();
-    state.tables.forEach(t => {
-      const name = String(t.name || '').toLowerCase();
-      if (!defaultNames.has(name)) return;   // las mesas personalizadas NO se tocan
-      if (!groups.has(name)) groups.set(name, []);
-      groups.get(name).push(t);
-    });
-    groups.forEach((list, name) => {
-      if (list.length < 2) return;
-      const canonicalId = defaultTableId(name);
-      const survivor = list.find(t => String(t.id) === canonicalId)
-        || list.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)))[0];
-      const removedIds = new Set(list.filter(t => t !== survivor).map(t => String(t.id)));
-      // Reapunta los pedidos de las mesas eliminadas hacia la mesa que sobrevive.
-      (state.orders || []).forEach(o => { if (removedIds.has(String(o.tableId))) o.tableId = survivor.id; });
-      state.tables = state.tables.filter(t => t === survivor || !removedIds.has(String(t.id)));
-      changed = true;
-    });
-  }
-
-  // 3) Usuarios repetidos por nombre de usuario (los "roles" duplicados).
-  if (Array.isArray(state.users)) {
-    const groups = new Map();
-    state.users.forEach(u => {
-      const key = String(u.username || '').trim().toLowerCase();
-      if (!key) return;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(u);
-    });
-    groups.forEach(list => {
-      if (list.length < 2) return;
-      const survivor = list.find(u => u.role === SYSTEM_ADMIN_ROLE || u.role === 'Administrador')
-        || list.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)))[0];
-      const removedIds = new Set(list.filter(u => u !== survivor).map(u => String(u.id)));
-      state.users = state.users.filter(u => u === survivor || !removedIds.has(String(u.id)));
-      changed = true;
-    });
-  }
-
-  // 4) Zonas de domicilio repetidas por nombre.
-  if (Array.isArray(state.deliveryZones)) {
-    const seen = new Set();
-    const out = [];
-    state.deliveryZones.forEach(z => {
-      const key = String(z.name || '').trim().toLowerCase();
-      if (key && seen.has(key)) { changed = true; return; }
-      if (key) seen.add(key);
-      out.push(z);
-    });
-    if (out.length !== state.deliveryZones.length) state.deliveryZones = out;
-  }
-
-  return changed;
-}
-
-// Garantiza que SIEMPRE haya mesas creadas y domicilios establecidos por defecto.
-function ensureDefaultTablesAndZones() {
-  if (!Array.isArray(state.tables) || state.tables.length === 0) {
-    state.tables = defaultTables();
-    state.tables.forEach((table, index) => normalizeTable(table, index));
-  }
-  if (!Array.isArray(state.deliveryZones) || state.deliveryZones.length === 0) {
-    replaceRequestedDeliveryZones();
-  }
-}
-
-function detachCloudListeners() { cloudUnsubs.forEach(u => { try { u(); } catch (_) {} }); cloudUnsubs = []; }
-
-// Reune los cambios remotos en un solo re-render (evita parpadeos en cargas grandes).
-function scheduleRemoteApply() {
-  clearTimeout(cloudApplyTimer);
-  cloudApplyTimer = setTimeout(() => {
-    relinkCurrentOrder();
-    syncAllTableOrderSnapshots();
-    saveStateToDatabase(appStateSnapshot());
-    // No re-renderizar el modal de pedido durante sync remota para evitar
-    // que los productos se actualicen mientras el usuario está en un pedido.
-    _isRemoteRender = true;
-    renderAll();
-    _isRemoteRender = false;
-    if (typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
-  }, 140);
-}
-
-function setupRealtimeListener() {
-  if (!firebaseDb) return;
-  detachCloudListeners();
-  CLOUD_COLLECTIONS.forEach(coll => {
-    const unsub = collRef(coll).onSnapshot({ includeMetadataChanges: false }, snap => {
-      cloudConnected = true;
-      cloudLastError = '';
-      let touched = false;
-      snap.docChanges().forEach(ch => {
-        // Ignora escrituras locales aún sin confirmar (eco inmediato).
-        if (ch.doc.metadata && ch.doc.metadata.hasPendingWrites) return;
-        const raw = ch.doc.data() || {};
-        // Ignora documentos que escribió ESTE dispositivo.
-        if (raw._device === CLOUD_DEVICE_ID) {
-          cloudShadow[coll] = cloudShadow[coll] || {};
-          cloudShadow[coll][ch.doc.id] = cloudShadowKey(cloudStripMeta(raw));
-          return;
-        }
-        const docId = ch.doc.id;
-        cloudShadow[coll] = cloudShadow[coll] || {};
-        if (ch.type === 'removed') {
-          const idx = (state[coll] || []).findIndex(it => cloudDocId(it) === docId);
-          if (idx >= 0) { state[coll].splice(idx, 1); touched = true; }
-          delete cloudShadow[coll][docId];
-        } else {
-          const data = cloudStripMeta(raw);
-          cloudShadow[coll][docId] = cloudShadowKey(data);
-          state[coll] = state[coll] || [];
-          const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
-          if (idx >= 0) state[coll][idx] = data; else state[coll].push(data);
-          touched = true;
-        }
-      });
-      if (touched) { state[coll] = cloudSortByOrd(state[coll]); scheduleRemoteApply(); }
-      updateCloudStatus();
-    }, err => { cloudConnected = false; cloudLastError = friendlyCloudError(err); console.warn('listener ' + coll, err); updateCloudStatus(); });
-    cloudUnsubs.push(unsub);
-  });
-  const cfgUnsub = configRef().onSnapshot({ includeMetadataChanges: false }, doc => {
-    cloudConnected = true;
-    cloudLastError = '';
-    if (doc.exists) {
-      const raw = doc.data() || {};
-      if (!(doc.metadata && doc.metadata.hasPendingWrites) && raw._device !== CLOUD_DEVICE_ID) {
-        applyConfigRemote(raw);
-        scheduleRemoteApply();
-      } else {
-        cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
-      }
-    }
-    updateCloudStatus();
-  }, err => { cloudConnected = false; cloudLastError = friendlyCloudError(err); console.warn('listener config', err); updateCloudStatus(); });
-  cloudUnsubs.push(cfgUnsub);
-}
-
-// Reconecta automáticamente al cargar la página si la nube quedó configurada.
-// Regla: si hay configuración válida y el usuario NO pulsó "Desconectar",
-// la sincronización se reactiva sola (incluye instalaciones previas donde el
-// flag aún no existía).
+// ===== Auto-start =====
 async function autoStartCloudSync() {
-  if (cloudAutoStarted) return;
-  cloudAutoStarted = true;
-  // La conexion a la nube es SIEMPRE automatica y en tiempo real.
-  // Todos los dispositivos comparten el mismo restaurante (restaurante-combatti)
-  // y los cambios de cada usuario se guardan al instante en la nube.
-  licenseState.local.clientId = licenseState.local.clientId || 'restaurante-combatti';
-  licenseState.local.cloudSyncEnabled = true;
-  saveLicenseLocalSettings(licenseState.local);
-  // Limpia cualquier "desconexion" guardada antes: la nube ya no se puede apagar.
-  try { localStorage.removeItem('combatti_cloud_disconnected'); } catch(_){}
   cloudSyncEnabled = true;
-  await reconnectCloud(true);
-  startCloudWatchdog();
+  connectAWS();
 }
 
-// Reestablece la conexión (init + escuchas). doInitialSync solo en el primer enganche.
-async function reconnectCloud(doInitialSync = false) {
-  if (!cloudSyncEnabled || cloudReconnecting) return;
-  if (navigator.onLine === false) { cloudConnected = false; updateCloudStatus(); return; }
-  cloudReconnecting = true;
-  try {
-    const ok = await initFirebase();
-    if (!ok) { cloudConnected = false; updateCloudStatus(); return; }
-    if (doInitialSync || !cloudUnsubs.length) { await cloudInitialSync(); }
-    setupRealtimeListener();
-    updateCloudStatus();
-  } catch (e) {
-    console.warn('reconnect nube:', e);
-    cloudConnected = false;
-    updateCloudStatus();
-  } finally {
-    cloudReconnecting = false;
-  }
-}
+function getRestaurantId() { return 'restaurante-combatti'; }
+function effectiveFirebaseConfig() { return null; }
 
-// Vigía: si la sincronización está activada pero las escuchas no quedaron
-// montadas (ej. arranque sin internet), reintenta cada 15s al volver la red.
-function startCloudWatchdog() {
-  if (cloudWatchdogTimer) return;
-  cloudWatchdogTimer = setInterval(() => {
-    if (!cloudSyncEnabled) return;
-    if (navigator.onLine === false) { cloudConnected = false; updateCloudStatus(); return; }
-    if (!cloudUnsubs.length) reconnectCloud(true);
-  }, 15000);
-}
-
+// ===== Cloud status UI =====
 function updateCloudStatus() {
-  const cfg = effectiveFirebaseConfig();
   const online = navigator.onLine !== false;
   let st = 'off';
   if (cloudSyncEnabled && !online) st = 'offline';
   else if (cloudSyncEnabled && cloudConnected) st = 'live';
-  else if (cloudSyncEnabled) st = 'syncing';
-  else if (cfg) st = 'config';
+  else if (cloudSyncEnabled && awsReconnecting) st = 'syncing';
+  else st = 'off';
 
   const badge = byId('cloudStatusBadge');
   if (badge) {
@@ -13311,59 +12941,35 @@ function updateCloudStatus() {
       live: ['Conectado · en vivo', 'badge text-bg-success'],
       syncing: ['Sincronizando…', 'badge text-bg-warning'],
       offline: ['Sin conexión (se guardará)', 'badge text-bg-danger'],
-      config: ['Configurado', 'badge text-bg-info'],
-      off: ['Desconectado', 'badge text-bg-secondary']
+      off: ['Local', 'badge text-bg-secondary']
     };
-    badge.textContent = map[st][0];
-    badge.className = map[st][1];
-    badge.title = cloudLastError || map[st][0];
+    badge.textContent = (map[st] || map.off)[0];
+    badge.className = (map[st] || map.off)[1];
+    badge.title = cloudLastError || (map[st] || map.off)[0];
   }
-  // Nota de diagnóstico: muestra el motivo cuando algo impide conectar.
-  const note = byId('cloudSyncNote');
-  if (note) {
-    if (cloudLastError && st !== 'live') {
-      note.textContent = '⚠ ' + cloudLastError;
-      note.style.background = 'rgba(239,68,68,.12)';
-      note.style.color = '#b91c1c';
-      note.classList.remove('d-none');
-    } else if (st === 'live') {
-      note.textContent = '✓ Sincronización activa en tiempo real. No se desconectará al recargar.';
-      note.style.background = 'rgba(25,195,125,.12)';
-      note.style.color = '#0f9f63';
-      note.classList.remove('d-none');
-    } else {
-      note.classList.add('d-none');
-    }
-  }
-  const ind = byId('cloudTopIndicator');
-  const indText = byId('cloudTopIndicatorText');
+  const ind = byId('cloudIndicator');
+  const indText = byId('cloudIndicatorText');
   if (ind) {
     ind.classList.remove('cloud-live', 'cloud-syncing', 'cloud-offline', 'cloud-off');
-    const cmap = { live: ['cloud-live', 'En vivo'], syncing: ['cloud-syncing', 'Sincronizando'], offline: ['cloud-offline', 'Sin conexión'], config: ['cloud-off', 'Local'], off: ['cloud-off', 'Local'] };
-    ind.classList.add(cmap[st][0]);
-    ind.title = 'Nube: ' + cmap[st][1] + ' · Restaurante: ' + getRestaurantId();
-    if (indText) indText.textContent = cmap[st][1];
-  }
-  const chk = byId('enableCloudSync');
-  if (chk) chk.checked = (licenseState.local.cloudSyncEnabled !== false);
-  if (byId('cloudRestaurantLabel')) byId('cloudRestaurantLabel').textContent = getRestaurantId();
-  if (byId('currentRestaurantId') && document.activeElement !== byId('currentRestaurantId')) {
-    byId('currentRestaurantId').value = licenseState.local.clientId || '';
-  }
-  if (cfg) {
-    if (byId('firebaseProjectId')) byId('firebaseProjectId').value = cfg.projectId || '';
-    if (byId('firebaseApiKey')) byId('firebaseApiKey').value = cfg.apiKey || '';
-    if (byId('firebaseAuthDomain')) byId('firebaseAuthDomain').value = cfg.authDomain || '';
-    if (byId('firebaseAppId')) byId('firebaseAppId').value = cfg.appId || '';
+    const cmap = { live: ['cloud-live', 'En vivo'], syncing: ['cloud-syncing', 'Sincronizando'], offline: ['cloud-offline', 'Sin conexión'], off: ['cloud-off', 'Local'] };
+    ind.classList.add((cmap[st] || cmap.off)[0]);
+    ind.title = 'Nube: ' + (cmap[st] || cmap.off)[1] + ' · Restaurante: ' + getRestaurantId();
+    if (indText) indText.textContent = (cmap[st] || cmap.off)[1];
   }
 }
 
+// Funciones stub para compatibilidad con el código existente que referencia Firebase
+function saveFirebaseConfig() { toast('Configuración de nube no disponible (usando AWS)', 'info'); }
+function enableCloudSync() { autoStartCloudSync(); }
+function disableCloudSync() { cloudSyncEnabled = false; if(awsSocket) awsSocket.close(); updateCloudStatus(); }
+async function forceCloudSyncNow() { await pushIncremental(true); }
+
 window.addEventListener('online', () => {
   updateCloudStatus();
-  if (cloudSyncEnabled) { reconnectCloud(false); pushIncremental(); }
+  if (cloudSyncEnabled) connectAWS();
 });
 window.addEventListener('offline', () => { cloudConnected = false; updateCloudStatus(); });
-// autoStartCloudSync ya se llama desde DOMContentLoaded; no se duplica aqui.
+
 
   </script>
 </body>

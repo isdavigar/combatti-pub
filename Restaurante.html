@@ -11374,9 +11374,11 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       ensureBaselineData(false);
       currentOrder = null; currentOrderTableId = null;
       persistAll();
+      // Forzar subida de todos los datos a la nube después de restaurar
+      setTimeout(() => { resetCloudShadow(); pushIncremental(true); }, 1000);
       applyTheme();
       renderAll();
-      toast('Respaldo restaurado correctamente', 'success');
+      toast('Respaldo restaurado y sincronizado con la nube', 'success');
     }
     function exportSalesExcel(){
       if(!requireAdmin('exportar ventas')) return;
@@ -12834,6 +12836,8 @@ function handleAWSMessage(msg) {
     }
     if (!cloudInitialSyncDone) {
       cloudInitialSyncDone = true;
+      // Subir datos locales a la nube si la nube está vacía
+      setTimeout(() => pushIncremental(true), 500);
       scheduleRemoteApply();
     }
     updateCloudStatus();

@@ -6343,10 +6343,10 @@
       if(currentUser){ setText('currentUserLabel', currentUser.username); setText('currentRoleLabel', currentUser.role); }
       PERMISSION_ORDER.forEach(view => hasPermission(view) ? show(view) : hide(view));
       document.querySelectorAll('[data-admin-only]').forEach(el => {
-        const allowed = isAdmin();
+        const allowed = isAdmin() || (currentUser && currentUser.role === 'Cajero');
         el.disabled = !allowed;
         el.classList.toggle('d-none', !allowed);
-        el.title = allowed ? '' : 'Solo administrador';
+        el.title = allowed ? '' : 'Solo administrador o cajero';
       });
       renderLicenseUi();
     }

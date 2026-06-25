@@ -11225,10 +11225,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const duplicate = state.users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== editingUserId);
       if(duplicate){ toast('Ya existe un usuario con ese nombre', 'warning'); return; }
       const originalUser = editingUserId ? state.users.find(u => u.id === editingUserId) : null;
-      if((role === SYSTEM_ADMIN_ROLE || originalUser?.role === SYSTEM_ADMIN_ROLE) && !isSystemAdmin()){
-        toast('Solo el administrador del sistema puede crear o editar ese rol', 'warning');
-        return;
-      }
       if(originalUser?.role === SYSTEM_ADMIN_ROLE && role !== SYSTEM_ADMIN_ROLE && originalUser.active !== false && activeSystemAdminsCount() <= 1){
         toast('Debe quedar al menos un administrador del sistema activo', 'warning');
         return;
@@ -11514,11 +11510,32 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         app:'Combatti POS',
         version:DATA_VERSION,
         exportedAt:new Date().toISOString(),
+        exportedBy:currentUser?.username || 'desconocido',
         restaurantId:(typeof getRestaurantId === 'function' ? getRestaurantId() : ''),
-        state:appStateSnapshot()
+        state:appStateSnapshot(),
+        // Información adicional completa
+        cashHistory: state.cash?.history || [],
+        allOrders: state.orders || [],
+        allMovements: state.movements || [],
+        allProducts: state.products || [],
+        allUsers: state.users || [],
+        allTables: state.tables || [],
+        allSupplies: state.supplies || [],
+        allDeliveryZones: state.deliveryZones || [],
+        allKitchenTickets: state.kitchenTickets || [],
+        allDeletedOrders: state.deletedOrders || [],
+        allHistoricalSales: state.historicalSales || [],
+        activeSessions: state.activeSessions || {},
+        customWidgets: state.customWidgets || [],
+        brand: state.brand || {},
+        categories: state.categories || [],
+        cashState: state.cash || {},
+        currentShift: state.shift || 'Dia',
+        currentTheme: state.theme || 'light',
+        tableLayoutVersion: state.tableLayoutVersion || ''
       };
-      downloadBlob(`respaldo_combatti_${dateStamp()}.json`, JSON.stringify(payload, null, 2), 'application/json');
-      toast('Respaldo descargado', 'success');
+      downloadBlob(`respaldo_completo_combatti_${dateStamp()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      toast('Respaldo COMPLETO descargado (toda la información del sistema)', 'success');
     }
     function importBackupJson(event){
       const input = event.target;

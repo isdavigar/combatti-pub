@@ -10067,16 +10067,19 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         onConfirm: async () => {
           // Borrar deletedOrders via sync
           state.deletedOrders = [];
-          // Clear cloud shadow to prevent re-sync
+          // Clear cloud shadow para que pushIncremental detecte las eliminaciones
           if(typeof cloudShadow !== 'undefined'){
-            if(cloudShadow.deletedOrders) cloudShadow.deletedOrders = {};
-            delete cloudShadow.deletedOrders;
+            if(cloudShadow.deletedOrders) {
+              // Forzar envío de eliminaciones por cada doc que existía
+              Object.keys(cloudShadow.deletedOrders).forEach(docId => {
+                sendAWS({ action: 'sync', type: 'delete', collection: 'deletedOrders', docId });
+              });
+              cloudShadow.deletedOrders = {};
+            }
           }
           // Persist and force full sync
           persistAll(false);
           try { await pushIncremental(true); } catch(_){}
-          try { await forceCloudSyncNow(); } catch(_){}
-          try { saveStateToDatabase(appStateSnapshot()); } catch(_){}
           renderDeletedOrders();
           toast('Auditoría de eliminados vaciada permanentemente (local + nube)', 'success');
         }
@@ -10198,17 +10201,16 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
         onConfirm: async () => {
-          // Borrar directamente de Firebase primero
-          // Borrar de la nube via sync
+          // Enviar eliminación a la nube para que otros dispositivos la reciban
+          sendAWS({ action: 'sync', type: 'delete', collection: 'deletedOrders', docId: id });
           state.deletedOrders = (state.deletedOrders || []).filter(e => (e.id || '') !== id);
-          // Limpiar del cloudShadow para que no vuelva
+          // Limpiar del cloudShadow
           if(typeof cloudShadow !== 'undefined' && cloudShadow.deletedOrders){
             delete cloudShadow.deletedOrders[id];
           }
           persistAll();
-          await forceCloudSyncNow();
           renderDeletedOrders();
-          toast('Registro eliminado permanentemente', 'info');
+          toast('Registro eliminado permanentemente (local + nube)', 'info');
         }
       });
     }

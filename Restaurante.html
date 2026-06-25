@@ -7954,14 +7954,6 @@ const colors = [
         const reason = requestDeletionReason(`el producto "${item.name}"`);
         if(!reason) return;
         recordDeletedOrder({ kind:'Producto', reason, order:{ ...currentOrder, items:[{ ...item }] }, item:{ ...item } });
-        // Si es administrador y está en la mesa de Caja, preguntar si desea
-        // eliminar el producto también del catálogo (base de datos).
-        if(isAdmin()){
-          const deleteFromCatalog = confirm(`¿También deseas eliminar "${item.name}" del catálogo de productos?\n\n(Se eliminará de la base de datos para todos los dispositivos)`);
-          if(deleteFromCatalog){
-            state.products = state.products.filter(p => p.id !== item.productId);
-          }
-        }
       }
       currentOrder.items.splice(index,1);
       currentOrder.updatedAt = new Date().toISOString(); renderCurrentOrderItems(); renderOrderTotals(); persistAll();

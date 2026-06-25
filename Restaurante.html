@@ -12487,9 +12487,21 @@ function parseMoneyValue(value){
       updateIncomeExpenseBarChart(labels, incomes, expenses, period);
     }
     function incomeExpenseForRange(from, to){
-      // Income: sales in range
+      // Income: sales in range (pedidos + historial de cuadres)
       const report = buildCashReport(from, to);
-      const income = Number(report.sales || 0) + Number(report.income || 0);
+      let income = Number(report.sales || 0) + Number(report.income || 0);
+      // Si no hay ventas en pedidos, buscar en historial de cuadres
+      if(Number(report.sales || 0) === 0 && Array.isArray(state.cash?.history)){
+        let cashSales = 0;
+        state.cash.history.forEach(record => {
+          if(record.status !== 'Cerrada' || !record.closedAt) return;
+          const recordDate = new Date(record.closedAt);
+          if(recordDate >= from && recordDate <= to){
+            cashSales += Number(record.sales || 0);
+          }
+        });
+        if(cashSales > 0) income = cashSales + Number(report.income || 0);
+      }
       // Expenses: collect ALL non-payroll expenses from current shift AND
       // closed cash records (movementsHistory + expenseHistory).
       // Use a Set to avoid counting duplicates.
@@ -12506,13 +12518,18 @@ function parseMoneyValue(value){
       });
       // Past shifts: search in cash history
       (state.cash.history || []).forEach(record => {
+        if(record.status !== 'Cerrada' || !record.closedAt) return;
+        const recordDate = new Date(record.closedAt);
+        if(recordDate < from || recordDate > to) return;
         // Check movementsHistory
+        let recordExpenseFromDetails = 0;
         (record.movementsHistory || []).forEach(m => {
           if(!m.date || m.payroll || m.type !== 'Egreso') return;
           if(m.id && counted.has(m.id)) return;
           const mDate = new Date(m.date);
           if(mDate >= from && mDate <= to){
             expense += Number(m.amount || 0);
+            recordExpenseFromDetails += Number(m.amount || 0);
             if(m.id) counted.add(m.id);
           }
         });
@@ -12523,9 +12540,14 @@ function parseMoneyValue(value){
           const mDate = new Date(m.date);
           if(mDate >= from && mDate <= to){
             expense += Number(m.amount || 0);
+            recordExpenseFromDetails += Number(m.amount || 0);
             if(m.id) counted.add(m.id);
           }
         });
+        // Si no hay detalles pero el cuadre tiene un total de egresos, usarlo
+        if(recordExpenseFromDetails === 0 && Number(record.expense || 0) > 0){
+          expense += Number(record.expense || 0);
+        }
       });
       return { income, expense };
     }

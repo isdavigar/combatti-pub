@@ -6500,8 +6500,8 @@
       let cashHistorySales = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada' || !record.closedAt) return;
-          const recordDate = new Date(record.closedAt);
+          if(record.status !== 'Cerrada') return;
+          const recordDate = new Date(record.openedAt || record.closedAt);
           if(recordDate >= fromDate && recordDate <= toDate){
             cashHistorySales += Number(record.sales || 0);
           }
@@ -6584,8 +6584,9 @@
       let cashHistorySales = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada' || !record.closedAt) return;
-          const recordDate = new Date(record.closedAt);
+          if(record.status !== 'Cerrada') return;
+          // Usar openedAt como fecha del cuadre (el día del turno, no cuando se cerró)
+          const recordDate = new Date(record.openedAt || record.closedAt);
           if(recordDate >= from && recordDate <= to){
             cashHistorySales += Number(record.sales || 0);
           }
@@ -6654,8 +6655,8 @@
         const monthStart = startOfMonth(today);
         const cashSellerTotals = new Map();
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada' || !record.closedAt) return;
-          const recordDate = new Date(record.closedAt);
+          if(record.status !== 'Cerrada') return;
+          const recordDate = new Date(record.openedAt || record.closedAt);
           if(recordDate >= monthStart && recordDate <= endOfDay(today)){
             const key = record.responsible || 'Sin vendedor';
             cashSellerTotals.set(key, (cashSellerTotals.get(key) || 0) + Number(record.sales || 0));
@@ -12511,8 +12512,8 @@ function parseMoneyValue(value){
       let cashSales = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada' || !record.closedAt) return;
-          const recordDate = new Date(record.closedAt);
+          if(record.status !== 'Cerrada') return;
+          const recordDate = new Date(record.openedAt || record.closedAt);
           if(recordDate >= from && recordDate <= to){
             cashSales += Number(record.sales || 0);
           }
@@ -12537,8 +12538,8 @@ function parseMoneyValue(value){
       });
       // Past shifts: search in cash history
       (state.cash.history || []).forEach(record => {
-        if(record.status !== 'Cerrada' || !record.closedAt) return;
-        const recordDate = new Date(record.closedAt);
+        if(record.status !== 'Cerrada') return;
+        const recordDate = new Date(record.openedAt || record.closedAt);
         if(recordDate < from || recordDate > to) return;
         // Check movementsHistory
         let recordExpenseFromDetails = 0;

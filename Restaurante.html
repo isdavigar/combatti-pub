@@ -6496,7 +6496,7 @@
     function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openBtnHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
-      // Siempre incluir ventas del historial de cuadres (cierres de caja)
+      // Sumar ventas del historial de cuadres cerrados
       let cashHistorySales = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
@@ -6507,8 +6507,18 @@
           }
         });
       }
-      // Usar el mayor entre pedidos individuales y cuadres (evita doble conteo del turno actual)
-      return Math.max(orderSales, cashHistorySales) + historical;
+      // Si hay cuadres cerrados, usar esos + pedidos del turno abierto actual
+      // (pedidos del turno actual que aún no tienen cuadre cerrado)
+      if(cashHistorySales > 0){
+        // Los pedidos que ya están contados en un cuadre no se suman doble
+        // Solo sumar pedidos que sean del turno ACTUAL (después del último cierre)
+        const lastClose = state.cash.closedAt ? new Date(state.cash.closedAt) : null;
+        const currentTurnOrders = lastClose
+          ? state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) > lastClose && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0)
+          : 0;
+        return cashHistorySales + currentTurnOrders + historical;
+      }
+      return orderSales + historical;
     }
     function movementsBetween(type, fromDate, toDate){
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
@@ -6570,7 +6580,7 @@
         if(bday && bday >= from && bday <= to) orderTotal += Number(o.total || 0);
       });
       const historical = historicalSalesInRange(fromDate, toDate);
-      // Siempre incluir ventas del historial de cuadres
+      // Sumar ventas de todos los cuadres cerrados en el rango
       let cashHistorySales = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
@@ -6581,8 +6591,15 @@
           }
         });
       }
-      // Usar el mayor entre pedidos y cuadres (evita doble conteo del turno actual)
-      return Math.max(orderTotal, cashHistorySales) + historical;
+      if(cashHistorySales > 0){
+        // Sumar pedidos del turno actual que no tienen cuadre aún
+        const lastClose = state.cash.closedAt ? new Date(state.cash.closedAt) : null;
+        const currentTurnOrders = lastClose
+          ? state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) > lastClose && new Date(o.paidAt) <= to).reduce((a,b)=>a + (b.total || 0), 0)
+          : 0;
+        return cashHistorySales + currentTurnOrders + historical;
+      }
+      return orderTotal + historical;
     }
     function paidOrdersRangeByBusiness(fromDate, toDate){
       const from = startOfDay(fromDate);
@@ -12490,9 +12507,9 @@ function parseMoneyValue(value){
       // Income: sales in range (pedidos + historial de cuadres)
       const report = buildCashReport(from, to);
       let income = Number(report.sales || 0) + Number(report.income || 0);
-      // Si no hay ventas en pedidos, buscar en historial de cuadres
-      if(Number(report.sales || 0) === 0 && Array.isArray(state.cash?.history)){
-        let cashSales = 0;
+      // Sumar ventas del historial de cuadres cerrados en el rango
+      let cashSales = 0;
+      if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
           if(record.status !== 'Cerrada' || !record.closedAt) return;
           const recordDate = new Date(record.closedAt);
@@ -12500,7 +12517,9 @@ function parseMoneyValue(value){
             cashSales += Number(record.sales || 0);
           }
         });
-        if(cashSales > 0) income = cashSales + Number(report.income || 0);
+      }
+      if(cashSales > Number(report.sales || 0)){
+        income = cashSales + Number(report.income || 0);
       }
       // Expenses: collect ALL non-payroll expenses from current shift AND
       // closed cash records (movementsHistory + expenseHistory).

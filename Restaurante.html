@@ -5367,13 +5367,9 @@
       } else {
         state.tables = tables || defaultTables();
         state.products = Array.isArray(products) ? products : initialProducts();
-        // Asegurar que todos los productos del catálogo base estén presentes
-        const existingNames = new Set(state.products.map(p => p.name.toLowerCase().trim()));
-        INITIAL_PRODUCTS.forEach(ip => {
-          if(!existingNames.has(ip.name.toLowerCase().trim())){
-            state.products.push(normalizeProductRecord({ ...ip }));
-          }
-        });
+        // SIEMPRE usar los productos del catálogo base como fuente de verdad.
+        // Reemplaza lo que haya en local con los 147 productos del código.
+        state.products = initialProducts();
         state.orders = orders || [];
         state.movements = movements || [];
         state.kitchenTickets = Array.isArray(kitchenTickets) ? kitchenTickets : [];

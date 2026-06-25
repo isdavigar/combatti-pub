@@ -13080,7 +13080,8 @@ function handleAWSMessage(msg) {
       const docId = cloudDocId(item);
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
-    if (items.length > 0) {
+    // NUNCA sobreescribir productos desde la nube — siempre usar INITIAL_PRODUCTS
+    if (coll !== 'products' && items.length > 0) {
       state[coll] = cloudSortByOrd(items);
     }
     scheduleRemoteApply();
@@ -13091,6 +13092,7 @@ function handleAWSMessage(msg) {
     // Real-time document update from another device
     const { collection: coll, docId, payload } = msg;
     if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
+    if (coll === 'products') return; // Productos SOLO del código, nunca de la nube
     cloudShadow[coll] = cloudShadow[coll] || {};
     cloudShadow[coll][docId] = cloudShadowKey(payload);
     state[coll] = state[coll] || [];

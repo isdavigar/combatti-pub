@@ -11221,6 +11221,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
               created++;
             }
           });
+          // Eliminar duplicados por nombre (conservar el último actualizado)
+          const seen = new Map();
+          state.products.forEach(p => seen.set(p.name.toLowerCase().trim(), p));
+          state.products = [...seen.values()];
           state.products = state.products.map(normalizeProductRecord);
           refreshCategories();
           persistAll();

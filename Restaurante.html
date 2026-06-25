@@ -6624,6 +6624,24 @@
         const key = o.seller || 'Sin vendedor';
         sellerTotals.set(key, (sellerTotals.get(key) || 0) + Number(o.total || 0));
       });
+      // También sumar ventas del historial de cuadres del mes por responsable
+      if(Array.isArray(state.cash?.history)){
+        const monthStart = startOfMonth(today);
+        const cashSellerTotals = new Map();
+        state.cash.history.forEach(record => {
+          if(record.status !== 'Cerrada' || !record.closedAt) return;
+          const recordDate = new Date(record.closedAt);
+          if(recordDate >= monthStart && recordDate <= endOfDay(today)){
+            const key = record.responsible || 'Sin vendedor';
+            cashSellerTotals.set(key, (cashSellerTotals.get(key) || 0) + Number(record.sales || 0));
+          }
+        });
+        // Para cada vendedor, usar el mayor entre pedidos individuales y cuadres
+        cashSellerTotals.forEach((cashTotal, key) => {
+          const orderTotal = sellerTotals.get(key) || 0;
+          if(cashTotal > orderTotal) sellerTotals.set(key, cashTotal);
+        });
+      }
       const sellerRanking = [...sellerTotals.entries()].map(([name, total]) => ({ name, total })).sort((a,b)=>b.total-a.total);
       const topSeller = sellerRanking[0] || { name:'-', total:0 };
       const cashTotal = state.cash.open ? (state.cash.openingAmount || 0) + todayReport.cashPayments + Number(todayReport.income || 0) - Number(todayReport.cashExpense || 0) : 0;

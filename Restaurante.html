@@ -4149,6 +4149,75 @@
   </div>
 
   <!-- Asistente / chatbot de soporte (responde dentro del mismo chat) -->
+
+  <!-- Modal para agregar cuadre manual -->
+  <div class="modal fade" id="addCashRecordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="border-radius:28px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.28);">
+        <div class="modal-header" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));padding:20px 24px;">
+          <h5 class="modal-title text-white fw-bold"><i class="fa-solid fa-plus me-2"></i>Agregar cuadre de caja</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" style="padding:24px;">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Fecha</label>
+              <input id="addRecordDate" type="date" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Turno</label>
+              <select id="addRecordShift" class="form-select">
+                <option value="Dia">Día</option>
+                <option value="Noche">Noche</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-bold">Responsable</label>
+              <input id="addRecordResponsible" class="form-control" placeholder="Nombre del cajero">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Monto apertura ($)</label>
+              <input id="addRecordOpening" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Total ventas ($)</label>
+              <input id="addRecordSales" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Efectivo ($)</label>
+              <input id="addRecordCash" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Transferencias ($)</label>
+              <input id="addRecordTransfer" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Tarjeta ($)</label>
+              <input id="addRecordCard" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Egresos ($)</label>
+              <input id="addRecordExpense" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Propinas ($)</label>
+              <input id="addRecordTips" type="number" class="form-control" value="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Domicilios ($)</label>
+              <input id="addRecordDelivery" type="number" class="form-control" value="0">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:16px 24px;border:0;">
+          <button class="btn btn-outline-secondary btn-pill" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-success btn-pill" onclick="confirmAddManualCashRecord()"><i class="fa-solid fa-check me-2"></i>Guardar cuadre</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asistente / chatbot de soporte (responde dentro del mismo chat) -->
   <button id="supportChatLauncher" class="support-chat-launcher" type="button" onclick="toggleSupportChat()" title="Asistente Combatti" aria-label="Abrir asistente Combatti"><i class="fa-solid fa-comment-dots"></i></button>
   <button id="supportChatHideBtn" class="support-chat-launcher" type="button" onclick="hideSupportAssistant()" title="Ocultar asistente" aria-label="Ocultar asistente" style="right:80px;background:#64748b;"><i class="fa-solid fa-eye-slash"></i></button>
   <div id="supportChatPanel" class="support-chat-panel d-none">
@@ -6419,18 +6488,19 @@
     function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openBtnHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
-      let total = orderSales + historical;
-      // Si no hay pedidos, sumar del historial de cuadres
-      if(total === 0 && Array.isArray(state.cash?.history)){
+      // Siempre incluir ventas del historial de cuadres (cierres de caja)
+      let cashHistorySales = 0;
+      if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
           if(record.status !== 'Cerrada' || !record.closedAt) return;
           const recordDate = new Date(record.closedAt);
           if(recordDate >= fromDate && recordDate <= toDate){
-            total += Number(record.sales || 0);
+            cashHistorySales += Number(record.sales || 0);
           }
         });
       }
-      return total;
+      // Usar el mayor entre pedidos individuales y cuadres (evita doble conteo del turno actual)
+      return Math.max(orderSales, cashHistorySales) + historical;
     }
     function movementsBetween(type, fromDate, toDate){
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
@@ -6486,23 +6556,25 @@
     function salesBetweenByBusiness(fromDate, toDate){
       const from = startOfDay(fromDate);
       const to = endOfDay(toDate);
-      let total = 0;
+      let orderTotal = 0;
       state.orders.filter(o => o.status === 'Pagado' && o.paidAt).forEach(o => {
         const bday = orderBusinessDate(o);
-        if(bday && bday >= from && bday <= to) total += Number(o.total || 0);
+        if(bday && bday >= from && bday <= to) orderTotal += Number(o.total || 0);
       });
-      total += historicalSalesInRange(fromDate, toDate);
-      // Si no hay pedidos individuales, sumar del historial de cuadres
-      if(total === 0 && Array.isArray(state.cash?.history)){
+      const historical = historicalSalesInRange(fromDate, toDate);
+      // Siempre incluir ventas del historial de cuadres
+      let cashHistorySales = 0;
+      if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
           if(record.status !== 'Cerrada' || !record.closedAt) return;
           const recordDate = new Date(record.closedAt);
           if(recordDate >= from && recordDate <= to){
-            total += Number(record.sales || 0);
+            cashHistorySales += Number(record.sales || 0);
           }
         });
       }
-      return total;
+      // Usar el mayor entre pedidos y cuadres (evita doble conteo del turno actual)
+      return Math.max(orderTotal, cashHistorySales) + historical;
     }
     function paidOrdersRangeByBusiness(fromDate, toDate){
       const from = startOfDay(fromDate);
@@ -9902,38 +9974,36 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
 
     // Agregar un cuadre individual manualmente
     function showAddManualCashRecord(){
-      const fecha = prompt('Fecha del cuadre (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-      if(!fecha) return;
-      const turno = prompt('Turno (Dia o Noche):', 'Dia');
-      if(!turno) return;
-      const responsable = prompt('Responsable (nombre del cajero):', currentUser?.username || '');
-      if(responsable === null) return;
-      const apertura = prompt('Monto de apertura ($):', '0');
-      if(apertura === null) return;
-      const ventas = prompt('Total ventas pagadas ($):', '0');
-      if(ventas === null) return;
-      const efectivo = prompt('Total efectivo ($):', '0');
-      if(efectivo === null) return;
-      const transferencias = prompt('Total transferencias ($):', '0');
-      if(transferencias === null) return;
-      const tarjeta = prompt('Total tarjeta/datáfono ($):', '0');
-      if(tarjeta === null) return;
-      const egresos = prompt('Total egresos ($):', '0');
-      if(egresos === null) return;
-      const propinas = prompt('Total propinas ($):', '0');
-      if(propinas === null) return;
-
-      const openingAmount = clampNumber(apertura);
-      const salesTotal = clampNumber(ventas);
-      const cashPayments = clampNumber(efectivo);
-      const transferPayments = clampNumber(transferencias);
-      const cardPayments = clampNumber(tarjeta);
-      const expense = clampNumber(egresos);
-      const tips = clampNumber(propinas);
+      setValue('addRecordDate', new Date().toISOString().split('T')[0]);
+      setValue('addRecordShift', 'Dia');
+      setValue('addRecordResponsible', currentUser?.username || '');
+      setValue('addRecordOpening', '0');
+      setValue('addRecordSales', '0');
+      setValue('addRecordCash', '0');
+      setValue('addRecordTransfer', '0');
+      setValue('addRecordCard', '0');
+      setValue('addRecordExpense', '0');
+      setValue('addRecordTips', '0');
+      setValue('addRecordDelivery', '0');
+      modalFor(document.getElementById('addCashRecordModal')).show();
+    }
+    function confirmAddManualCashRecord(){
+      const fecha = byId('addRecordDate')?.value;
+      if(!fecha){ toast('Escribe la fecha', 'warning'); return; }
+      const turno = byId('addRecordShift')?.value || 'Dia';
+      const responsable = byId('addRecordResponsible')?.value || '';
+      const openingAmount = clampNumber(byId('addRecordOpening')?.value);
+      const salesTotal = clampNumber(byId('addRecordSales')?.value);
+      const cashPayments = clampNumber(byId('addRecordCash')?.value);
+      const transferPayments = clampNumber(byId('addRecordTransfer')?.value);
+      const cardPayments = clampNumber(byId('addRecordCard')?.value);
+      const expense = clampNumber(byId('addRecordExpense')?.value);
+      const tips = clampNumber(byId('addRecordTips')?.value);
+      const deliveryFees = clampNumber(byId('addRecordDelivery')?.value);
       const finalCash = openingAmount + cashPayments - expense;
 
       const parsedDate = parseLocalDate(fecha);
-      if(!parsedDate){ toast('Fecha no válida. Usa formato YYYY-MM-DD', 'warning'); return; }
+      if(!parsedDate){ toast('Fecha no válida', 'warning'); return; }
       const shift = normalizeShift(turno);
       parsedDate.setHours(shift === 'Noche' ? 20 : 12, 0, 0, 0);
       const openedAt = parsedDate.toISOString();
@@ -9950,7 +10020,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         openingAmount: openingAmount,
         sales: salesTotal,
         tips: tips,
-        deliveryFees: 0,
+        deliveryFees: deliveryFees,
         income: 0,
         expense: expense,
         cashExpense: expense,
@@ -9961,7 +10031,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         creditSales: 0,
         courtesyTotal: 0,
         final: finalCash,
-        finalAfterDelivery: finalCash,
+        finalAfterDelivery: finalCash - deliveryFees,
         expectedCash: finalCash,
         countedCash: finalCash,
         discrepancy: 0,
@@ -9974,8 +10044,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       state.cash.history = Array.isArray(state.cash.history) ? state.cash.history : [];
       state.cash.history.push(record);
       persistAll();
+      modalFor(document.getElementById('addCashRecordModal')).hide();
       renderCashHistory();
-      toast(`Cuadre del ${fecha} (${shift === 'Noche' ? 'Noche' : 'Día'}) agregado correctamente`, 'success');
+      renderDashboard();
+      toast(`Cuadre del ${fecha} (${shift === 'Noche' ? 'Noche' : 'Día'}) agregado`, 'success');
     }
 
     function renderCashHistory(){

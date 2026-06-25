@@ -13074,7 +13074,11 @@ function handleAWSMessage(msg) {
   if (msg.type === 'snapshot') {
     // Initial collection load
     const coll = msg.collection;
-    const items = msg.items || [];
+    const items = (msg.items || []).map(item => {
+      // Si el item viene como string JSON (de DynamoDB), parsearlo
+      if(typeof item === 'string') try { return JSON.parse(item); } catch(_){ return item; }
+      return item;
+    }).filter(Boolean);
     cloudShadow[coll] = {};
     items.forEach(item => {
       const docId = cloudDocId(item);

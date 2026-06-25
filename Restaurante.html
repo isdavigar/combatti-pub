@@ -11225,6 +11225,10 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const duplicate = state.users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== editingUserId);
       if(duplicate){ toast('Ya existe un usuario con ese nombre', 'warning'); return; }
       const originalUser = editingUserId ? state.users.find(u => u.id === editingUserId) : null;
+      if((role === SYSTEM_ADMIN_ROLE) && !isSystemAdmin()){
+        toast('Solo el administrador del sistema puede crear ese rol', 'warning');
+        return;
+      }
       if(originalUser?.role === SYSTEM_ADMIN_ROLE && role !== SYSTEM_ADMIN_ROLE && originalUser.active !== false && activeSystemAdminsCount() <= 1){
         toast('Debe quedar al menos un administrador del sistema activo', 'warning');
         return;

@@ -5367,25 +5367,9 @@
       } else {
         state.tables = tables || defaultTables();
         state.products = Array.isArray(products) ? products : initialProducts();
-        // Reset único: forzar catálogo base. Después de esta versión, se respetan
-        // los cambios de precio que haga el administrador.
-        const PRODUCT_RESET_KEY = 'combatti_product_reset_v3';
-        if(!localStorage.getItem(PRODUCT_RESET_KEY)){
-          state.products = initialProducts();
-          localStorage.setItem(PRODUCT_RESET_KEY, '1');
-        } else {
-          // Asegurar que los 147 productos base estén presentes (agregar faltantes)
-          const existingNames = new Set(state.products.map(p => p.name.toLowerCase().trim()));
-          INITIAL_PRODUCTS.forEach(ip => {
-            if(!existingNames.has(ip.name.toLowerCase().trim())){
-              state.products.push(normalizeProductRecord({ ...ip }));
-            }
-          });
-          // Eliminar duplicados por nombre
-          const seen = new Map();
-          state.products.forEach(p => seen.set(p.name.toLowerCase().trim(), p));
-          state.products = [...seen.values()];
-        }
+        // Si no hay productos locales, cargar los del catálogo base.
+        // Los productos reales viven en AWS DynamoDB.
+        if(!state.products.length) state.products = initialProducts();
         state.orders = orders || [];
         state.movements = movements || [];
         state.kitchenTickets = Array.isArray(kitchenTickets) ? kitchenTickets : [];
@@ -13096,8 +13080,7 @@ function handleAWSMessage(msg) {
       const docId = cloudDocId(item);
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
-    // NUNCA sobreescribir productos desde la nube — siempre usar INITIAL_PRODUCTS
-    if (coll !== 'products' && items.length > 0) {
+    if (items.length > 0) {
       state[coll] = cloudSortByOrd(items);
     }
     scheduleRemoteApply();
@@ -13108,7 +13091,6 @@ function handleAWSMessage(msg) {
     // Real-time document update from another device
     const { collection: coll, docId, payload } = msg;
     if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
-    if (coll === 'products') return; // Productos SOLO del código, nunca de la nube
     cloudShadow[coll] = cloudShadow[coll] || {};
     cloudShadow[coll][docId] = cloudShadowKey(payload);
     state[coll] = state[coll] || [];

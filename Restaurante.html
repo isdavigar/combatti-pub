@@ -6419,7 +6419,18 @@
     function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openBtnHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
-      return orderSales + historical;
+      let total = orderSales + historical;
+      // Si no hay pedidos, sumar del historial de cuadres
+      if(total === 0 && Array.isArray(state.cash?.history)){
+        state.cash.history.forEach(record => {
+          if(record.status !== 'Cerrada' || !record.closedAt) return;
+          const recordDate = new Date(record.closedAt);
+          if(recordDate >= fromDate && recordDate <= toDate){
+            total += Number(record.sales || 0);
+          }
+        });
+      }
+      return total;
     }
     function movementsBetween(type, fromDate, toDate){
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
@@ -6481,6 +6492,16 @@
         if(bday && bday >= from && bday <= to) total += Number(o.total || 0);
       });
       total += historicalSalesInRange(fromDate, toDate);
+      // Si no hay pedidos individuales, sumar del historial de cuadres
+      if(total === 0 && Array.isArray(state.cash?.history)){
+        state.cash.history.forEach(record => {
+          if(record.status !== 'Cerrada' || !record.closedAt) return;
+          const recordDate = new Date(record.closedAt);
+          if(recordDate >= from && recordDate <= to){
+            total += Number(record.sales || 0);
+          }
+        });
+      }
       return total;
     }
     function paidOrdersRangeByBusiness(fromDate, toDate){

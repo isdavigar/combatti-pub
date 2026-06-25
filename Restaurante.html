@@ -4159,6 +4159,14 @@
           <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body" style="padding:24px;">
+          <div class="alert alert-info d-flex align-items-center gap-2 mb-3" style="border-radius:14px;">
+            <i class="fa-solid fa-file-excel fa-lg"></i>
+            <div class="flex-grow-1">
+              <strong>¿Tienes el Excel del cierre?</strong> Impórtalo para llenar los campos automáticamente.
+            </div>
+            <input id="addRecordExcelInput" type="file" accept=".xlsx,.xls" class="d-none" onchange="importExcelToAddRecord(event)">
+            <button class="btn btn-sm btn-outline-success btn-pill" onclick="document.getElementById('addRecordExcelInput').click()"><i class="fa-solid fa-upload me-1"></i>Importar Excel</button>
+          </div>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label fw-bold">Fecha</label>
@@ -10005,6 +10013,87 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       setValue('addRecordDelivery', '0');
       modalFor(document.getElementById('addCashRecordModal')).show();
     }
+    // Importar Excel de cierre de turno para llenar automáticamente el modal de agregar cuadre
+    function importExcelToAddRecord(event){
+      const file = event.target.files?.[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e){
+        try {
+          const wb = XLSX.read(e.target.result, { type:'array' });
+          // Buscar la hoja "Resumen" o la primera hoja
+          const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumen')) || wb.SheetNames[0];
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
+          // Buscar valores en el Excel (formato del cierre diario)
+          const findValue = (label) => {
+            for(const row of rows){
+              if(!Array.isArray(row)) continue;
+              for(let i = 0; i < row.length; i++){
+                const cell = String(row[i] || '').toLowerCase().trim();
+                if(cell.includes(label.toLowerCase())){
+                  // Buscar el valor numérico a la derecha
+                  for(let j = i + 1; j < row.length; j++){
+                    const val = row[j];
+                    if(val !== undefined && val !== null && val !== ''){
+                      const num = Number(String(val).replace(/[$.,\s]/g, ''));
+                      if(!isNaN(num)) return num;
+                    }
+                  }
+                }
+              }
+            }
+            return 0;
+          };
+          const findText = (label) => {
+            for(const row of rows){
+              if(!Array.isArray(row)) continue;
+              for(let i = 0; i < row.length; i++){
+                const cell = String(row[i] || '').toLowerCase().trim();
+                if(cell.includes(label.toLowerCase())){
+                  for(let j = i + 1; j < row.length; j++){
+                    const val = row[j];
+                    if(val !== undefined && val !== null && String(val).trim()) return String(val).trim();
+                  }
+                }
+              }
+            }
+            return '';
+          };
+          // Llenar los campos del modal
+          const responsible = findText('responsable') || findText('cajero') || findText('usuario');
+          const sales = findValue('ventas pagadas') || findValue('ventas cobradas') || findValue('total ventas');
+          const opening = findValue('apertura') || findValue('caja inicial') || findValue('total inicial');
+          const cash = findValue('efectivo');
+          const transfer = findValue('transferencia') || findValue('nequi') + findValue('bancolombia');
+          const card = findValue('datafono') || findValue('tarjeta') || findValue('bold');
+          const expense = findValue('egresos') || findValue('gastos');
+          const tips = findValue('propina');
+          const delivery = findValue('domicilio');
+          const shift = findText('turno');
+
+          if(responsible) setValue('addRecordResponsible', responsible);
+          if(sales) setValue('addRecordSales', sales);
+          if(opening) setValue('addRecordOpening', opening);
+          if(cash) setValue('addRecordCash', cash);
+          if(transfer) setValue('addRecordTransfer', transfer);
+          if(card) setValue('addRecordCard', card);
+          if(expense) setValue('addRecordExpense', expense);
+          if(tips) setValue('addRecordTips', tips);
+          if(delivery) setValue('addRecordDelivery', delivery);
+          if(shift && shift.toLowerCase().includes('noche')) setValue('addRecordShift', 'Noche');
+          else if(shift) setValue('addRecordShift', 'Dia');
+
+          toast('Datos importados del Excel. Verifica y ajusta la fecha antes de guardar.', 'success');
+        } catch(err){
+          console.error('Error leyendo Excel:', err);
+          toast('No se pudo leer el Excel. Verifica el formato.', 'danger');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      event.target.value = '';
+    }
+
     function confirmAddManualCashRecord(){
       const fecha = byId('addRecordDate')?.value;
       if(!fecha){ toast('Escribe la fecha', 'warning'); return; }

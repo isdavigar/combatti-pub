@@ -6525,7 +6525,7 @@
           if(record.status !== 'Cerrada') return;
           const recordDate = new Date(record.openedAt || record.closedAt);
           if(recordDate >= fromDate && recordDate <= toDate){
-            cashHistorySales += Number(record.sales || 0);
+            cashHistorySales += cashRecordRealSales(record);
           }
         });
       }
@@ -6602,7 +6602,7 @@
         if(bday && bday >= from && bday <= to) orderTotal += Number(o.total || 0);
       });
       const historical = historicalSalesInRange(fromDate, toDate);
-      // Sumar ventas de todos los cuadres cerrados en el rango
+      // Sumar ventas de todos los cuadres cerrados en el rango (usando totales reales de pedidos)
       let cashHistorySales = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
@@ -6610,7 +6610,7 @@
           // Usar openedAt como fecha del cuadre (el día del turno, no cuando se cerró)
           const recordDate = new Date(record.openedAt || record.closedAt);
           if(recordDate >= from && recordDate <= to){
-            cashHistorySales += Number(record.sales || 0);
+            cashHistorySales += cashRecordRealSales(record);
           }
         });
       }
@@ -13238,18 +13238,33 @@ function relinkCurrentOrder() {
 function resetCloudShadow() { cloudShadow = {}; cloudConfigShadow = ''; }
 
 // Quita duplicados por id en las colecciones.
+// Para productos, también elimina duplicados por nombre (misma categoría + nombre = duplicado).
 function dedupeStateCollections(){
   CLOUD_COLLECTIONS.forEach(coll => {
     const arr = state[coll];
     if (!Array.isArray(arr)) return;
     const seen = new Set();
     const out = [];
-    arr.forEach(it => {
-      const id = it && it.id != null ? String(it.id) : '';
-      if (id && seen.has(id)) return;
-      if (id) seen.add(id);
-      out.push(it);
-    });
+    if(coll === 'products'){
+      // Dedupe by id AND by name+category
+      const seenNames = new Set();
+      arr.forEach(it => {
+        const id = it && it.id != null ? String(it.id) : '';
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        const nameKey = `${String(it.category || '').toLowerCase().trim()}|${String(it.name || '').toLowerCase().trim()}`;
+        if(nameKey && nameKey !== '|' && seenNames.has(nameKey)) return;
+        if(nameKey && nameKey !== '|') seenNames.add(nameKey);
+        out.push(it);
+      });
+    } else {
+      arr.forEach(it => {
+        const id = it && it.id != null ? String(it.id) : '';
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        out.push(it);
+      });
+    }
     if (out.length !== arr.length) state[coll] = out;
   });
 }
@@ -13257,6 +13272,7 @@ function dedupeStateCollections(){
 function scheduleRemoteApply() {
   clearTimeout(cloudApplyTimer);
   cloudApplyTimer = setTimeout(() => {
+    dedupeStateCollections();
     relinkCurrentOrder();
     syncAllTableOrderSnapshots();
     saveStateToDatabase(appStateSnapshot());

@@ -8479,6 +8479,7 @@ const colors = [
       const savedOrderId = currentOrder.id;
       currentOrder.seller = currentUser?.username || 'Sin usuario';
       currentOrder.updatedAt = new Date().toISOString();
+      currentOrder._seq = Date.now();
       currentOrder.status = 'Abierto';
       if(table){ table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago'; table.orderId = currentOrder.id; }
       syncTableOrderSnapshot(table, currentOrder);
@@ -8562,6 +8563,7 @@ const colors = [
       currentOrder.kitchenStatus = 'Pagado';
       currentOrder.paidAt = new Date().toISOString();
       currentOrder.updatedAt = currentOrder.paidAt;
+      currentOrder._seq = Date.now();
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
       persistAll();
@@ -13354,7 +13356,29 @@ function handleAWSMessage(msg) {
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
     if (items.length > 0) {
-      state[coll] = cloudSortByOrd(items);
+      if(coll === 'orders'){
+        // Merge: keep local paid orders that are newer than remote versions
+        const remoteById = new Map(items.map(it => [cloudDocId(it), it]));
+        const localPaid = (state[coll] || []).filter(local => {
+          if(local.status !== 'Pagado') return false;
+          const remote = remoteById.get(cloudDocId(local));
+          if(!remote) return false;
+          const localSeq = Number(local._seq || 0) || new Date(local.updatedAt || local.paidAt || 0).getTime();
+          const remoteSeq = Number(remote._seq || 0) || new Date(remote.updatedAt || remote.paidAt || 0).getTime();
+          return localSeq > remoteSeq;
+        });
+        // Start with remote data, then overwrite with newer local paid orders
+        const merged = new Map(items.map(it => [cloudDocId(it), it]));
+        localPaid.forEach(local => {
+          merged.set(cloudDocId(local), local);
+          // Mark shadow as dirty so pushIncremental will re-upload our version
+          delete cloudShadow[coll][cloudDocId(local)];
+        });
+        state[coll] = cloudSortByOrd([...merged.values()]);
+        if(localPaid.length > 0) setTimeout(() => pushIncremental(true), 500);
+      } else {
+        state[coll] = cloudSortByOrd(items);
+      }
     }
     scheduleRemoteApply();
     return;
@@ -13365,10 +13389,33 @@ function handleAWSMessage(msg) {
     const { collection: coll, docId, payload } = msg;
     if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
     cloudShadow[coll] = cloudShadow[coll] || {};
-    cloudShadow[coll][docId] = cloudShadowKey(payload);
     state[coll] = state[coll] || [];
     const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
-    if (idx >= 0) state[coll][idx] = payload; else state[coll].push(payload);
+    if (idx >= 0) {
+      const local = state[coll][idx];
+      // Protect paid orders: don't overwrite with an older version
+      if(coll === 'orders' && local && local.status === 'Pagado'){
+        const localSeq = Number(local._seq || 0) || new Date(local.updatedAt || local.paidAt || 0).getTime();
+        const remoteSeq = Number(payload._seq || 0) || new Date(payload.updatedAt || payload.paidAt || 0).getTime();
+        if(remoteSeq < localSeq){
+          // Reject older version and re-push our correct version to overwrite cloud
+          delete cloudShadow[coll][docId];
+          setTimeout(() => pushIncremental(true), 200);
+          return;
+        }
+      }
+      // Don't overwrite the order currently being edited
+      if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId){
+        // Re-push local version after edit is done
+        delete cloudShadow[coll][docId];
+        return;
+      }
+      cloudShadow[coll][docId] = cloudShadowKey(payload);
+      state[coll][idx] = payload;
+    } else {
+      cloudShadow[coll][docId] = cloudShadowKey(payload);
+      state[coll].push(payload);
+    }
     state[coll] = cloudSortByOrd(state[coll]);
     scheduleRemoteApply();
     return;

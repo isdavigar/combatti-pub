@@ -11001,39 +11001,125 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       toast(`Venta movida al ${parsed.toLocaleDateString('es-CO', { day:'2-digit', month:'long', year:'numeric' })} — Turno de ${shift === 'Noche' ? 'noche' : 'día'}`, 'success');
     }
 
-    // Editar una venta pagada (solo admin del sistema) — para corregir precios.
+    // Editar una venta pagada (solo admin del sistema) — para corregir precios, productos y cantidades.
+    // También actualiza el cuadre de caja correspondiente y sincroniza con la nube.
     function editPaidOrder(orderId){
       if(!requireSystemAdmin('editar ventas pagadas')) return;
       const order = state.orders.find(o => o.id === orderId);
       if(!order){ toast('Pedido no encontrado', 'warning'); return; }
       const items = order.items || [];
       if(!items.length){ toast('El pedido no tiene productos', 'warning'); return; }
-      // Mostrar los items y permitir editar precio
-      let html = `<strong>${escapeHtml(order.tableName || 'Pedido')}</strong> — ${formatDate(order.paidAt || order.updatedAt)}<br><br>`;
-      html += items.map((it, idx) => `${idx + 1}. ${it.qty}x ${escapeHtml(it.name)} — $${groupThousands(it.price)}`).join('<br>');
-      html += `<br><br>Total actual: <strong>${money(order.total)}</strong><br><br>Escribe el número del producto a editar:`;
-      const itemIdx = prompt(`Productos:\n${items.map((it, idx) => `${idx + 1}. ${it.qty}x ${it.name} — $${groupThousands(it.price)}`).join('\n')}\n\nEscribe el número del producto a editar:`);
-      if(!itemIdx) return;
-      const idx = Number(itemIdx) - 1;
-      if(idx < 0 || idx >= items.length){ toast('Número de producto no válido', 'warning'); return; }
-      const item = items[idx];
-      const newPrice = prompt(`Precio actual de "${item.name}": $${groupThousands(item.price)}\n\nNuevo precio:`, String(item.price));
-      if(newPrice === null) return;
-      const price = clampNumber(newPrice);
-      if(price <= 0){ toast('El precio debe ser mayor a cero', 'warning'); return; }
-      item.price = price;
+      const action = prompt(`Pedido: ${order.tableName || '-'} — Total: ${money(order.total)}\nProductos:\n${items.map((it, idx) => `${idx + 1}. ${it.qty}x ${it.name} — $${groupThousands(it.price)}`).join('\n')}\n\n¿Qué deseas hacer?\n1. Editar un producto existente\n2. Reemplazar todos los productos por nuevos\n3. Cambiar solo el total manualmente\n\nEscribe 1, 2 o 3:`);
+      if(!action) return;
+      const oldTotal = Number(order.total || 0);
+      const oldMethod = order.paymentMethod || 'EFECTIVO';
+      if(action === '1'){
+        const itemIdx = prompt(`Escribe el número del producto a editar:\n${items.map((it, idx) => `${idx + 1}. ${it.qty}x ${it.name} — $${groupThousands(it.price)}`).join('\n')}`);
+        if(!itemIdx) return;
+        const idx = Number(itemIdx) - 1;
+        if(idx < 0 || idx >= items.length){ toast('Número no válido', 'warning'); return; }
+        const item = items[idx];
+        const newName = prompt(`Nombre actual: "${item.name}"\nNuevo nombre (deja vacío para no cambiar):`, item.name);
+        if(newName === null) return;
+        if(newName.trim()) item.name = newName.trim();
+        const newQty = prompt(`Cantidad actual: ${item.qty}\nNueva cantidad:`, String(item.qty));
+        if(newQty === null) return;
+        const qty = Number(newQty);
+        if(qty > 0) item.qty = qty;
+        const newPrice = prompt(`Precio actual: $${groupThousands(item.price)}\nNuevo precio:`, String(item.price));
+        if(newPrice === null) return;
+        const price = clampNumber(newPrice);
+        if(price > 0) item.price = price;
+      } else if(action === '2'){
+        const input = prompt(`Escribe los productos nuevos (uno por línea):\nFormato: cantidad x nombre x precio\nEjemplo: 1 x Lomo de cerdo 250gr x 30000\n\nO simplemente: nombre x precio (cantidad = 1)`);
+        if(!input) return;
+        const newItems = input.split('\n').map(line => {
+          const parts = line.split('x').map(s => s.trim());
+          if(parts.length === 3){
+            return { name: parts[1], qty: Number(parts[0]) || 1, price: clampNumber(parts[2]), productId: '' };
+          } else if(parts.length === 2){
+            return { name: parts[0], qty: 1, price: clampNumber(parts[1]), productId: '' };
+          }
+          return null;
+        }).filter(Boolean);
+        if(!newItems.length){ toast('No se pudieron interpretar los productos', 'warning'); return; }
+        order.items = newItems;
+      } else if(action === '3'){
+        const newTotal = prompt(`Total actual: ${money(order.total)}\nNuevo total:`, String(order.total));
+        if(newTotal === null) return;
+        const total = clampNumber(newTotal);
+        if(total <= 0){ toast('El total debe ser mayor a cero', 'warning'); return; }
+        order.total = total;
+        order.subtotal = total;
+        // Actualizar el pago según el método
+        normalizeOrderPayments(order);
+        if(order.paymentMethod !== 'MIXTA'){
+          order.payments = emptyPaymentMap();
+          order.payments[order.paymentMethod || 'EFECTIVO'] = total;
+        }
+        recalcCashRecordForOrder(order, oldTotal, oldMethod);
+        persistAll();
+        forceCloudSyncNow();
+        renderOrderHistory();
+        renderCashView();
+        renderCashHistory();
+        toast(`Total actualizado a ${money(order.total)}`, 'success');
+        return;
+      } else {
+        toast('Opción no válida', 'warning'); return;
+      }
       // Recalcular totales del pedido
-      const subtotal = items.reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.qty || 0)), 0);
+      const subtotal = (order.items || []).reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.qty || 0)), 0);
       const tip = order.applyTip ? Math.round(subtotal * (Number(order.tipPercent || 0) / 100)) : Number(order.tip || 0);
       const discount = Number(order.discount || 0);
       const deliveryFee = Number(order.deliveryFee || 0);
       order.subtotal = subtotal;
       order.tip = tip;
       order.total = subtotal + tip + deliveryFee - discount;
+      // Actualizar payments según método
+      normalizeOrderPayments(order);
+      if(order.paymentMethod !== 'MIXTA'){
+        order.payments = emptyPaymentMap();
+        order.payments[order.paymentMethod || 'EFECTIVO'] = order.total;
+      }
+      recalcCashRecordForOrder(order, oldTotal, oldMethod);
       persistAll();
+      forceCloudSyncNow();
       renderOrderHistory();
       renderCashView();
-      toast(`Precio actualizado. Nuevo total: ${money(order.total)}`, 'success');
+      renderCashHistory();
+      toast(`Pedido actualizado. Nuevo total: ${money(order.total)}`, 'success');
+    }
+    // Recalcular el cuadre de caja que contiene este pedido
+    function recalcCashRecordForOrder(order, oldTotal, oldMethod){
+      const record = (state.cash.history || []).find(r =>
+        Array.isArray(r.orders) && r.orders.includes(order.id)
+      );
+      if(!record) return;
+      const diff = Number(order.total || 0) - Number(oldTotal || 0);
+      // Actualizar ventas totales
+      record.sales = Number(record.sales || 0) + diff;
+      // Actualizar methodTotals
+      if(record.methodTotals){
+        const method = order.paymentMethod || 'EFECTIVO';
+        if(method === oldMethod){
+          record.methodTotals[method] = Number(record.methodTotals[method] || 0) + diff;
+        } else {
+          record.methodTotals[oldMethod] = Math.max(0, Number(record.methodTotals[oldMethod] || 0) - Number(oldTotal || 0));
+          record.methodTotals[method] = Number(record.methodTotals[method] || 0) + Number(order.total || 0);
+        }
+      }
+      // Actualizar cashPayments si es efectivo
+      if((order.paymentMethod || 'EFECTIVO') === 'EFECTIVO'){
+        record.cashPayments = Number(record.cashPayments || 0) + diff;
+        record.final = Number(record.final || 0) + diff;
+        record.expectedCash = Number(record.expectedCash || 0) + diff;
+      } else if(oldMethod === 'EFECTIVO' && order.paymentMethod !== 'EFECTIVO'){
+        // Cambió de efectivo a otro método
+        record.cashPayments = Math.max(0, Number(record.cashPayments || 0) - Number(oldTotal || 0));
+        record.final = Number(record.final || 0) - Number(oldTotal || 0);
+        record.expectedCash = Number(record.expectedCash || 0) - Number(oldTotal || 0);
+      }
     }
     function deleteOrderFromHistory(orderId){
       if(!requireAdmin('eliminar pedidos del historial')) return;

@@ -6518,29 +6518,24 @@
     function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openBtnHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
-      // Sumar ventas del historial de cuadres cerrados
-      let cashHistorySales = 0;
+      // Supplement with cash history for deleted orders
+      const countedIds = new Set(state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).map(o => o.id));
+      let supplement = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada') return;
+          if(record.status !== 'Cerrada' || !Array.isArray(record.orders)) return;
           const recordDate = new Date(record.openedAt || record.closedAt);
-          if(recordDate >= fromDate && recordDate <= toDate){
-            cashHistorySales += cashRecordRealSales(record);
+          if(recordDate < fromDate || recordDate > toDate) return;
+          const missingOrders = record.orders.filter(id => !countedIds.has(id) && !state.orders.some(o => o.id === id && o.status === 'Pagado'));
+          if(missingOrders.length > 0){
+            const alreadyCounted = record.orders.filter(id => countedIds.has(id))
+              .reduce((sum, id) => { const o = state.orders.find(x => x.id === id); return sum + (o ? Number(o.total || 0) : 0); }, 0);
+            supplement += Math.max(0, Number(record.sales || 0) - alreadyCounted);
+            missingOrders.forEach(id => countedIds.add(id));
           }
         });
       }
-      // Si hay cuadres cerrados, usar esos + pedidos del turno abierto actual
-      // (pedidos del turno actual que aún no tienen cuadre cerrado)
-      if(cashHistorySales > 0){
-        // Los pedidos que ya están contados en un cuadre no se suman doble
-        // Solo sumar pedidos que sean del turno ACTUAL (después del último cierre)
-        const lastClose = state.cash.closedAt ? new Date(state.cash.closedAt) : null;
-        const currentTurnOrders = lastClose
-          ? state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) > lastClose && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0)
-          : 0;
-        return cashHistorySales + currentTurnOrders + historical;
-      }
-      return orderSales + historical;
+      return orderSales + supplement + historical;
     }
     function movementsBetween(type, fromDate, toDate){
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
@@ -6596,32 +6591,37 @@
     function salesBetweenByBusiness(fromDate, toDate){
       const from = startOfDay(fromDate);
       const to = endOfDay(toDate);
+      // Sum paid orders by business date (handles night shifts crossing midnight)
       let orderTotal = 0;
+      const countedOrderIds = new Set();
       state.orders.filter(o => o.status === 'Pagado' && o.paidAt).forEach(o => {
         const bday = orderBusinessDate(o);
-        if(bday && bday >= from && bday <= to) orderTotal += Number(o.total || 0);
+        if(bday && bday >= from && bday <= to){
+          orderTotal += Number(o.total || 0);
+          countedOrderIds.add(o.id);
+        }
       });
-      const historical = historicalSalesInRange(fromDate, toDate);
-      // Sumar ventas de todos los cuadres cerrados en el rango (usando totales reales de pedidos)
-      let cashHistorySales = 0;
+      // Supplement with cash history for orders that no longer exist in state.orders
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada') return;
-          // Usar openedAt como fecha del cuadre (el día del turno, no cuando se cerró)
-          const recordDate = new Date(record.openedAt || record.closedAt);
-          if(recordDate >= from && recordDate <= to){
-            cashHistorySales += cashRecordRealSales(record);
+          if(record.status !== 'Cerrada' || !Array.isArray(record.orders)) return;
+          const recordDate = record.openedAt ? startOfDay(new Date(record.openedAt)) : null;
+          if(!recordDate || recordDate < from || recordDate > to) return;
+          // Check if any orders from this record are missing from state.orders
+          const missingOrders = record.orders.filter(id => !countedOrderIds.has(id) && !state.orders.some(o => o.id === id && o.status === 'Pagado'));
+          if(missingOrders.length > 0){
+            // Some orders were deleted — use record.sales minus what we already counted
+            const alreadyCounted = record.orders.filter(id => countedOrderIds.has(id))
+              .reduce((sum, id) => { const o = state.orders.find(x => x.id === id); return sum + (o ? Number(o.total || 0) : 0); }, 0);
+            const recordTotal = Number(record.sales || 0);
+            const supplement = Math.max(0, recordTotal - alreadyCounted);
+            orderTotal += supplement;
+            // Mark as counted so we don't double-count
+            missingOrders.forEach(id => countedOrderIds.add(id));
           }
         });
       }
-      if(cashHistorySales > 0){
-        // Sumar pedidos del turno actual que no tienen cuadre aún
-        const lastClose = state.cash.closedAt ? new Date(state.cash.closedAt) : null;
-        const currentTurnOrders = lastClose
-          ? state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) > lastClose && new Date(o.paidAt) <= to).reduce((a,b)=>a + (b.total || 0), 0)
-          : 0;
-        return cashHistorySales + currentTurnOrders + historical;
-      }
+      const historical = historicalSalesInRange(fromDate, toDate);
       return orderTotal + historical;
     }
     function paidOrdersRangeByBusiness(fromDate, toDate){

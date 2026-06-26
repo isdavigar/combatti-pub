@@ -6613,7 +6613,66 @@
       });
     }
 
-    function selectedDashboardRange(){
+    // Get cash history records that fall within a date range
+    function cashHistoryRecordsInRange(fromDate, toDate){
+      const from = startOfDay(fromDate);
+      const to = endOfDay(toDate);
+      return (state.cash?.history || []).filter(record => {
+        if(record.status !== 'Cerrada') return false;
+        const recordDate = new Date(record.openedAt || record.closedAt);
+        return recordDate >= from && recordDate <= to;
+      });
+    }
+
+    // Dashboard: combine methodTotals from current orders + closed cash history records.
+    // Uses cash history as source of truth for closed periods, and state.orders for
+    // orders not covered by any cash history record.
+    function dashboardMethodTotals(fromDate, toDate, rangeOrders){
+      const totals = emptyPaymentMap();
+      const records = cashHistoryRecordsInRange(fromDate, toDate);
+      // Collect order IDs that belong to closed cash records in range
+      const coveredOrderIds = new Set();
+      records.forEach(record => {
+        if(record.methodTotals){
+          PAYMENT_METHODS.forEach(method => totals[method] += Number(record.methodTotals[method] || 0));
+        }
+        if(Array.isArray(record.orders)) record.orders.forEach(id => coveredOrderIds.add(id));
+      });
+      // Add orders from state.orders that are NOT already covered by a cash history record
+      (rangeOrders || []).forEach(order => {
+        if(coveredOrderIds.has(order.id)) return;
+        normalizeOrderPayments(order);
+        PAYMENT_METHODS.forEach(method => totals[method] += Number(order.payments?.[method] || 0));
+      });
+      return totals;
+    }
+
+    // Dashboard: combine product quantities from current orders + closed cash history.
+    // For closed records, we look up orders by their IDs (if they still exist in state).
+    // For orders not covered by any record, we count them directly.
+    function dashboardProductMap(fromDate, toDate, rangeOrders){
+      const productMap = new Map();
+      const records = cashHistoryRecordsInRange(fromDate, toDate);
+      const coveredOrderIds = new Set();
+      records.forEach(record => {
+        if(Array.isArray(record.orders)){
+          record.orders.forEach(id => {
+            coveredOrderIds.add(id);
+            const order = state.orders.find(o => o.id === id);
+            if(order && order.items){
+              order.items.forEach(it => productMap.set(it.name, (productMap.get(it.name) || 0) + Number(it.qty || 0)));
+            }
+          });
+        }
+      });
+      // Add orders not covered by cash history
+      (rangeOrders || []).forEach(order => {
+        if(coveredOrderIds.has(order.id)) return;
+        (order.items || []).forEach(it => productMap.set(it.name, (productMap.get(it.name) || 0) + Number(it.qty || 0)));
+      });
+      return productMap;
+    }
+
       const type = byId('dashboardPeriodType')?.value || 'day';
       const today = new Date();
       if(!byId('dashboardDateFilter')?.value) setValue('dashboardDateFilter', dateStamp());
@@ -12090,10 +12149,11 @@ function parseMoneyValue(value){
 
       const rangeReport = buildCashReport(range.from, range.to);
       const rangeOrders = paidOrdersRangeByBusiness(range.from, range.to);
-      const methodTotals = methodTotalsForOrders(rangeOrders);
+      // Build method totals combining current orders + closed cash history records
+      const methodTotals = dashboardMethodTotals(range.from, range.to, rangeOrders);
       const paymentEntries = PAYMENT_METHODS.map(method => [method, methodTotals[method] || 0]).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]);
-      const productMap = new Map();
-      rangeOrders.forEach(o => o.items.forEach(it => productMap.set(it.name, (productMap.get(it.name) || 0) + it.qty)));
+      // Build product map combining current orders + closed cash history records
+      const productMap = dashboardProductMap(range.from, range.to, rangeOrders);
       const topProducts = [...productMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
       const topLabels = topProducts.map(x => x[0]);
       const topQty = topProducts.map(x => x[1]);
@@ -12711,19 +12771,23 @@ function parseMoneyValue(value){
       const filter = byId('paymentMethodsChartFilter')?.value || 'month';
       setValue('paymentMethodsDateFilter', '');
       const today = new Date();
-      let orders;
+      let from, to, orders;
       if(filter === 'turno'){
-        const from = state.cash.open ? cashPeriodStart() : startOfDay(today);
-        orders = paidOrdersRange(from, new Date());
+        from = state.cash.open ? cashPeriodStart() : startOfDay(today);
+        to = new Date();
+        orders = paidOrdersRange(from, to);
       } else if(filter === 'day'){
-        orders = paidOrdersRange(startOfDay(today), endOfDay(today));
+        from = startOfDay(today); to = endOfDay(today);
+        orders = paidOrdersRange(from, to);
       } else if(filter === 'week'){
         const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
-        orders = paidOrdersRange(startOfDay(weekAgo), endOfDay(today));
+        from = startOfDay(weekAgo); to = endOfDay(today);
+        orders = paidOrdersRange(from, to);
       } else {
-        orders = paidOrdersRange(startOfMonth(today), endOfDay(today));
+        from = startOfMonth(today); to = endOfDay(today);
+        orders = paidOrdersRange(from, to);
       }
-      const methodTotals = methodTotalsForOrders(orders);
+      const methodTotals = dashboardMethodTotals(from, to, orders);
       const paymentEntries = PAYMENT_METHODS.map(method => [method, methodTotals[method] || 0]).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]);
       updatePaymentMethodsChart(paymentEntries.map(x => x[0]), paymentEntries.map(x => x[1]));
     }
@@ -12732,8 +12796,9 @@ function parseMoneyValue(value){
       if(!dateVal){ updatePaymentMethodsByFilter(); return; }
       const date = parseLocalDate(dateVal);
       if(!date){ updatePaymentMethodsByFilter(); return; }
-      const orders = paidOrdersRange(startOfDay(date), endOfDay(date));
-      const methodTotals = methodTotalsForOrders(orders);
+      const from = startOfDay(date); const to = endOfDay(date);
+      const orders = paidOrdersRange(from, to);
+      const methodTotals = dashboardMethodTotals(from, to, orders);
       const paymentEntries = PAYMENT_METHODS.map(method => [method, methodTotals[method] || 0]).filter(x => x[1] > 0).sort((a,b)=>b[1]-a[1]);
       updatePaymentMethodsChart(paymentEntries.map(x => x[0]), paymentEntries.map(x => x[1]));
     }
@@ -12763,37 +12828,48 @@ function parseMoneyValue(value){
     function updateTopProductsByFilter(){
       const filter = byId('topProductsCashFilter')?.value || 'turno';
       setValue('topProductsDateFilter', '');
-      let orders;
+      let from, to, orders;
       if(filter === 'turno'){
-        const from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
-        orders = paidOrdersRange(from, new Date());
+        from = state.cash.open ? cashPeriodStart() : startOfDay(new Date());
+        to = new Date();
+        orders = paidOrdersRange(from, to);
       } else if(filter === 'day'){
-        orders = paidOrdersRange(startOfDay(new Date()), endOfDay(new Date()));
+        from = startOfDay(new Date()); to = endOfDay(new Date());
+        orders = paidOrdersRange(from, to);
       } else if(filter === 'week'){
         const today = new Date();
         const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
-        orders = paidOrdersRange(startOfDay(weekAgo), endOfDay(today));
+        from = startOfDay(weekAgo); to = endOfDay(today);
+        orders = paidOrdersRange(from, to);
       } else {
-        orders = paidOrdersRange(startOfMonth(new Date()), endOfDay(new Date()));
+        from = startOfMonth(new Date()); to = endOfDay(new Date());
+        orders = paidOrdersRange(from, to);
       }
-      renderTopProductsFromOrders(orders);
+      renderTopProductsFromOrdersWithHistory(from, to, orders);
     }
     function updateTopProductsByDate(){
       const dateVal = byId('topProductsDateFilter')?.value;
       const date = dateVal ? parseLocalDate(dateVal) : null;
-      let orders;
-      if(date){
-        orders = paidOrdersRange(startOfDay(date), endOfDay(date));
-      } else {
+      if(!date){
         updateTopProductsByFilter();
         return;
       }
-      renderTopProductsFromOrders(orders);
+      const from = startOfDay(date); const to = endOfDay(date);
+      const orders = paidOrdersRange(from, to);
+      renderTopProductsFromOrdersWithHistory(from, to, orders);
     }
     function clearTopProductsFilter(){
       setValue('topProductsDateFilter', '');
       if(byId('topProductsCashFilter')) byId('topProductsCashFilter').value = 'month';
       updateTopProductsByFilter();
+    }
+    function renderTopProductsFromOrdersWithHistory(from, to, orders){
+      const productMap = dashboardProductMap(from, to, orders);
+      const topProducts = [...productMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+      const topLabels = topProducts.map(x => x[0]);
+      const topQty = topProducts.map(x => x[1]);
+      setText('topProductName', topProducts[0]?.[0] || '-');
+      updateTopProductsPie(topLabels.length ? topLabels : ['Sin ventas'], topQty.length ? topQty : [1]);
     }
     function renderTopProductsFromOrders(orders){
       const productMap = new Map();

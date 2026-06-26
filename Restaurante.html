@@ -6563,17 +6563,24 @@
     function orderBusinessDate(order){
       const paidAt = order.paidAt ? new Date(order.paidAt) : null;
       if(!paidAt) return null;
-      // Si la hora es < 6 AM, buscar si pertenece a un turno noche que abrió el día anterior
-      if(paidAt.getHours() < NIGHT_CUTOFF_HOUR){
-        // Turno actual abierto: verificar si es noche y abrió ayer
-        if(state.cash.open && normalizeShift(state.shift) === 'Noche' && state.cash.openedAt){
-          const opened = new Date(state.cash.openedAt);
-          if(opened < startOfDay(paidAt)){
-            return startOfDay(opened); // pertenece al día del turno
-          }
+      // First, check if this order belongs to a cash record — use the record's openedAt date
+      const history = state.cash.history || [];
+      for(let i = history.length - 1; i >= 0; i--){
+        const rec = history[i];
+        if(!rec.openedAt || !Array.isArray(rec.orders)) continue;
+        if(rec.orders.includes(order.id)){
+          return startOfDay(new Date(rec.openedAt));
         }
-        // Buscar en historial de cierres
-        const history = state.cash.history || [];
+      }
+      // If order belongs to the currently open cash register
+      if(state.cash.open && state.cash.openedAt){
+        const opened = new Date(state.cash.openedAt);
+        if(paidAt >= opened){
+          return startOfDay(opened);
+        }
+      }
+      // Fallback: if paid between midnight and 6 AM, check if it belongs to a night shift
+      if(paidAt.getHours() < NIGHT_CUTOFF_HOUR){
         for(let i = history.length - 1; i >= 0; i--){
           const rec = history[i];
           if(!rec.openedAt) continue;

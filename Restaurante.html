@@ -12188,6 +12188,7 @@ function parseMoneyValue(value){
       if(!Array.isArray(state.historicalSales)) state.historicalSales = [];
       state.historicalSales.push({ id:uid(), fromDate, toDate, amount, createdAt:new Date().toISOString() });
       persistAll(false);
+      forceCloudSyncNow();
       setValue('histSalesAmount', '');
       const label = formatHistoricalRange(fromDate, toDate);
       toast(`Ventas registradas (${label}): ${money(amount)}`, 'success');
@@ -12198,8 +12199,9 @@ function parseMoneyValue(value){
       if(!Array.isArray(state.historicalSales)) return;
       state.historicalSales = state.historicalSales.filter(h => h.id !== id);
       persistAll(false);
+      forceCloudSyncNow();
       renderDashboard();
-      toast('Registro eliminado', 'info');
+      toast('Registro eliminado de todos los dispositivos', 'info');
     }
     function formatHistoricalRange(from, to){
       const f = parseLocalDate(from);

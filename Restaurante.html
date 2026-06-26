@@ -6518,29 +6518,31 @@
     function updateCashActionButtons(){       const label = escapeHtml(cashOpenerName().toUpperCase());       const openBtnHtml = '<button class="btn btn-success btn-pill" onclick="showOpenCashModal()"><i class="fa-solid fa-lock-open me-2"></i>Abrir caja</button>';       const openBadgeHtml = `<div class="cash-open-badge">CAJA ABIERTA POR ${label}</div>`;       const topArea = byId('topCashActionArea');       const cashArea = byId('cashActionArea');       if(topArea) topArea.innerHTML = state.cash.open ? openBadgeHtml : openBtnHtml;       if(cashArea) cashArea.innerHTML = state.cash.open ? openBadgeHtml : `<div class="cash-open-badge">CAJA CERRADA</div>`;     }      function salesBetween(fromDate, toDate){
       const orderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).reduce((a,b)=>a + (b.total || 0), 0);
       const historical = historicalSalesInRange(fromDate, toDate);
-      // Supplement with cash history for deleted orders
-      const countedIds = new Set(state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate).map(o => o.id));
-      let supplement = 0;
+      // Use cash history as source of truth when available
+      let cashTotal = 0;
+      let hasCashRecords = false;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
           if(record.status !== 'Cerrada' || !record.openedAt) return;
           const recordDate = new Date(record.openedAt);
-          if(recordDate < fromDate || recordDate > toDate) return;
-          const realSales = cashRecordRealSales(record);
-          let alreadyCounted = 0;
-          if(Array.isArray(record.orders)){
-            record.orders.forEach(id => {
-              if(countedIds.has(id)){
-                const o = state.orders.find(x => x.id === id);
-                if(o) alreadyCounted += Number(o.total || 0);
-              }
-            });
+          if(recordDate >= fromDate && recordDate <= toDate){
+            cashTotal += cashRecordRealSales(record);
+            hasCashRecords = true;
           }
-          const diff = Math.max(0, realSales - alreadyCounted);
-          if(diff > 0) supplement += diff;
         });
       }
-      return orderSales + supplement + historical;
+      if(state.cash.open && state.cash.openedAt){
+        const openedDate = new Date(state.cash.openedAt);
+        if(openedDate >= fromDate && openedDate <= toDate){
+          const currentTurnSales = state.orders
+            .filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= openedDate)
+            .reduce((a,b) => a + Number(b.total || 0), 0);
+          cashTotal += currentTurnSales;
+          hasCashRecords = true;
+        }
+      }
+      if(hasCashRecords) return cashTotal + historical;
+      return orderSales + historical;
     }
     function movementsBetween(type, fromDate, toDate){
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
@@ -6568,23 +6570,13 @@
     function orderBusinessDate(order){
       const paidAt = order.paidAt ? new Date(order.paidAt) : null;
       if(!paidAt) return null;
-      // First, check if this order belongs to a cash record by ID
+      // Check if this order belongs to a cash record by ID — most reliable
       const history = state.cash.history || [];
       for(let i = history.length - 1; i >= 0; i--){
         const rec = history[i];
-        if(!rec.openedAt) continue;
-        if(Array.isArray(rec.orders) && rec.orders.includes(order.id)){
+        if(!rec.openedAt || !Array.isArray(rec.orders)) continue;
+        if(rec.orders.includes(order.id)){
           return startOfDay(new Date(rec.openedAt));
-        }
-      }
-      // Second, find the cash record by time range (paidAt falls between openedAt and closedAt)
-      for(let i = history.length - 1; i >= 0; i--){
-        const rec = history[i];
-        if(!rec.openedAt) continue;
-        const recOpened = new Date(rec.openedAt);
-        const recClosed = rec.closedAt ? new Date(rec.closedAt) : new Date();
-        if(paidAt >= recOpened && paidAt <= recClosed){
-          return startOfDay(recOpened);
         }
       }
       // If order belongs to the currently open cash register
@@ -6594,47 +6586,44 @@
           return startOfDay(opened);
         }
       }
+      // Default: use the paidAt date directly
       return startOfDay(paidAt);
     }
     function salesBetweenByBusiness(fromDate, toDate){
       const from = startOfDay(fromDate);
       const to = endOfDay(toDate);
-      // Sum paid orders by business date (handles night shifts crossing midnight)
-      let orderTotal = 0;
-      const countedOrderIds = new Set();
-      state.orders.filter(o => o.status === 'Pagado' && o.paidAt).forEach(o => {
-        const bday = orderBusinessDate(o);
-        if(bday && bday >= from && bday <= to){
-          orderTotal += Number(o.total || 0);
-          countedOrderIds.add(o.id);
-        }
-      });
-      // Supplement with cash history for orders that no longer exist in state.orders
+      // Primary: sum sales from cash history records whose openedAt falls in the range
+      let cashTotal = 0;
+      let hasCashRecords = false;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
           if(record.status !== 'Cerrada' || !record.openedAt) return;
           const recordDate = startOfDay(new Date(record.openedAt));
-          if(recordDate < from || recordDate > to) return;
-          // Get the real sales for this record
-          const realSales = cashRecordRealSales(record);
-          // Sum what we already counted from orders that belong to this record's date
-          let alreadyCounted = 0;
-          if(Array.isArray(record.orders)){
-            record.orders.forEach(id => {
-              if(countedOrderIds.has(id)){
-                const o = state.orders.find(x => x.id === id);
-                if(o) alreadyCounted += Number(o.total || 0);
-              }
-            });
-          }
-          // If realSales > alreadyCounted, there are missing orders — add the difference
-          const supplement = Math.max(0, realSales - alreadyCounted);
-          if(supplement > 0){
-            orderTotal += supplement;
+          if(recordDate >= from && recordDate <= to){
+            cashTotal += cashRecordRealSales(record);
+            hasCashRecords = true;
           }
         });
       }
+      // Add orders from the currently open cash register (not yet closed)
+      if(state.cash.open && state.cash.openedAt){
+        const openedDate = startOfDay(new Date(state.cash.openedAt));
+        if(openedDate >= from && openedDate <= to){
+          const openStart = new Date(state.cash.openedAt);
+          const currentTurnSales = state.orders
+            .filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= openStart)
+            .reduce((a,b) => a + Number(b.total || 0), 0);
+          cashTotal += currentTurnSales;
+          hasCashRecords = true;
+        }
+      }
       const historical = historicalSalesInRange(fromDate, toDate);
+      if(hasCashRecords) return cashTotal + historical;
+      // Fallback: no cash records at all — sum orders by paidAt date
+      const orderTotal = state.orders
+        .filter(o => o.status === 'Pagado' && o.paidAt)
+        .filter(o => { const d = startOfDay(new Date(o.paidAt)); return d >= from && d <= to; })
+        .reduce((a,b) => a + Number(b.total || 0), 0);
       return orderTotal + historical;
     }
     function paidOrdersRangeByBusiness(fromDate, toDate){

@@ -10471,7 +10471,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(!exists){ toast('No se encontró el registro', 'warning'); return; }
       confirmAction({
         title:'Eliminar registro de auditoría',
-        message:'¿Eliminar este registro de la lista de eliminados internamente?<br><br>Esta acción no se puede deshacer.',
+        message:'¿Eliminar este registro de la lista de eliminados internamente?<br><br>Se eliminará de <strong>todos los dispositivos</strong> y de la base de datos. Esta acción no se puede deshacer.',
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
         onConfirm: async () => {
@@ -10483,8 +10483,9 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             delete cloudShadow.deletedOrders[id];
           }
           persistAll();
+          await forceCloudSyncNow();
           renderDeletedOrders();
-          toast('Registro eliminado permanentemente (local + nube)', 'info');
+          toast('Registro eliminado de todos los dispositivos', 'info');
         }
       });
     }

@@ -7752,8 +7752,8 @@ const colors = [
       if(!order || !isClosedOrder(order)) return;
       confirmAction({
         title:'Eliminar pedido cobrado',
-        message:`¿Eliminar el pedido de <strong>${escapeHtml(order.customer || 'Cliente sin nombre')}</strong> por <strong>${money(order.total || 0)}</strong> de la lista de caja?<br><br>El pedido seguirá en el historial de ventas.`,
-        confirmLabel:'Sí, eliminar de caja',
+        message:`¿Eliminar el pedido de <strong>${escapeHtml(order.customer || 'Cliente sin nombre')}</strong> por <strong>${money(order.total || 0)}</strong>?<br><br>Se eliminará de <strong>todos los dispositivos</strong> y de la base de datos. Esta acción no se puede deshacer.`,
+        confirmLabel:'Sí, eliminar definitivamente',
         confirmClass:'btn-danger',
         onConfirm: () => performDeletePaidCajaOrder(orderId)
       });
@@ -7761,11 +7761,21 @@ const colors = [
     function performDeletePaidCajaOrder(orderId){
       const order = state.orders.find(o => o.id === orderId);
       if(!order) return;
-      // Remove the tableId link so it no longer appears in the Caja hub
-      order.tableId = null;
+      // Record in audit trail before deleting
+      recordDeletedOrder({ kind:'Pedido', reason:'Eliminado desde caja por el usuario', order:JSON.parse(JSON.stringify(order)) });
+      // Restore inventory
+      restoreInventoryForOrder(order);
+      // Remove from cash history references
+      state.cash.history = (state.cash.history || []).map(record => ({
+        ...record,
+        orders:Array.isArray(record.orders) ? record.orders.filter(id => id !== orderId) : record.orders
+      }));
+      // Delete order completely from state
+      state.orders = state.orders.filter(o => o.id !== orderId);
       persistAll();
+      forceCloudSyncNow();
       renderMultiOrderHub();
-      toast('Pedido eliminado de la caja', 'info');
+      toast('Pedido eliminado de todos los dispositivos', 'info');
     }
     function newMultiOrder(){
       if(!currentDeliveryTableId) return;

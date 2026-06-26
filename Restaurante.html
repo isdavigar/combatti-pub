@@ -10324,8 +10324,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           foundCount++;
         }
       });
-      // If we found all or most orders, use the computed total; otherwise fallback to stored value
-      if(foundCount > 0) return total;
+      // Only use computed total if we found ALL orders; otherwise use record.sales
+      if(foundCount === record.orders.length) return total;
       return Number(record.sales || 0);
     }
 

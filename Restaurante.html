@@ -6673,6 +6673,7 @@
       return productMap;
     }
 
+    function selectedDashboardRange(){
       const type = byId('dashboardPeriodType')?.value || 'day';
       const today = new Date();
       if(!byId('dashboardDateFilter')?.value) setValue('dashboardDateFilter', dateStamp());

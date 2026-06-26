@@ -9565,14 +9565,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           BOLD: (report.methodTotals.BOLD || 0) - expenseBySource('BOLD')
         };
       }
-      // Descontar egresos de nómina y gastos registrados DESPUÉS del cierre de caja
-      const afterClose = lastClosed?.closedAt ? new Date(lastClosed.closedAt) : startOfDay(new Date());
-      state.movements
-        .filter(m => m.type === 'Egreso' && m.date && new Date(m.date) >= afterClose && !((lastClosed?.expenseHistory || []).some(e => e.id === m.id)))
-        .forEach(m => {
-          const src = m.source || 'EFECTIVO';
-          if(balances[src] !== undefined) balances[src] -= Number(m.amount || 0);
-        });
+      // Los gastos agregados después de cerrar caja son de cuentas externas
+      // y NO se descuentan del saldo de la caja.
       return balances;
     }
     function payrollEmployees(){

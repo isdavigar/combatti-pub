@@ -10308,6 +10308,25 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       toast(`Cuadre del ${fecha} (${shift === 'Noche' ? 'Noche' : 'Día'}) agregado`, 'success');
     }
 
+    // Calcular ventas reales de un cuadre sumando los totales de los pedidos que le pertenecen.
+    // Si los pedidos aún existen en state.orders, se usa su total actual (puede haber sido editado).
+    // Si no existen, se usa el valor guardado en record.sales como fallback.
+    function cashRecordRealSales(record){
+      if(!record || !Array.isArray(record.orders) || !record.orders.length) return Number(record.sales || 0);
+      let total = 0;
+      let foundCount = 0;
+      record.orders.forEach(orderId => {
+        const order = state.orders.find(o => o.id === orderId);
+        if(order && order.status === 'Pagado'){
+          total += Number(order.total || 0);
+          foundCount++;
+        }
+      });
+      // If we found all or most orders, use the computed total; otherwise fallback to stored value
+      if(foundCount > 0) return total;
+      return Number(record.sales || 0);
+    }
+
     function renderCashHistory(){
       const wrap = byId('cashHistoryList');
       if(!wrap) return;
@@ -10330,7 +10349,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             <div class="col-md-2"><div class="small text-secondary">Turno</div><span class="badge text-bg-light text-dark"><i class="fa-solid ${normalizeShift(record.shift) === 'Noche' ? 'fa-moon' : 'fa-sun'} me-1"></i>${shiftLabel(record.shift)}</span></div>
             <div class="col-md-2"><span class="badge text-bg-${record.status === 'Abierta' ? 'success' : 'secondary'}">${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</span></div>
             <div class="col-12 small text-secondary">Egresos guardados: ${Array.isArray(record.expenseHistory) ? record.expenseHistory.length : 0} · Movimientos del periodo: ${Array.isArray(record.movementsHistory) ? record.movementsHistory.length : 0}</div>
-            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(record.sales || 0)}</span><span class="text-danger fw-bold">Gastos turno: ${money(record.cashExpense || 0)}</span><span class="text-success fw-bold">Neto: ${money(Number(record.sales || 0) - Number(record.cashExpense || 0))}</span></div></div>
+            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(cashRecordRealSales(record))}</span><span class="text-danger fw-bold">Gastos turno: ${money(record.cashExpense || 0)}</span><span class="text-success fw-bold">Neto: ${money(cashRecordRealSales(record) - Number(record.cashExpense || 0))}</span></div></div>
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               <button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>
@@ -10621,11 +10640,12 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const totalExpenses = allExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
       const totalPayroll = payrollExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
       const totalOther = otherExpenses.reduce((a, b) => a + Number(b.amount || 0), 0);
-      const neto = Number(record.sales || report.sales || 0) - Number(record.cashExpense || report.cashExpense || 0);
+      const realSales = cashRecordRealSales(record) || report.sales || 0;
+      const neto = Number(realSales) - Number(record.cashExpense || report.cashExpense || 0);
       // Hoja resumen
       const resumen = [
         { Concepto:'Apertura de caja', Valor:record.openingAmount || 0 },
-        { Concepto:'Ventas pagadas', Valor:record.sales || report.sales || 0 },
+        { Concepto:'Ventas pagadas', Valor:realSales },
         { Concepto:'Propinas', Valor:record.tips || report.tips || 0 },
         { Concepto:'Ingresos manuales', Valor:record.income || report.income || 0 },
         { Concepto:'Egresos totales', Valor:totalExpenses },

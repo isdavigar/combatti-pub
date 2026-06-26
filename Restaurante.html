@@ -6523,16 +6523,21 @@
       let supplement = 0;
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada' || !Array.isArray(record.orders)) return;
-          const recordDate = new Date(record.openedAt || record.closedAt);
+          if(record.status !== 'Cerrada' || !record.openedAt) return;
+          const recordDate = new Date(record.openedAt);
           if(recordDate < fromDate || recordDate > toDate) return;
-          const missingOrders = record.orders.filter(id => !countedIds.has(id) && !state.orders.some(o => o.id === id && o.status === 'Pagado'));
-          if(missingOrders.length > 0){
-            const alreadyCounted = record.orders.filter(id => countedIds.has(id))
-              .reduce((sum, id) => { const o = state.orders.find(x => x.id === id); return sum + (o ? Number(o.total || 0) : 0); }, 0);
-            supplement += Math.max(0, Number(record.sales || 0) - alreadyCounted);
-            missingOrders.forEach(id => countedIds.add(id));
+          const realSales = cashRecordRealSales(record);
+          let alreadyCounted = 0;
+          if(Array.isArray(record.orders)){
+            record.orders.forEach(id => {
+              if(countedIds.has(id)){
+                const o = state.orders.find(x => x.id === id);
+                if(o) alreadyCounted += Number(o.total || 0);
+              }
+            });
           }
+          const diff = Math.max(0, realSales - alreadyCounted);
+          if(diff > 0) supplement += diff;
         });
       }
       return orderSales + supplement + historical;
@@ -6563,13 +6568,23 @@
     function orderBusinessDate(order){
       const paidAt = order.paidAt ? new Date(order.paidAt) : null;
       if(!paidAt) return null;
-      // First, check if this order belongs to a cash record — use the record's openedAt date
+      // First, check if this order belongs to a cash record by ID
       const history = state.cash.history || [];
       for(let i = history.length - 1; i >= 0; i--){
         const rec = history[i];
-        if(!rec.openedAt || !Array.isArray(rec.orders)) continue;
-        if(rec.orders.includes(order.id)){
+        if(!rec.openedAt) continue;
+        if(Array.isArray(rec.orders) && rec.orders.includes(order.id)){
           return startOfDay(new Date(rec.openedAt));
+        }
+      }
+      // Second, find the cash record by time range (paidAt falls between openedAt and closedAt)
+      for(let i = history.length - 1; i >= 0; i--){
+        const rec = history[i];
+        if(!rec.openedAt) continue;
+        const recOpened = new Date(rec.openedAt);
+        const recClosed = rec.closedAt ? new Date(rec.closedAt) : new Date();
+        if(paidAt >= recOpened && paidAt <= recClosed){
+          return startOfDay(recOpened);
         }
       }
       // If order belongs to the currently open cash register
@@ -6577,20 +6592,6 @@
         const opened = new Date(state.cash.openedAt);
         if(paidAt >= opened){
           return startOfDay(opened);
-        }
-      }
-      // Fallback: if paid between midnight and 6 AM, check if it belongs to a night shift
-      if(paidAt.getHours() < NIGHT_CUTOFF_HOUR){
-        for(let i = history.length - 1; i >= 0; i--){
-          const rec = history[i];
-          if(!rec.openedAt) continue;
-          const recOpened = new Date(rec.openedAt);
-          const recClosed = rec.closedAt ? new Date(rec.closedAt) : new Date();
-          if(paidAt >= recOpened && paidAt <= recClosed && normalizeShift(rec.shift) === 'Noche'){
-            if(recOpened < startOfDay(paidAt)){
-              return startOfDay(recOpened);
-            }
-          }
         }
       }
       return startOfDay(paidAt);
@@ -6611,20 +6612,25 @@
       // Supplement with cash history for orders that no longer exist in state.orders
       if(Array.isArray(state.cash?.history)){
         state.cash.history.forEach(record => {
-          if(record.status !== 'Cerrada' || !Array.isArray(record.orders)) return;
-          const recordDate = record.openedAt ? startOfDay(new Date(record.openedAt)) : null;
-          if(!recordDate || recordDate < from || recordDate > to) return;
-          // Check if any orders from this record are missing from state.orders
-          const missingOrders = record.orders.filter(id => !countedOrderIds.has(id) && !state.orders.some(o => o.id === id && o.status === 'Pagado'));
-          if(missingOrders.length > 0){
-            // Some orders were deleted — use record.sales minus what we already counted
-            const alreadyCounted = record.orders.filter(id => countedOrderIds.has(id))
-              .reduce((sum, id) => { const o = state.orders.find(x => x.id === id); return sum + (o ? Number(o.total || 0) : 0); }, 0);
-            const recordTotal = Number(record.sales || 0);
-            const supplement = Math.max(0, recordTotal - alreadyCounted);
+          if(record.status !== 'Cerrada' || !record.openedAt) return;
+          const recordDate = startOfDay(new Date(record.openedAt));
+          if(recordDate < from || recordDate > to) return;
+          // Get the real sales for this record
+          const realSales = cashRecordRealSales(record);
+          // Sum what we already counted from orders that belong to this record's date
+          let alreadyCounted = 0;
+          if(Array.isArray(record.orders)){
+            record.orders.forEach(id => {
+              if(countedOrderIds.has(id)){
+                const o = state.orders.find(x => x.id === id);
+                if(o) alreadyCounted += Number(o.total || 0);
+              }
+            });
+          }
+          // If realSales > alreadyCounted, there are missing orders — add the difference
+          const supplement = Math.max(0, realSales - alreadyCounted);
+          if(supplement > 0){
             orderTotal += supplement;
-            // Mark as counted so we don't double-count
-            missingOrders.forEach(id => countedOrderIds.add(id));
           }
         });
       }

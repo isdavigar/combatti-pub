@@ -3026,12 +3026,33 @@
               </div>
               
               <div class="row g-2 mb-3 align-items-end">
-                <div class="col-md-8 col-lg-7">
+                <div class="col-md-4">
                   <label class="form-label">Filtrar por fecha</label>
                   <input id="orderHistoryDateFilter" type="date" class="form-control" onchange="applyOrderHistoryFilter()">
                 </div>
-                <div class="col-md-4 col-lg-5 d-grid">
-                  <button class="btn btn-outline-secondary btn-pill" onclick="clearOrderHistoryFilter()">Ver todo</button>
+                <div class="col-md-3">
+                  <label class="form-label">Método de pago</label>
+                  <select id="orderHistoryMethodFilter" class="form-select" onchange="applyOrderHistoryFilter()">
+                    <option value="">Todos</option>
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="NEQUI">Nequi</option>
+                    <option value="BANCOLOMBIA">Bancolombia</option>
+                    <option value="BOLD">Bold</option>
+                    <option value="RAPPI">Rappi</option>
+                    <option value="DIDI">Didi</option>
+                    <option value="MIXTA">Mixta</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Turno</label>
+                  <select id="orderHistoryShiftFilter" class="form-select" onchange="applyOrderHistoryFilter()">
+                    <option value="">Todos</option>
+                    <option value="Dia">Día</option>
+                    <option value="Noche">Noche</option>
+                  </select>
+                </div>
+                <div class="col-md-2 d-grid">
+                  <button class="btn btn-outline-secondary btn-pill" onclick="clearOrderHistoryFilter()">Limpiar</button>
                 </div>
               </div>
               <div id="orderHistoryList" class="list-group list-panel compact-list"></div>
@@ -9955,7 +9976,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     function setCashHistoryPage(page){ historyPages.cash = page; renderCashHistory(); }
 
     function applyOrderHistoryFilter(){ historyPages.orders = 1; renderOrderHistory(); }
-    function clearOrderHistoryFilter(){ setValue('orderHistoryDateFilter', ''); applyOrderHistoryFilter(); }
+    function clearOrderHistoryFilter(){ setValue('orderHistoryDateFilter', ''); setValue('orderHistoryMethodFilter', ''); setValue('orderHistoryShiftFilter', ''); applyOrderHistoryFilter(); }
     function setOrderHistoryPage(page){ historyPages.orders = page; renderOrderHistory(); }
 
     function applyDeletedOrdersFilter(){ historyPages.deleted = 1; renderDeletedOrders(); }
@@ -10900,9 +10921,23 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const list = byId('orderHistoryList');
       if(!list) return;
       const filter = byId('orderHistoryDateFilter')?.value || '';
+      const methodFilter = byId('orderHistoryMethodFilter')?.value || '';
+      const shiftFilter = byId('orderHistoryShiftFilter')?.value || '';
       const orders = [...state.orders]
         .filter(isClosedOrder)
         .filter(order => !filter || matchesSelectedDate(order.paidAt, filter) || matchesSelectedDate(order.updatedAt, filter) || matchesSelectedDate(order.createdAt, filter))
+        .filter(order => {
+          if(!methodFilter) return true;
+          if(methodFilter === 'MIXTA') return order.paymentMethod === 'MIXTA';
+          normalizeOrderPayments(order);
+          return order.paymentMethod === methodFilter || Number(order.payments?.[methodFilter] || 0) > 0;
+        })
+        .filter(order => {
+          if(!shiftFilter) return true;
+          // Determine order shift from saleShift field or by hour
+          const orderShift = order.saleShift || (order.paidAt && new Date(order.paidAt).getHours() >= 17 ? 'Noche' : 'Dia');
+          return normalizeShift(orderShift) === normalizeShift(shiftFilter);
+        })
         .sort((a,b) => new Date(b.paidAt || b.updatedAt || 0) - new Date(a.paidAt || a.updatedAt || 0));
       const pager = paginateHistory(orders, historyPages.orders);
       historyPages.orders = pager.page;

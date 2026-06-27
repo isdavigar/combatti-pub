@@ -13361,12 +13361,12 @@ function handleAWSMessage(msg) {
     }
     if (!cloudInitialSyncDone) {
       cloudInitialSyncDone = true;
-      // Wait for snapshots to arrive before pushing local data
-      // Only push if local has real user data (not just defaults from a fresh install)
-      const hasRealLocalData = (state.orders || []).length > 0;
-      if(hasRealLocalData){
-        setTimeout(() => pushIncremental(true), 2000);
-      }
+      // Push local data after a delay to let snapshots arrive first
+      setTimeout(() => {
+        // Only push if we received snapshots and have data, to avoid overwriting cloud with empty state
+        const hasAnyData = CLOUD_COLLECTIONS.some(c => (state[c] || []).length > 0);
+        if(hasAnyData) pushIncremental(true);
+      }, 3000);
       scheduleRemoteApply();
     }
     updateCloudStatus();
@@ -13496,6 +13496,8 @@ async function pushIncremental(force = false) {
     });
     Object.keys(shadow).forEach(docId => {
       if (!seen.has(docId)) {
+        // Don't delete cloud data if local collection is empty (likely a fresh load)
+        if((state[coll] || []).length === 0) return;
         sendAWS({ action: 'sync', type: 'delete', collection: coll, docId });
         delete shadow[docId];
       }

@@ -13361,12 +13361,6 @@ function handleAWSMessage(msg) {
     }
     if (!cloudInitialSyncDone) {
       cloudInitialSyncDone = true;
-      // Push local data after a delay to let snapshots arrive first
-      setTimeout(() => {
-        // Only push if we received snapshots and have data, to avoid overwriting cloud with empty state
-        const hasAnyData = CLOUD_COLLECTIONS.some(c => (state[c] || []).length > 0);
-        if(hasAnyData) pushIncremental(true);
-      }, 3000);
       scheduleRemoteApply();
     }
     updateCloudStatus();
@@ -13398,29 +13392,7 @@ function handleAWSMessage(msg) {
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
     if (items.length > 0) {
-      if(coll === 'orders'){
-        // Merge: keep local paid orders that are newer than remote versions
-        const remoteById = new Map(items.map(it => [cloudDocId(it), it]));
-        const localPaid = (state[coll] || []).filter(local => {
-          if(local.status !== 'Pagado') return false;
-          const remote = remoteById.get(cloudDocId(local));
-          if(!remote) return false;
-          const localSeq = Number(local._seq || 0) || new Date(local.updatedAt || local.paidAt || 0).getTime();
-          const remoteSeq = Number(remote._seq || 0) || new Date(remote.updatedAt || remote.paidAt || 0).getTime();
-          return localSeq > remoteSeq;
-        });
-        // Start with remote data, then overwrite with newer local paid orders
-        const merged = new Map(items.map(it => [cloudDocId(it), it]));
-        localPaid.forEach(local => {
-          merged.set(cloudDocId(local), local);
-          // Mark shadow as dirty so pushIncremental will re-upload our version
-          delete cloudShadow[coll][cloudDocId(local)];
-        });
-        state[coll] = cloudSortByOrd([...merged.values()]);
-        if(localPaid.length > 0) setTimeout(() => pushIncremental(true), 500);
-      } else {
-        state[coll] = cloudSortByOrd(items);
-      }
+      state[coll] = cloudSortByOrd(items);
     }
     scheduleRemoteApply();
     return;
@@ -13431,31 +13403,14 @@ function handleAWSMessage(msg) {
     const { collection: coll, docId, payload } = msg;
     if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
     cloudShadow[coll] = cloudShadow[coll] || {};
+    cloudShadow[coll][docId] = cloudShadowKey(payload);
     state[coll] = state[coll] || [];
     const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
     if (idx >= 0) {
-      const local = state[coll][idx];
-      // Protect paid orders: don't overwrite with an older version
-      if(coll === 'orders' && local && local.status === 'Pagado'){
-        const localSeq = Number(local._seq || 0) || new Date(local.updatedAt || local.paidAt || 0).getTime();
-        const remoteSeq = Number(payload._seq || 0) || new Date(payload.updatedAt || payload.paidAt || 0).getTime();
-        if(remoteSeq < localSeq){
-          // Reject older version and re-push our correct version to overwrite cloud
-          delete cloudShadow[coll][docId];
-          setTimeout(() => pushIncremental(true), 200);
-          return;
-        }
-      }
-      // Don't overwrite the order currently being edited
-      if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId){
-        // Re-push local version after edit is done
-        delete cloudShadow[coll][docId];
-        return;
-      }
-      cloudShadow[coll][docId] = cloudShadowKey(payload);
+      // Don't overwrite the order currently being edited on this device
+      if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return;
       state[coll][idx] = payload;
     } else {
-      cloudShadow[coll][docId] = cloudShadowKey(payload);
       state[coll].push(payload);
     }
     state[coll] = cloudSortByOrd(state[coll]);
@@ -13496,8 +13451,6 @@ async function pushIncremental(force = false) {
     });
     Object.keys(shadow).forEach(docId => {
       if (!seen.has(docId)) {
-        // Don't delete cloud data if local collection is empty (likely a fresh load)
-        if((state[coll] || []).length === 0) return;
         sendAWS({ action: 'sync', type: 'delete', collection: coll, docId });
         delete shadow[docId];
       }

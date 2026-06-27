@@ -3306,7 +3306,11 @@
                 <div id="cloudStatusBadge" class="badge text-bg-secondary">Conectando...</div>
               </div>
               <div id="cloudSyncNote" class="d-none" style="border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:.86rem;font-weight:600;"></div>
-              <p class="section-subtitle mb-0"><i class="fa-solid fa-store me-2"></i>Restaurante: <strong id="cloudRestaurantLabel">restaurante-combatti</strong></p>
+              <p class="section-subtitle mb-2"><i class="fa-solid fa-store me-2"></i>Restaurante: <strong id="cloudRestaurantLabel">restaurante-combatti</strong></p>
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-outline-primary btn-pill" type="button" onclick="forceFullCloudSync()"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Forzar sincronizacion completa</button>
+                <button class="btn btn-outline-secondary btn-pill" type="button" onclick="forceDownloadFromCloud()"><i class="fa-solid fa-cloud-arrow-down me-2"></i>Descargar datos de la nube</button>
+              </div>
             </div>
           </div>
           <div class="col-lg-7">
@@ -13576,6 +13580,40 @@ function saveFirebaseConfig() { toast('Configuración de nube no disponible (usa
 function enableCloudSync() { autoStartCloudSync(); }
 function disableCloudSync() { cloudSyncEnabled = false; if(awsSocket) awsSocket.close(); updateCloudStatus(); }
 async function forceCloudSyncNow() { await pushIncremental(true); }
+
+// Forzar sincronización completa: sube TODOS los datos locales a la nube
+async function forceFullCloudSync(){
+  if(!cloudConnected){ toast('No hay conexión con la nube. Espera a que se conecte.', 'warning'); return; }
+  if(!confirm('¿Subir TODOS los datos de este dispositivo a la nube?\n\nEsto sobreescribirá los datos en la nube con los de este dispositivo.\nSolo hazlo desde el dispositivo que tiene los datos correctos.')) return;
+  toast('Subiendo datos a la nube...', 'info');
+  // Clear shadow to force re-upload of everything
+  Object.keys(cloudShadow).forEach(k => cloudShadow[k] = {});
+  cloudConfigShadow = '';
+  try {
+    await pushIncremental(true);
+    toast('Sincronización completa. Todos los datos subidos a la nube.', 'success');
+  } catch(e){
+    toast('Error al sincronizar: ' + (e.message || e), 'danger');
+  }
+}
+
+// Descargar datos frescos de la nube (borra local y recarga desde la nube)
+async function forceDownloadFromCloud(){
+  if(!cloudConnected){ toast('No hay conexión con la nube. Espera a que se conecte.', 'warning'); return; }
+  if(!confirm('¿Descargar todos los datos de la nube?\n\nEsto reemplazará los datos locales de este dispositivo con los de la nube.\nSe perderán cambios locales que no se hayan subido.')) return;
+  toast('Descargando datos de la nube...', 'info');
+  // Clear local storage and re-request all data from cloud
+  cloudInitialSyncDone = false;
+  cloudSnapshotsReceived = 0;
+  cloudShadow = {};
+  cloudConfigShadow = '';
+  requestInitialSync();
+  // Wait for data to arrive
+  setTimeout(() => {
+    persistAll(true);
+    toast('Datos descargados de la nube correctamente.', 'success');
+  }, 4000);
+}
 
 window.addEventListener('online', () => {
   updateCloudStatus();

@@ -13620,25 +13620,32 @@ async function forceDownloadFromCloud(){
   cloudConfigShadow = '';
   // Request everything from cloud
   requestInitialSync();
-  // Wait for all snapshots to arrive, then persist
+  // Wait for all snapshots to arrive, then persist and render
+  let resolved = false;
+  const finish = () => {
+    if(resolved) return;
+    resolved = true;
+    dedupeStateCollections();
+    syncAllTableOrderSnapshots();
+    saveStateToDatabase(appStateSnapshot());
+    renderAll();
+    const pedidos = (state.orders || []).filter(o => o.status === 'Pagado').length;
+    const cuadres = (state.cash?.history || []).length;
+    const ventasManuales = (state.historicalSales || []).length;
+    if(pedidos === 0 && cuadres === 0){
+      toast('La nube no tiene pedidos ni cuadres. Usa "Forzar sincronización completa" desde el dispositivo principal primero.', 'warning');
+    } else {
+      toast(`Descarga completa: ${pedidos} pedidos, ${cuadres} cuadres, ${ventasManuales} ventas manuales`, 'success');
+    }
+  };
   const checkInterval = setInterval(() => {
     if(cloudSnapshotsReceived >= CLOUD_COLLECTIONS.length || cloudInitialSyncDone){
       clearInterval(checkInterval);
-      persistAll(true);
-      const pedidos = (state.orders || []).filter(o => o.status === 'Pagado').length;
-      const cuadres = (state.cash?.history || []).length;
-      const ventasManuales = (state.historicalSales || []).length;
-      toast(`Descarga completa: ${pedidos} pedidos, ${cuadres} cuadres, ${ventasManuales} ventas manuales`, 'success');
+      setTimeout(finish, 300);
     }
   }, 500);
   // Fallback timeout
-  setTimeout(() => {
-    clearInterval(checkInterval);
-    if(!cloudInitialSyncDone){
-      persistAll(true);
-      toast('Descarga completada (algunos datos pueden no haber llegado)', 'info');
-    }
-  }, 10000);
+  setTimeout(() => { clearInterval(checkInterval); finish(); }, 10000);
 }
 
 window.addEventListener('online', () => {

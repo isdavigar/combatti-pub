@@ -13451,7 +13451,14 @@ function handleAWSMessage(msg) {
     if(cloudSnapshotsReceived >= CLOUD_COLLECTIONS.length && !cloudInitialSyncDone){
       cloudInitialSyncDone = true;
     }
-    scheduleRemoteApply();
+    // Render immediately for key collections (don't wait for all snapshots)
+    if(coll === 'orders' || coll === 'tables'){
+      syncAllTableOrderSnapshots();
+      saveStateToDatabase(appStateSnapshot());
+      renderAll();
+    } else {
+      scheduleRemoteApply();
+    }
     return;
   }
 

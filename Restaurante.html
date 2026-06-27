@@ -13611,17 +13611,34 @@ async function forceDownloadFromCloud(){
   if(!cloudConnected){ toast('No hay conexión con la nube. Espera a que se conecte.', 'warning'); return; }
   if(!confirm('¿Descargar todos los datos de la nube?\n\nEsto reemplazará los datos locales de este dispositivo con los de la nube.\nSe perderán cambios locales que no se hayan subido.')) return;
   toast('Descargando datos de la nube...', 'info');
-  // Clear local storage and re-request all data from cloud
+  // Clear all local collection data to receive fresh from cloud
+  CLOUD_COLLECTIONS.forEach(coll => { state[coll] = []; });
+  // Reset sync state
   cloudInitialSyncDone = false;
   cloudSnapshotsReceived = 0;
   cloudShadow = {};
   cloudConfigShadow = '';
+  // Request everything from cloud
   requestInitialSync();
-  // Wait for data to arrive
+  // Wait for all snapshots to arrive, then persist
+  const checkInterval = setInterval(() => {
+    if(cloudSnapshotsReceived >= CLOUD_COLLECTIONS.length || cloudInitialSyncDone){
+      clearInterval(checkInterval);
+      persistAll(true);
+      const pedidos = (state.orders || []).filter(o => o.status === 'Pagado').length;
+      const cuadres = (state.cash?.history || []).length;
+      const ventasManuales = (state.historicalSales || []).length;
+      toast(`Descarga completa: ${pedidos} pedidos, ${cuadres} cuadres, ${ventasManuales} ventas manuales`, 'success');
+    }
+  }, 500);
+  // Fallback timeout
   setTimeout(() => {
-    persistAll(true);
-    toast('Datos descargados de la nube correctamente.', 'success');
-  }, 4000);
+    clearInterval(checkInterval);
+    if(!cloudInitialSyncDone){
+      persistAll(true);
+      toast('Descarga completada (algunos datos pueden no haber llegado)', 'info');
+    }
+  }, 10000);
 }
 
 window.addEventListener('online', () => {

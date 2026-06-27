@@ -10868,18 +10868,27 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const from = new Date(record.openedAt || new Date());
       const to = record.closedAt ? new Date(record.closedAt) : new Date();
       const report = buildCashReport(from, to);
+      // If orders are not available locally but record has stored totals, use record data
+      const useRecordData = report.sales === 0 && Number(record.sales || 0) > 0;
+      const effectiveSales = useRecordData ? Number(record.sales || 0) : report.sales;
+      const effectiveMethodTotals = useRecordData && record.methodTotals ? record.methodTotals : report.methodTotals;
+      const effectiveTips = useRecordData ? Number(record.tips || 0) : report.tips;
+      const effectiveDeliveryFees = useRecordData ? Number(record.deliveryFees || 0) : report.deliveryFees;
+      const effectiveCreditSales = useRecordData ? Number(record.creditSales || 0) : report.creditSales;
+      const effectiveCashPayments = useRecordData ? Number(record.cashPayments || 0) : report.cashPayments;
+      const effectiveIncome = useRecordData ? Number(record.income || 0) : report.income;
       const paid = report.orders.filter(o => o.status === 'Pagado');
       const credits = report.orders.filter(o => o.status === 'Credito');
-      const counts = methodTransactionCounts(paid);
-      const details = cashReportMethodDetails(paid);
+      const counts = useRecordData ? {} : methodTransactionCounts(paid);
+      const details = useRecordData ? null : cashReportMethodDetails(paid);
       const firstNo = paid.length ? Math.min(...paid.map(orderConsecutive).filter(Boolean)) : 0;
       const lastNo = paid.length ? Math.max(...paid.map(orderConsecutive).filter(Boolean)) : 0;
       const brandLines = brandInfoReceiptLines();
       const initialRows = PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${method === 'EFECTIVO' ? money(record.openingAmount || 0) : money(0)}</td></tr>`).join('');
-      const salesRows = PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${counts[method] || 0}</td><td class="right">${money(report.methodTotals?.[method] || 0)}</td></tr>`).join('');
-      const detailRows = PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${money(details[method].sale)}</td><td class="right">${money(details[method].tip)}</td><td class="right">${money(details[method].delivery)}</td><td class="right">${money(details[method].total)}</td></tr>`).join('');
+      const salesRows = PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${useRecordData ? '-' : (counts[method] || 0)}</td><td class="right">${money(effectiveMethodTotals?.[method] || 0)}</td></tr>`).join('');
+      const detailRows = PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${money(useRecordData ? (effectiveMethodTotals?.[method] || 0) : details[method].sale)}</td><td class="right">${money(useRecordData ? (effectiveMethodTotals?.[method] || 0) : details[method].total)}</td></tr>`).join('');
       const creditDelivery = credits.reduce((sum, order) => sum + Number(order.deliveryFee || 0), 0);
-      const creditSalesWithoutDelivery = Math.max(0, report.creditSales - creditDelivery);
+      const creditSalesWithoutDelivery = Math.max(0, effectiveCreditSales - creditDelivery);
       const expenses = report.movements.filter(m => m.type === 'Egreso');
       // Solo mostrar gastos cuya fecha cae DENTRO del turno (apertura-cierre)
       const recordExpenses = Array.isArray(record.expenseHistory)
@@ -10910,24 +10919,24 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             <div>Núm. Final Electronica: </div>
             <div>Transacciones: ${paid.length}</div>
             <div>Documentos Anulados: 0</div>
-            <div>Total de venta POS: ${money(report.sales)}</div>
-            <div>Propinas: ${money(report.tips)}</div>
-            <div>Domicilios: ${money(report.deliveryFees)}</div>
+            <div>Total de venta POS: ${money(effectiveSales)}</div>
+            <div>Propinas: ${money(effectiveTips)}</div>
+            <div>Domicilios: ${money(effectiveDeliveryFees)}</div>
           </div>
           <div class="section-title">Inicial</div>
           <table><thead><tr><th>Medio de pago</th><th class="right">Inicial</th></tr></thead><tbody>${initialRows}<tr class="total-row"><td>Total</td><td class="right">${money(record.openingAmount || 0)}</td></tr></tbody></table>
           <div class="section-title">Ventas</div>
-          <table><thead><tr><th>Nombre</th><th class="right">No. Trans.</th><th class="right">Sistema</th></tr></thead><tbody>${salesRows}<tr class="total-row"><td>Total de venta POS</td><td></td><td class="right">${money(report.sales)}</td></tr><tr class="total-row"><td>Propinas</td><td></td><td class="right">${money(report.tips)}</td></tr><tr class="total-row"><td>Domicilios</td><td></td><td class="right">${money(report.deliveryFees)}</td></tr></tbody></table>
+          <table><thead><tr><th>Nombre</th><th class="right">No. Trans.</th><th class="right">Sistema</th></tr></thead><tbody>${salesRows}<tr class="total-row"><td>Total de venta POS</td><td></td><td class="right">${money(effectiveSales)}</td></tr><tr class="total-row"><td>Propinas</td><td></td><td class="right">${money(effectiveTips)}</td></tr><tr class="total-row"><td>Domicilios</td><td></td><td class="right">${money(effectiveDeliveryFees)}</td></tr></tbody></table>
           <div class="section-title">Ventas a Crédito</div>
-          <table><thead><tr><th>Trans.</th><th class="right">Total</th></tr></thead><tbody><tr><td>${credits.length}</td><td class="right">${money(report.creditSales)}</td></tr></tbody></table>
+          <table><thead><tr><th>Trans.</th><th class="right">Total</th></tr></thead><tbody><tr><td>${credits.length}</td><td class="right">${money(effectiveCreditSales)}</td></tr></tbody></table>
           <div class="section-title">Detalle Ventas</div>
-          <table><thead><tr><th>Nombre</th><th class="right">Venta</th><th class="right">Total</th></tr></thead><tbody>${PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${money(details[method].sale)}</td><td class="right">${money(details[method].total)}</td></tr>`).join('')}<tr class="total-row"><td>Total</td><td class="right">${money(report.sales)}</td><td class="right">${money(report.sales + report.tips + report.deliveryFees)}</td></tr></tbody></table>
+          <table><thead><tr><th>Nombre</th><th class="right">Venta</th><th class="right">Total</th></tr></thead><tbody>${PAYMENT_METHODS.map(method => `<tr><td>${method}</td><td class="right">${money(useRecordData ? (effectiveMethodTotals?.[method] || 0) : (details?.[method]?.sale || 0))}</td><td class="right">${money(useRecordData ? (effectiveMethodTotals?.[method] || 0) : (details?.[method]?.total || 0))}</td></tr>`).join('')}<tr class="total-row"><td>Total</td><td class="right">${money(effectiveSales)}</td><td class="right">${money(effectiveSales + effectiveTips + effectiveDeliveryFees)}</td></tr></tbody></table>
           <div class="section-title">Impuestos</div>
           <table><thead><tr><th>Nombre</th><th class="right">Base</th><th class="right">Imp</th></tr></thead><tbody><tr class="total-row"><td>Total</td><td></td><td class="right">$ 0</td></tr></tbody></table>
           <div class="section-title">Gastos</div>
           <table><thead><tr><th>Tipo de gasto</th><th class="right">Total</th></tr></thead><tbody>${expenseRows}${payrollTotal > 0 ? `<tr class="total-row"><td>Subtotal nómina</td><td class="right">${money(payrollTotal)}</td></tr>` : ''}<tr class="total-row"><td>Total gastos</td><td class="right">${money(totalAllExpenses)}</td></tr></tbody></table>
           <div class="section-title">Resumen</div>
-          <table class="summary"><tbody><tr><td>Ventas cobradas</td><td class="right">${money(cashRecordRealSales(record))}</td></tr><tr><td>Apertura de caja</td><td class="right">${money(record.openingAmount || 0)}</td></tr><tr><td>Ingresos manuales</td><td class="right">${money(report.income)}</td></tr><tr><td>Gastos del turno</td><td class="right">-${money(totalAllExpenses)}</td></tr><tr><td></td><td></td></tr><tr class="total-row"><td><b>Debe tener en caja</b></td><td class="right"><b>${money(Number(record.openingAmount || 0) + report.cashPayments + report.income - totalAllExpenses)}</b></td></tr><tr><td><i>(Apertura ${money(record.openingAmount || 0)} + Efectivo ${money(report.cashPayments)} + Ingresos ${money(report.income)} - Gastos ${money(totalAllExpenses)})</i></td><td></td></tr><tr><td></td><td></td></tr><tr class="total-row"><td><b>Ganancia del turno</b></td><td class="right"><b>${money(netoFinal)}</b></td></tr><tr><td><i>(Ventas ${money(cashRecordRealSales(record))} - Gastos ${money(totalAllExpenses)})</i></td><td></td></tr></tbody></table>
+          <table class="summary"><tbody><tr><td>Ventas cobradas</td><td class="right">${money(cashRecordRealSales(record))}</td></tr><tr><td>Apertura de caja</td><td class="right">${money(record.openingAmount || 0)}</td></tr><tr><td>Ingresos manuales</td><td class="right">${money(effectiveIncome)}</td></tr><tr><td>Gastos del turno</td><td class="right">-${money(totalAllExpenses)}</td></tr><tr><td></td><td></td></tr><tr class="total-row"><td><b>Debe tener en caja</b></td><td class="right"><b>${money(Number(record.openingAmount || 0) + effectiveCashPayments + effectiveIncome - totalAllExpenses)}</b></td></tr><tr><td><i>(Apertura ${money(record.openingAmount || 0)} + Efectivo ${money(effectiveCashPayments)} + Ingresos ${money(effectiveIncome)} - Gastos ${money(totalAllExpenses)})</i></td><td></td></tr><tr><td></td><td></td></tr><tr class="total-row"><td><b>Ganancia del turno</b></td><td class="right"><b>${money(netoFinal)}</b></td></tr><tr><td><i>(Ventas ${money(cashRecordRealSales(record))} - Gastos ${money(totalAllExpenses)})</i></td><td></td></tr></tbody></table>
         </div>
       `;
     }

@@ -13361,8 +13361,12 @@ function handleAWSMessage(msg) {
     }
     if (!cloudInitialSyncDone) {
       cloudInitialSyncDone = true;
-      // Subir datos locales a la nube si la nube está vacía
-      setTimeout(() => pushIncremental(true), 500);
+      // Wait for snapshots to arrive before pushing local data
+      // Only push if local has real user data (not just defaults from a fresh install)
+      const hasRealLocalData = (state.orders || []).length > 0;
+      if(hasRealLocalData){
+        setTimeout(() => pushIncremental(true), 2000);
+      }
       scheduleRemoteApply();
     }
     updateCloudStatus();

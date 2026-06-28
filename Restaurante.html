@@ -13381,31 +13381,25 @@ function applyConfigRemote(data) {
   if (!data) return;
   const remoteSeq = Number(data._seq || 0);
   if (data.cash != null) {
-    // Merge cash history — but ONLY keep records that exist in EITHER local OR remote.
-    // If a record exists in remote but NOT in local, it was intentionally deleted — don't restore it.
     const localCash = state.cash || {};
     const localHistory = Array.isArray(localCash.history) ? localCash.history : [];
     const remoteHistory = Array.isArray(data.cash.history) ? data.cash.history : [];
-    const localIds = new Set(localHistory.map(r => r.id).filter(Boolean));
+    const remoteIds = new Set(remoteHistory.map(r => r.id).filter(Boolean));
     const byId = new Map();
-    localHistory.forEach(r => { if(r && r.id) byId.set(r.id, r); });
-    remoteHistory.forEach(r => {
+    // Start with remote as source of truth
+    remoteHistory.forEach(r => { if(r && r.id) byId.set(r.id, r); });
+    // Add local records ONLY if they also exist in remote (if remote doesn't have it, it was deleted)
+    localHistory.forEach(r => {
       if(!r || !r.id) return;
-      if(byId.has(r.id)){
-        // Both have it — keep the newer version
-        const existing = byId.get(r.id);
-        const exTime = new Date(existing.closedAt || existing.openedAt || 0).getTime();
-        const rTime = new Date(r.closedAt || r.openedAt || 0).getTime();
-        if(r.closedAt && !existing.closedAt) byId.set(r.id, r);
-        else if(rTime > exTime) byId.set(r.id, r);
-      } else if(localHistory.length === 0){
-        // Local has no history at all (fresh device) — accept remote records
-        byId.set(r.id, r);
-      }
-      // If local has history but this record is missing, it was deleted — DON'T add it back
+      if(!remoteIds.has(r.id) && remoteHistory.length > 0) return; // Deleted remotely — don't keep
+      const existing = byId.get(r.id);
+      if(!existing){ byId.set(r.id, r); return; }
+      // Both have it — keep newer
+      const exTime = new Date(existing.closedAt || existing.openedAt || 0).getTime();
+      const rTime = new Date(r.closedAt || r.openedAt || 0).getTime();
+      if(rTime > exTime) byId.set(r.id, r);
     });
     const mergedHistory = [...byId.values()].sort((a,b)=> new Date(a.openedAt||0) - new Date(b.openedAt||0));
-    // For the current open/closed cash state, use the newer config
     if(remoteSeq >= (lastAppliedConfigSeq || 0)){
       state.cash = { ...data.cash, history: mergedHistory };
       lastAppliedConfigSeq = remoteSeq || lastAppliedConfigSeq;

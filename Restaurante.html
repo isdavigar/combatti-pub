@@ -13621,6 +13621,7 @@ function handleAWSMessage(msg) {
           const items = state[coll] || [];
           if(!items.length) continue;
           if(coll === 'deliveryZones') continue; // Zones are code-defined
+          if(coll === 'products') continue; // Products are fixed in cloud — don't re-push
           const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
           for(let i = 0; i < items.length; i++){
             const item = items[i];
@@ -13664,6 +13665,13 @@ function handleAWSMessage(msg) {
     cloudShadow[coll] = cloudShadow[coll] || {};
     // Delivery zones are code-defined — ignore cloud copies
     if(coll === 'deliveryZones'){ cloudSnapshotsReceived++; scheduleRemoteApply(); return; }
+    // Products are fixed (147) — cloud ALWAYS replaces local to prevent duplicates
+    if(coll === 'products' && items.length > 0){
+      state.products = cloudSortByOrd(items);
+      cloudSnapshotsReceived++;
+      scheduleRemoteApply();
+      return;
+    }
     // Merge each remote item using last-write-wins; never lose local-only items
     items.forEach(remote => {
       const docId = cloudDocId(remote);

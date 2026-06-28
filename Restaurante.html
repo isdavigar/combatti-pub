@@ -13557,19 +13557,36 @@ function handleAWSMessage(msg) {
       const docId = cloudDocId(item);
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
-    // Cloud data REPLACES local data entirely (cloud is source of truth)
+    // Cloud data merges with local — newest version of each item wins, nothing is lost
     if (items.length > 0) {
       // Don't overwrite delivery zones from cloud — code defines them
       if(coll === 'deliveryZones') { cloudSnapshotsReceived++; scheduleRemoteApply(); return; }
-      const localCount = (state[coll] || []).length;
-      if(items.length >= localCount){
-        // Cloud has same or more data — use cloud
-        state[coll] = cloudSortByOrd(items);
+      if(coll === 'orders'){
+        // Smart merge for orders: keep the most recently updated version of each order.
+        // NEVER auto-close an order — local open orders are preserved unless cloud is newer.
+        const byId = new Map();
+        (state.orders || []).forEach(o => byId.set(cloudDocId(o), o));
+        items.forEach(remote => {
+          const id = cloudDocId(remote);
+          const local = byId.get(id);
+          if(!local){ byId.set(id, remote); return; }
+          // Both exist — keep the newer one by timestamp
+          const localTime = Number(local._seq || 0) || new Date(local.updatedAt || local.paidAt || 0).getTime();
+          const remoteTime = Number(remote._seq || 0) || new Date(remote.updatedAt || remote.paidAt || 0).getTime();
+          // If local is being edited right now, always keep local
+          if(typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === id) return;
+          if(remoteTime >= localTime) byId.set(id, remote);
+        });
+        state.orders = cloudSortByOrd([...byId.values()]);
       } else {
-        // Local has MORE data than cloud — MERGE (keep local extras)
-        const cloudIds = new Set(items.map(it => cloudDocId(it)));
-        const localExtras = (state[coll] || []).filter(it => !cloudIds.has(cloudDocId(it)));
-        state[coll] = cloudSortByOrd([...items, ...localExtras]);
+        const localCount = (state[coll] || []).length;
+        if(items.length >= localCount){
+          state[coll] = cloudSortByOrd(items);
+        } else {
+          const cloudIds = new Set(items.map(it => cloudDocId(it)));
+          const localExtras = (state[coll] || []).filter(it => !cloudIds.has(cloudDocId(it)));
+          state[coll] = cloudSortByOrd([...items, ...localExtras]);
+        }
       }
     }
     cloudSnapshotsReceived++;

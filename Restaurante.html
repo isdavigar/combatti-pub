@@ -13715,7 +13715,24 @@ function handleAWSMessage(msg) {
     cloudShadow[coll] = cloudShadow[coll] || {};
     delete cloudShadow[coll][docId];
     const idx = (state[coll] || []).findIndex(it => cloudDocId(it) === docId);
-    if (idx >= 0) { state[coll].splice(idx, 1); scheduleRemoteApply(); }
+    if (idx >= 0) {
+      state[coll].splice(idx, 1);
+      // Also clean up references in cash history
+      if(coll === 'movements'){
+        (state.cash.history || []).forEach(record => {
+          if(Array.isArray(record.expenseHistory)) record.expenseHistory = record.expenseHistory.filter(m => m.id !== docId);
+          if(Array.isArray(record.movementsHistory)) record.movementsHistory = record.movementsHistory.filter(m => m.id !== docId);
+          if(Array.isArray(record.orders)) record.orders = record.orders.filter(id => id !== docId);
+        });
+      }
+      if(coll === 'orders'){
+        (state.cash.history || []).forEach(record => {
+          if(Array.isArray(record.orders)) record.orders = record.orders.filter(id => id !== docId);
+        });
+      }
+      saveStateToDatabase(appStateSnapshot());
+      renderAll();
+    }
     return;
   }
 }

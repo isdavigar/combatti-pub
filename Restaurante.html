@@ -10847,18 +10847,6 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       XLSX.writeFile(wb, `cuadre_${shiftLabel(record.shift).replace(/\s/g,'_')}_${dateTimeStamp()}.xlsx`);
       toast('Excel descargado', 'success');
     }
-    function cashRecordDetailHtml(record = currentCashRecord()){
-      if(!record) return '<div class="text-secondary">No hay cuadre seleccionado.</div>';
-      const from = new Date(record.openedAt || new Date());
-      const to = record.closedAt ? new Date(record.closedAt) : new Date();
-      const report = buildCashReport(from, to);
-      const orders = report.orders;
-      const rows = orders.map(o => `<tr><td>${formatDate(o.paidAt)}</td><td>${escapeHtml(o.tableName || '')}</td><td>${escapeHtml(o.customer || '')}</td><td>${escapeHtml(o.status || '')}</td><td>${escapeHtml(o.paymentMethod || '')}</td><td class="right">${money(o.total || 0)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Sin ventas en este cuadre</td></tr>';
-      const movementHistory = Array.isArray(record.movementsHistory) ? record.movementsHistory : report.movements.map(m => ({ ...m }));
-      const expenseHistory = Array.isArray(record.expenseHistory) ? record.expenseHistory : movementHistory.filter(m => m.type === 'Egreso');
-      const expenseRows = expenseHistory.map(m => `<tr><td>${formatDate(m.date)}</td><td>${escapeHtml(m.concept || m.reason || '-')}</td><td>${escapeHtml(m.source || 'EFECTIVO')}</td><td class="right">${money(m.amount || 0)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Sin egresos guardados en este cuadre</td></tr>';
-      return `<h2>${escapeHtml(state.brand.name)}</h2><p class="muted">Cuadre de caja</p><div class="row g-3 mb-3"><div class="col-md-3"><div class="mini-table"><span>Inicio</span><strong>${formatDate(record.openedAt)}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Cierre</span><strong>${record.closedAt ? formatDate(record.closedAt) : 'Abierta'}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Responsable</span><strong>${escapeHtml(record.responsible || record.user || 'Sin usuario')}</strong></div></div><div class="col-md-3"><div class="mini-table"><span>Estado</span><strong>${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</strong></div></div></div><table class="table table-sm"><tbody><tr><td>Total inicial</td><td class="right">${money(record.openingAmount || 0)}</td></tr><tr><td>Ventas pagadas</td><td class="right">${money(report.sales)}</td></tr><tr><td>Propinas</td><td class="right">${money(report.tips)}</td></tr><tr><td>Domicilios</td><td class="right">${money(report.deliveryFees)}</td></tr><tr><td>Efectivo</td><td class="right">${money(report.cashPayments)}</td></tr><tr><td>Transferencia</td><td class="right">${money(report.transferPayments)}</td></tr><tr><td>Datafono</td><td class="right">${money(report.cardPayments)}</td></tr><tr><td>Créditos</td><td class="right">${money(report.creditSales)}</td></tr><tr><td>Cortesías</td><td class="right">${money(report.courtesyTotal)}</td></tr><tr><td>Ingresos manuales</td><td class="right">${money(report.income)}</td></tr><tr><td>Egresos efectivo caja</td><td class="right">${money(report.cashExpense)}</td></tr><tr><td>Egresos tarjeta credito Jesús</td><td class="right">${money(report.creditCardExpense)}</td></tr><tr><td>Egresos totales</td><td class="right">${money(report.expense)}</td></tr><tr><td><b>Saldo efectivo estimado</b></td><td class="right"><b>${money(report.final)}</b></td></tr>${record && record.countedCash != null ? `<tr><td>Efectivo contado (arqueo)</td><td class="right">${money(record.countedCash)}</td></tr><tr class="total-row"><td><b>Diferencia de cuadre</b></td><td class="right"><b>${money(record.discrepancy || 0)}</b></td></tr><tr><td>Estado del cuadre</td><td class="right">${Number(record.discrepancy || 0) === 0 ? 'CUADRADA' : (Number(record.discrepancy || 0) > 0 ? 'SOBRANTE' : 'FALTANTE')}</td></tr>` : ''}</tbody></table><h5 class="mt-4">Historial de egresos</h5><table class="table table-sm"><thead><tr><th>Fecha</th><th>Concepto</th><th>Medio</th><th class="right">Valor</th></tr></thead><tbody>${expenseRows}</tbody></table><h5 class="mt-4">Ventas del cuadre</h5><table class="table table-sm"><thead><tr><th>Fecha</th><th>Mesa</th><th>Cliente</th><th>Estado</th><th>Método</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table>`;
-    }
     function categoryForOrderItem(item){
       const product = state.products.find(p => p.id === item.productId);
       return normalizeCategory(item.category || product?.category || 'Sin categoria');
@@ -13859,7 +13847,6 @@ function updateCloudStatus() {
 function saveFirebaseConfig() { toast('Configuración de nube no disponible (usando AWS)', 'info'); }
 function enableCloudSync() { autoStartCloudSync(); }
 function disableCloudSync() { cloudSyncEnabled = false; if(awsSocket) awsSocket.close(); updateCloudStatus(); }
-async function forceCloudSyncNow() { await pushIncremental(true, true); }
 
 // Borrar caché local y resetear — solo admin del sistema
 async function resetLocalCache(){

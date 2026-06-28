@@ -13667,7 +13667,24 @@ function handleAWSMessage(msg) {
     if(coll === 'deliveryZones'){ cloudSnapshotsReceived++; scheduleRemoteApply(); return; }
     // Products are fixed (147) — cloud ALWAYS replaces local to prevent duplicates
     if(coll === 'products' && items.length > 0){
-      state.products = cloudSortByOrd(items);
+      // Deduplicate by name+category (cloud may have duplicates from past syncs)
+      const seen = new Set();
+      const cleanProducts = [];
+      items.forEach(p => {
+        const key = `${String(p.category || '').toLowerCase().trim()}|${String(p.name || '').toLowerCase().trim()}`;
+        if(key === '|') return;
+        if(seen.has(key)) return;
+        seen.add(key);
+        cleanProducts.push(p);
+      });
+      state.products = cloudSortByOrd(cleanProducts);
+      // If we cleaned duplicates, push the clean list back to the cloud
+      if(cleanProducts.length < items.length){
+        setTimeout(() => {
+          cloudShadow.products = {};
+          pushIncremental(true, true); // allowDeletes to remove duplicates from cloud
+        }, 5000);
+      }
       cloudSnapshotsReceived++;
       scheduleRemoteApply();
       return;

@@ -13418,6 +13418,8 @@ function handleAWSMessage(msg) {
     }
     if(!cloudInitialSyncDone){
       cloudInitialSyncDone = true;
+      // After receiving config, wait for snapshots then auto-push local data that's missing in cloud
+      setTimeout(() => autoSyncLocalToCloud(), 4000);
     }
     scheduleRemoteApply();
     updateCloudStatus();
@@ -13548,6 +13550,34 @@ function queueCloudPush() {
   if (!cloudSyncEnabled || isApplyingRemoteState) return;
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
+}
+
+// Auto-sync: after connecting and receiving snapshots, check if local has more data
+// than what's in the cloud shadow. If so, push local data to fill the gaps.
+function autoSyncLocalToCloud(){
+  if(!cloudConnected) return;
+  let localHasMore = false;
+  CLOUD_COLLECTIONS.forEach(coll => {
+    const shadow = cloudShadow[coll] || {};
+    const localItems = state[coll] || [];
+    const shadowCount = Object.keys(shadow).length;
+    // If local has significantly more items than the cloud, push them
+    if(localItems.length > shadowCount + 2){
+      localHasMore = true;
+      // Clear shadow for this collection to force re-upload
+      cloudShadow[coll] = {};
+    }
+  });
+  // Also check config (cash history, brand, etc.)
+  const localCashRecords = (state.cash?.history || []).length;
+  const configStr = cloudConfigShadow || '';
+  if(localCashRecords > 0 && (!configStr || configStr.length < 100)){
+    localHasMore = true;
+    cloudConfigShadow = '';
+  }
+  if(localHasMore){
+    pushIncremental(true);
+  }
 }
 
 // ===== Auto-start =====

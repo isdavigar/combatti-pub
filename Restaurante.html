@@ -579,11 +579,33 @@
     // ===== LOCAL STORAGE =====
     function saveToLocal() {
         try { localStorage.setItem('combatti_cafe_state', JSON.stringify(state)); } catch(e){}
+        // ALSO save cash state separately as backup (brute force persistence)
+        try { localStorage.setItem('combatti_cafe_cash', JSON.stringify(state.cash)); } catch(e){}
     }
     function loadFromLocal() {
         try {
             const s = localStorage.getItem('combatti_cafe_state');
             if (s) { const parsed = JSON.parse(s); Object.assign(state, parsed); }
+        } catch(e){}
+        // BRUTE FORCE: Also load cash state from separate backup key
+        try {
+            const cashBackup = localStorage.getItem('combatti_cafe_cash');
+            if (cashBackup) {
+                const cashParsed = JSON.parse(cashBackup);
+                if (cashParsed && typeof cashParsed === 'object') {
+                    // If main state didn't have cash or it got corrupted, use backup
+                    if (!state.cash || typeof state.cash !== 'object') {
+                        state.cash = cashParsed;
+                    } else {
+                        // If backup says open but main says closed, trust the backup
+                        // (the backup is always written at the same time, so they should match)
+                        // But if they differ, prefer the one that says open (safer for not losing data)
+                        if (cashParsed.open && !state.cash.open) {
+                            state.cash = cashParsed;
+                        }
+                    }
+                }
+            }
         } catch(e){}
     }
 
@@ -714,6 +736,7 @@
         renderTables();
         renderDeliveries();
         renderKitchen();
+        renderCaja();
     }
 
     // ===== TABLES =====
@@ -1128,26 +1151,33 @@
 
     // ===== CAJA (CASH REGISTER) =====
     function renderCaja() {
-        // Ensure cash state exists
-        if (!state.cash) {
-            state.cash = { open: false, openingAmount: 0, openedAt: null, closedAt: null, turno: 'dia', movements: [], history: [] };
+        // Ensure cash state exists (FORCE)
+        if (!state.cash || typeof state.cash !== 'object') {
+            state.cash = { open: false, openingAmount: 0, openedAt: null, closedAt: null, turno: 'dia', movements: [], history: [], openedBy: '' };
         }
 
-        const isOpen = state.cash.open;
+        const isOpen = !!state.cash.open; // Force boolean
         const statusIcon = document.getElementById('cajaStatusIcon');
         const statusTitle = document.getElementById('cajaStatusTitle');
         const statusMsg = document.getElementById('cajaStatusMsg');
-        const statusCard = document.getElementById('cajaStatusCard');
         const infoGrid = document.getElementById('cajaInfoGrid');
         const btnAbrir = document.getElementById('btnAbrirCaja');
         const btnCerrar = document.getElementById('btnCerrarCaja');
         const btnMov = document.getElementById('btnMovimiento');
 
+        // Bail out if DOM not ready
+        if (!statusIcon || !statusTitle || !statusMsg || !infoGrid || !btnAbrir || !btnCerrar || !btnMov) return;
+
         if (isOpen) {
+            // === CAJA ABIERTA ===
+            const quien = state.cash.openedBy || (currentUser ? currentUser.email : 'Usuario');
+            const horaApertura = state.cash.openedAt ? new Date(state.cash.openedAt).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '--:--';
+            const turnoLabel = state.cash.turno === 'noche' ? 'Noche' : 'Día';
+
             statusIcon.innerHTML = '<i class="fas fa-lock-open" style="color:var(--success);font-size:2.5rem;"></i>';
-            statusTitle.textContent = 'Caja Abierta';
+            statusTitle.textContent = 'Caja Abierta por ' + quien;
             statusTitle.style.color = 'var(--success)';
-            statusMsg.textContent = 'Turno: ' + (state.cash.turno === 'noche' ? 'Noche' : 'Día') + ' | Abierta: ' + (state.cash.openedAt ? new Date(state.cash.openedAt).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '--:--');
+            statusMsg.textContent = 'Turno: ' + turnoLabel + ' | Desde: ' + horaApertura;
             infoGrid.style.display = 'grid';
             btnAbrir.style.display = 'none';
             btnCerrar.style.display = 'inline-flex';
@@ -1162,12 +1192,13 @@
             const saldoEstimado = state.cash.openingAmount + efectivoVentas + ingresos - egresos;
 
             document.getElementById('cajaFondo').textContent = formatMoney(state.cash.openingAmount);
-            document.getElementById('cajaHoraApertura').textContent = state.cash.openedAt ? new Date(state.cash.openedAt).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '--:--';
+            document.getElementById('cajaHoraApertura').textContent = horaApertura;
             document.getElementById('cajaVentasCount').textContent = salesSinceOpen.length;
             document.getElementById('cajaTotalVentas').textContent = formatMoney(totalVentas);
             document.getElementById('cajaEfectivo').textContent = formatMoney(efectivoVentas);
             document.getElementById('cajaSaldoEstimado').textContent = formatMoney(saldoEstimado);
         } else {
+            // === CAJA CERRADA ===
             statusIcon.innerHTML = '<i class="fas fa-lock" style="color:var(--warning);font-size:2.5rem;"></i>';
             statusTitle.textContent = 'Caja Cerrada';
             statusTitle.style.color = 'var(--warning)';
@@ -1224,12 +1255,13 @@
         state.cash.closedAt = null;
         state.cash.turno = turno;
         state.cash.movements = [];
+        state.cash.openedBy = currentUser ? currentUser.email : 'Usuario';
 
         saveToLocal();
         pushToCloud('config', { _type: 'cash', data: state.cash });
         closeAbrirCajaModal();
         renderCaja();
-        showToast('Caja abierta - Fondo: ' + formatMoney(monto), 'success');
+        showToast('Caja abierta por ' + state.cash.openedBy + ' - Fondo: ' + formatMoney(monto), 'success');
     }
 
     function cerrarCaja() {
@@ -1261,8 +1293,9 @@
         if (!state.cash.history) state.cash.history = [];
         state.cash.history.push(closure);
 
-        // Close
+        // Close - FORCE set to false and clear openedBy
         state.cash.open = false;
+        state.cash.openedBy = '';
         state.cash.closedAt = now();
         state.cash.movements = [];
 

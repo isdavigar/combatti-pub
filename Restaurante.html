@@ -13503,8 +13503,32 @@ function handleAWSMessage(msg) {
     }
     if(!cloudInitialSyncDone){
       cloudInitialSyncDone = true;
-      // After receiving config, wait for snapshots then auto-push local data that's missing in cloud
-      setTimeout(() => autoSyncLocalToCloud(), 4000);
+      // FORCE PUSH: always upload ALL local data to the cloud after connecting
+      // This ensures the cloud always has the latest from this device
+      setTimeout(async () => {
+        if(!cloudConnected) return;
+        // Push config (cash history, brand, etc.)
+        cloudConfigShadow = '';
+        const cfgPayload = cloudConfigPayload();
+        sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
+        cloudConfigShadow = cloudConfigKey(cfgPayload);
+        // Push all collections — clear shadow to force re-upload
+        for(const coll of CLOUD_COLLECTIONS){
+          const items = state[coll] || [];
+          if(!items.length) continue;
+          if(coll === 'deliveryZones') continue; // Zones are code-defined
+          cloudShadow[coll] = cloudShadow[coll] || {};
+          for(let i = 0; i < items.length; i++){
+            const item = items[i];
+            if(!item || typeof item !== 'object') continue;
+            const docId = cloudDocId(item);
+            const payload = { ...item, _ord: i, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
+            sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
+            cloudShadow[coll][docId] = cloudShadowKey(payload);
+            if((i + 1) % 20 === 0) await new Promise(r => setTimeout(r, 50));
+          }
+        }
+      }, 3000);
     }
     scheduleRemoteApply();
     updateCloudStatus();

@@ -5624,13 +5624,19 @@
       state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
       state.tables.forEach((table, index) => {
         normalizeTable(table, index);
-        // Si la mesa tiene un orderId que ya es un pedido pagado/cerrado, limpiarla
-        // BUT only if the user is not currently editing this table
+        // Check if this table has any open order (by orderId or by tableId)
+        const openOrderForTable = state.orders.find(o => (o.id === table.orderId || o.tableId === table.id) && !isClosedOrder(o));
+        if(openOrderForTable){
+          // Table has an active order — keep it occupied
+          table.orderId = openOrderForTable.id;
+          table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
+          syncTableOrderSnapshot(table, openOrderForTable);
+          return;
+        }
+        // No open order found — only reset if orderId points to a closed/missing order
         if(table.orderId){
           const linkedOrder = state.orders.find(o => o.id === table.orderId);
           if(!linkedOrder || isClosedOrder(linkedOrder)){
-            // Don't reset if this is the table being actively edited
-            if(currentOrderTableId === table.id) return;
             table.orderId = null;
             table.status = 'Disponible';
             table.customer = '';
@@ -5638,7 +5644,7 @@
             table.orderStartedAt = null;
           }
         }
-        // Para multi-order tables, verificar que no haya pedidos cerrados mostrándose
+        // Para multi-order tables, verificar status
         if(isMultiOrderTable(table)){
           updateMultiOrderTableStatus(table.id);
         }

@@ -6735,7 +6735,7 @@
       const turnoStart = state.cash.open ? cashPeriodStart() : startOfDay(today);
       const turnoOrderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= turnoStart && new Date(o.paidAt) <= endOfDay(today)).reduce((a,b)=>a + (b.total || 0), 0);
       const rangeSales = salesBetweenByBusiness(range.from, range.to);
-      const todaySales = turnoOrderSales;
+      const todaySales = state.cash.open ? turnoOrderSales : 0;
       const sales7 = salesBetweenByBusiness(new Date(today.getTime() - 6*24*60*60*1000), endOfDay(today));
       const sales30 = salesBetweenByBusiness(new Date(today.getTime() - 29*24*60*60*1000), endOfDay(today));
       const salesYear = salesBetweenByBusiness(startOfYear(today), endOfDay(today));
@@ -6776,7 +6776,7 @@
       }
       const sellerRanking = [...sellerTotals.entries()].map(([name, total]) => ({ name, total })).sort((a,b)=>b.total-a.total);
       const topSeller = sellerRanking[0] || { name:'-', total:0 };
-      const cashTotal = (state.cash.openingAmount || 0) + todayReport.cashPayments + Number(todayReport.income || 0) - Number(todayReport.cashExpense || 0);
+      const cashTotal = state.cash.open ? (state.cash.openingAmount || 0) + todayReport.cashPayments + Number(todayReport.income || 0) - Number(todayReport.cashExpense || 0) : 0;
 
       setText('dashDateLabel', range.label);
       setText('heroSalesToday', money(todaySales));
@@ -13330,7 +13330,11 @@ function applyRemoteItem(coll, payload){
   if(!payload) return false;
   state[coll] = state[coll] || [];
   const docId = cloudDocId(payload);
-  const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
+  let idx = state[coll].findIndex(it => cloudDocId(it) === docId);
+  // For tables, also match by name (different devices may generate different IDs for same table)
+  if(idx < 0 && coll === 'tables' && payload.name){
+    idx = state[coll].findIndex(it => String(it.name || '').toLowerCase().trim() === String(payload.name || '').toLowerCase().trim());
+  }
   if(idx < 0){ state[coll].push(payload); return true; }
   // Never overwrite the order currently open/being edited on this device
   if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return false;
@@ -13458,6 +13462,18 @@ function dedupeStateCollections(){
         const nameKey = `${String(it.category || '').toLowerCase().trim()}|${String(it.name || '').toLowerCase().trim()}`;
         if(nameKey && nameKey !== '|' && seenNames.has(nameKey)) return;
         if(nameKey && nameKey !== '|') seenNames.add(nameKey);
+        out.push(it);
+      });
+    } else if(coll === 'tables'){
+      // Dedupe by id AND by name (case-insensitive) — prevents duplicate tables
+      const seenNames = new Set();
+      arr.forEach(it => {
+        const id = it && it.id != null ? String(it.id) : '';
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        const nameKey = String(it.name || '').toLowerCase().trim();
+        if(nameKey && seenNames.has(nameKey)) return;
+        if(nameKey) seenNames.add(nameKey);
         out.push(it);
       });
     } else {

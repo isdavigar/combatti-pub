@@ -6764,7 +6764,7 @@
       const todayReport = buildCashReport(turnoStart, endOfDay(today));
       const openTables = state.tables.filter(t => t.kind !== 'Caja' && t.status !== 'Disponible').length;
       const freeTables = state.tables.filter(t => t.kind !== 'Caja' && t.status === 'Disponible').length;
-      const activeOrders = state.orders.filter(o => o.status === 'Abierto');
+      const activeOrders = state.orders.filter(o => o.status === 'Abierto' && o.items && o.items.length > 0);
       const pendingOrders = activeOrders.length;
       const closedToday = closedOrdersRange(startOfDay(today), endOfDay(today)).length;
       const tableBase = Math.max(0, openTables + freeTables);

@@ -13414,6 +13414,9 @@ function handleAWSMessage(msg) {
       isApplyingRemoteState = false;
       cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
     }
+    if(!cloudInitialSyncDone){
+      cloudInitialSyncDone = true;
+    }
     scheduleRemoteApply();
     updateCloudStatus();
     return;
@@ -13447,10 +13450,6 @@ function handleAWSMessage(msg) {
       state[coll] = cloudSortByOrd(items);
     }
     cloudSnapshotsReceived++;
-    // Only mark sync as truly ready after all collection snapshots have arrived
-    if(cloudSnapshotsReceived >= CLOUD_COLLECTIONS.length && !cloudInitialSyncDone){
-      cloudInitialSyncDone = true;
-    }
     // Render immediately for key collections (don't wait for all snapshots)
     if(coll === 'orders' || coll === 'tables'){
       syncAllTableOrderSnapshots();
@@ -13511,7 +13510,6 @@ function handleAWSMessage(msg) {
 // ===== Push changes to AWS =====
 async function pushIncremental(force = false) {
   if ((!cloudSyncEnabled && !force) || !awsSocket || awsSocket.readyState !== WebSocket.OPEN) return;
-  if (!cloudInitialSyncDone && !force) return;
   ensureCloudIds();
 
   CLOUD_COLLECTIONS.forEach(coll => {
@@ -13545,7 +13543,7 @@ async function pushIncremental(force = false) {
 }
 
 function queueCloudPush() {
-  if (!cloudSyncEnabled || isApplyingRemoteState || !cloudInitialSyncDone) return;
+  if (!cloudSyncEnabled || isApplyingRemoteState) return;
   clearTimeout(cloudPushTimer);
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }

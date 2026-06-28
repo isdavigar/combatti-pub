@@ -4281,6 +4281,12 @@
 
   <div id="toastArea" class="toast-container"></div>
 
+  <div id="cloudOfflineOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#fff;font-family:Inter,Arial,sans-serif;text-align:center;padding:24px;">
+    <i class="fa-solid fa-cloud-bolt" style="font-size:3rem;color:#ef4444;"></i>
+    <h2 style="margin:0;font-size:1.5rem;">Sin conexión a la nube</h2>
+    <p style="margin:0;max-width:400px;opacity:.8;">El sistema requiere conexión a la nube para funcionar. Verificando conexión...</p>
+    <div class="spinner-border text-light" role="status" style="width:2rem;height:2rem;"></div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const STORAGE = {
@@ -4620,6 +4626,7 @@
       return number;
     }
     function requireCashOpen(action = 'realizar esta operacion'){
+      if(!cloudConnected){ toast('Sin conexión a la nube. Espera a que se conecte para ' + action, 'danger'); return false; }
       if(state.cash.open) return true;
       if(isSystemAdmin()) return true; // Admin sistema puede operar sin caja abierta
       toast(`Debes abrir caja antes de ${action}.`, 'warning');
@@ -5467,7 +5474,7 @@
     function persistAll(render = true){
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
-      if(typeof pushIncremental === 'function') pushIncremental(true);
+      if(typeof pushIncremental === 'function' && cloudConnected) pushIncremental(true);
       if(render) renderAll();
     }
     function queueAutosave(){
@@ -13853,6 +13860,11 @@ function updateCloudStatus() {
     ind.classList.add((cmap[st] || cmap.off)[0]);
     ind.title = 'Nube: ' + (cmap[st] || cmap.off)[1] + ' · Restaurante: ' + getRestaurantId();
     if (indText) indText.textContent = (cmap[st] || cmap.off)[1];
+  }
+  // Show/hide offline warning overlay
+  const offlineOverlay = byId('cloudOfflineOverlay');
+  if(offlineOverlay){
+    offlineOverlay.style.display = (st === 'live') ? 'none' : 'flex';
   }
 }
 

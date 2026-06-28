@@ -5629,20 +5629,16 @@
         if(openOrderForTable){
           // Table has an active order — keep it occupied
           table.orderId = openOrderForTable.id;
-          table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
+          if(table.kind === 'Mesa' && table.status === 'Disponible') table.status = 'Ocupada';
           syncTableOrderSnapshot(table, openOrderForTable);
           return;
         }
-        // No open order found — only reset if orderId points to a closed/missing order
-        if(table.orderId){
-          const linkedOrder = state.orders.find(o => o.id === table.orderId);
-          if(!linkedOrder || isClosedOrder(linkedOrder)){
-            table.orderId = null;
-            table.status = 'Disponible';
-            table.customer = '';
-            table.orderTotal = 0;
-            table.orderStartedAt = null;
-          }
+        // If table status is 'Ocupada' or 'En proceso de pago' but no order found,
+        // DON'T reset it — the order might arrive in the next sync message.
+        // Only reset if table was explicitly marked as 'Disponible' by a pay action.
+        if(table.status === 'Ocupada' || table.status === 'En proceso de pago'){
+          // Keep the status — it was set by a real user action (saveOrder or openTableOrder)
+          return;
         }
         // Para multi-order tables, verificar status
         if(isMultiOrderTable(table)){

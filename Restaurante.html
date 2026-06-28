@@ -9630,6 +9630,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       }
       // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
       // los movimientos, para que el informe incluya ingresos/egresos del turno.
+      cloudConfigShadow = ''; // Force config push (caja state changed)
       persistAll(false);
       // Cerrar modal y actualizar UI inmediatamente (no esperar push a la nube)
       modals.cashClose.hide();
@@ -9649,7 +9650,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       toast('Caja cerrada e informe generado', 'success');
       renderAll();
       if(currentView === 'movimientos') renderMovements();
-      // Push a la nube en segundo plano (no bloquear UI)
+      // Force push config to cloud immediately so all devices see caja closed
+      cloudConfigShadow = '';
       pushIncremental(true).catch(() => {});
       }catch(e){
         console.error('Error al cerrar caja:', e);

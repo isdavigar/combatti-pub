@@ -5462,7 +5462,7 @@
     function persistAll(render = true){
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
-      if(typeof queueCloudPush === 'function') queueCloudPush();
+      if(typeof pushIncremental === 'function') pushIncremental(true);
       if(render) renderAll();
     }
     function queueAutosave(){
@@ -8672,6 +8672,7 @@ const colors = [
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
       persistAll();
+      pushIncremental(true); // Sync immediately to all devices
       printKitchenTicket(currentOrder, printType);
       toast(status === 'Credito' ? 'Credito registrado' : 'Cortesía registrada', 'success');
       modals.order.hide(); currentOrder = null; currentOrderTableId = null;

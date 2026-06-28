@@ -5625,9 +5625,12 @@
       state.tables.forEach((table, index) => {
         normalizeTable(table, index);
         // Si la mesa tiene un orderId que ya es un pedido pagado/cerrado, limpiarla
+        // BUT only if the user is not currently editing this table
         if(table.orderId){
           const linkedOrder = state.orders.find(o => o.id === table.orderId);
           if(!linkedOrder || isClosedOrder(linkedOrder)){
+            // Don't reset if this is the table being actively edited
+            if(currentOrderTableId === table.id) return;
             table.orderId = null;
             table.status = 'Disponible';
             table.customer = '';
@@ -10529,6 +10532,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       record.movementsHistory.push(movement);
       // NO descontar del saldo final — los gastos post-cierre son informativos
       persistAll();
+      pushIncremental(true); // Sync immediately — don't lose on reload
       modalFor(document.getElementById('addExpenseModal')).hide();
       renderCashHistory();
       renderCashView();
@@ -11408,7 +11412,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       setValue('movementExpenseSourceInput', 'EFECTIVO');
       modals.movement.show();
     }
-    function saveMovement(){ const type = document.getElementById('movementTypeInput').value; const concept = document.getElementById('movementConceptInput').value.trim(); const amount = clampNumber(document.getElementById('movementAmountInput').value || 0); if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; } const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : ''; const customDate = byId('movementDateInput')?.value; const date = customDate ? new Date(customDate + 'T12:00:00').toISOString() : new Date().toISOString(); state.movements.push({ id:uid(), type, concept, amount, source, date }); persistAll(); modals.movement.hide(); toast(`${type} guardado`, 'success'); renderCashView(); renderMovements(); }
+    function saveMovement(){ const type = document.getElementById('movementTypeInput').value; const concept = document.getElementById('movementConceptInput').value.trim(); const amount = clampNumber(document.getElementById('movementAmountInput').value || 0); if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; } const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : ''; const customDate = byId('movementDateInput')?.value; const date = customDate ? new Date(customDate + 'T12:00:00').toISOString() : new Date().toISOString(); state.movements.push({ id:uid(), type, concept, amount, source, date }); persistAll(); pushIncremental(true); modals.movement.hide(); toast(`${type} guardado`, 'success'); renderCashView(); renderMovements(); }
     function editMovement(id){
       if(!requireAdmin('editar movimientos')) return;
       const m = state.movements.find(x => x.id === id);
@@ -13546,6 +13550,15 @@ function handleAWSMessage(msg) {
     if (idx >= 0) {
       // Don't overwrite the order currently being edited on this device
       if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return;
+      // Don't accept a 'Pagado' status if local order is 'Abierto' and was updated more recently
+      if(coll === 'orders' && payload.status === 'Pagado'){
+        const local = state[coll][idx];
+        if(local && local.status === 'Abierto'){
+          const localTime = Number(local._seq || 0) || new Date(local.updatedAt || 0).getTime();
+          const remoteTime = Number(payload._seq || 0) || new Date(payload.updatedAt || payload.paidAt || 0).getTime();
+          if(localTime > remoteTime) return; // Local is newer, reject stale 'Pagado'
+        }
+      }
       state[coll][idx] = payload;
     } else {
       state[coll].push(payload);

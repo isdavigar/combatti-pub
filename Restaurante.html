@@ -5643,20 +5643,23 @@
       }
     }
     function syncAllTableOrderSnapshots(){
-      // Simple and safe: just update table display data from their linked orders.
-      // NEVER change table status here — only payCurrentOrder can free a table.
+      // Update table display data from their linked orders.
+      // For regular tables: status is managed by openTableOrder/closeOrderTable only.
+      // For multi-order tables: recalculate open order count.
       state.tables.forEach((table, index) => {
         normalizeTable(table, index);
+        // Multi-order tables always recalculate their status from open orders
+        if(isMultiOrderTable(table)){
+          updateMultiOrderTableStatus(table.id);
+          return;
+        }
+        // Regular tables: just update display fields, never touch status
         if(!table.orderId) return;
         const order = state.orders.find(o => o.id === table.orderId);
         if(order && !isClosedOrder(order) && order.items && order.items.length > 0){
           table.customer = order.customer || '';
           table.orderTotal = Number(order.total || 0);
           table.orderStartedAt = order.createdAt || '';
-        }
-        // Multi-order tables update their count
-        if(isMultiOrderTable(table)){
-          updateMultiOrderTableStatus(table.id);
         }
       });
     }
@@ -8658,11 +8661,15 @@ const colors = [
     function closeOrderTable(table, order){
       if(isMultiOrderTable(table)){
         updateMultiOrderTableStatus(table.id);
-        syncTableOrderSnapshot(table);
         return;
       }
-      else if(table){ table.status = 'Disponible'; table.orderId = null; }
-      syncTableOrderSnapshot(table, order);
+      if(table){
+        table.status = 'Disponible';
+        table.orderId = null;
+        table.customer = '';
+        table.orderTotal = 0;
+        table.orderStartedAt = null;
+      }
     }
     function applyInventoryForOrder(order){
       if(!order || order.inventoryApplied) return;

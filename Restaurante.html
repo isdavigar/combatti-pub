@@ -13498,7 +13498,7 @@ function handleAWSMessage(msg) {
   }
 
   if (msg.type === 'snapshot') {
-    // Initial collection load — CLOUD ALWAYS WINS (cloud-first architecture)
+    // Initial collection load
     const coll = msg.collection;
     const items = (msg.items || []).map(item => {
       // Si el item viene como string JSON (de DynamoDB), parsearlo
@@ -13510,9 +13510,18 @@ function handleAWSMessage(msg) {
       const docId = cloudDocId(item);
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
-    // Cloud data REPLACES local data entirely (cloud is source of truth)
+    // Cloud-first BUT keep local if it has MORE data (avoids losing unsynced orders)
     if (items.length > 0) {
-      state[coll] = cloudSortByOrd(items);
+      const localCount = (state[coll] || []).length;
+      if(items.length >= localCount){
+        // Cloud has same or more data — use cloud
+        state[coll] = cloudSortByOrd(items);
+      } else {
+        // Local has MORE data than cloud — MERGE (keep local extras)
+        const cloudIds = new Set(items.map(it => cloudDocId(it)));
+        const localExtras = (state[coll] || []).filter(it => !cloudIds.has(cloudDocId(it)));
+        state[coll] = cloudSortByOrd([...items, ...localExtras]);
+      }
     }
     cloudSnapshotsReceived++;
     // Render immediately for key collections (don't wait for all snapshots)

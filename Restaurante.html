@@ -3310,6 +3310,7 @@
               <div class="d-flex flex-wrap gap-2 mt-3">
                 <button class="btn btn-outline-primary btn-pill" type="button" onclick="forceFullCloudSync()"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Forzar sincronizacion completa</button>
                 <button class="btn btn-outline-secondary btn-pill" type="button" onclick="forceDownloadFromCloud()"><i class="fa-solid fa-cloud-arrow-down me-2"></i>Descargar datos de la nube</button>
+                <button class="btn btn-outline-danger btn-pill" type="button" onclick="resetLocalCache()" data-admin-only><i class="fa-solid fa-broom me-2"></i>Borrar cache y resetear</button>
               </div>
             </div>
           </div>
@@ -13508,7 +13509,9 @@ function handleAWSMessage(msg) {
       isApplyingRemoteState = true;
       applyConfigRemote(msg.payload);
       isApplyingRemoteState = false;
-      scheduleRemoteApply();
+      // Render immediately — config includes cash state which affects dashboard
+      saveStateToDatabase(appStateSnapshot());
+      renderAll();
     }
     return;
   }
@@ -13731,6 +13734,24 @@ function saveFirebaseConfig() { toast('Configuración de nube no disponible (usa
 function enableCloudSync() { autoStartCloudSync(); }
 function disableCloudSync() { cloudSyncEnabled = false; if(awsSocket) awsSocket.close(); updateCloudStatus(); }
 async function forceCloudSyncNow() { await pushIncremental(true); }
+
+// Borrar caché local y resetear — solo admin del sistema
+async function resetLocalCache(){
+  if(!isAdmin()){ toast('Solo administradores pueden resetear el sistema', 'warning'); return; }
+  if(!confirm('¿Borrar toda la caché local y recargar desde la nube?\n\nEsto eliminará todos los datos locales de este dispositivo.\nAl recargar, se descargarán los datos frescos de la nube.\n\nEl sistema se reiniciará.')) return;
+  try {
+    // Clear IndexedDB
+    const db = await openAppDatabase();
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).clear();
+    await new Promise(r => { tx.oncomplete = r; });
+  } catch(_){}
+  // Clear localStorage
+  try { localStorage.clear(); } catch(_){}
+  // Reload page
+  toast('Caché borrada. Recargando...', 'info');
+  setTimeout(() => window.location.reload(true), 500);
+}
 
 // Forzar sincronización completa: sube TODOS los datos locales a la nube
 async function forceFullCloudSync(){

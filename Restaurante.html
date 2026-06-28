@@ -13629,18 +13629,35 @@ function queueCloudPush() {
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }
 
-// Auto-sync: after connecting, ALWAYS push all local data to the cloud.
+// Auto-sync: after connecting, push all local data to the cloud in batches.
 // This ensures the cloud always has the complete and latest data.
-function autoSyncLocalToCloud(){
+async function autoSyncLocalToCloud(){
   if(!cloudConnected) return;
-  // Always force a full push — clear shadow to re-upload everything
-  CLOUD_COLLECTIONS.forEach(coll => {
-    if((state[coll] || []).length > 0){
-      cloudShadow[coll] = {};
-    }
-  });
+  // Push config first (cash history, brand, etc.)
   cloudConfigShadow = '';
-  pushIncremental(true);
+  const cfgPayload = cloudConfigPayload();
+  sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
+  cloudConfigShadow = cloudConfigKey(cfgPayload);
+  // Push collections in batches to avoid WebSocket message size limits
+  for(const coll of CLOUD_COLLECTIONS){
+    const items = state[coll] || [];
+    if(!items.length) continue;
+    const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
+    let pushed = 0;
+    for(let i = 0; i < items.length; i++){
+      const item = items[i];
+      if(!item || typeof item !== 'object') continue;
+      const docId = cloudDocId(item);
+      const key = cloudShadowKey(item);
+      if(shadow[docId] === key) continue; // Already in sync
+      const payload = { ...item, _ord: i, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
+      sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
+      shadow[docId] = key;
+      pushed++;
+      // Pause every 20 items to avoid flooding the WebSocket
+      if(pushed % 20 === 0) await new Promise(r => setTimeout(r, 100));
+    }
+  }
 }
 
 // ===== Auto-start =====
@@ -13699,8 +13716,9 @@ async function forceFullCloudSync(){
   Object.keys(cloudShadow).forEach(k => cloudShadow[k] = {});
   cloudConfigShadow = '';
   try {
-    await pushIncremental(true);
-    toast('Sincronización completa. Todos los datos subidos a la nube.', 'success');
+    await autoSyncLocalToCloud();
+    const totalItems = CLOUD_COLLECTIONS.reduce((sum, c) => sum + (state[c] || []).length, 0);
+    toast(`Sincronización completa: ${totalItems} registros subidos a la nube.`, 'success');
   } catch(e){
     toast('Error al sincronizar: ' + (e.message || e), 'danger');
   }

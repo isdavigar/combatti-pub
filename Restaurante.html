@@ -5474,7 +5474,8 @@
     function persistAll(render = true){
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
-      if(typeof pushIncremental === 'function' && cloudConnected) pushIncremental(true);
+      // Push changes to cloud (only changed items, never products)
+      if(cloudConnected && typeof pushIncremental === 'function') pushIncremental(true);
       if(render) renderAll();
     }
     function queueAutosave(){
@@ -5642,33 +5643,18 @@
       }
     }
     function syncAllTableOrderSnapshots(){
-      state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
+      // Simple and safe: just update table display data from their linked orders.
+      // NEVER change table status here — only payCurrentOrder can free a table.
       state.tables.forEach((table, index) => {
         normalizeTable(table, index);
-        // Check if this table has any open order WITH items
-        const openOrderForTable = state.orders.find(o => (o.id === table.orderId || o.tableId === table.id) && !isClosedOrder(o) && o.items && o.items.length > 0);
-        if(openOrderForTable){
-          // Table has an active order with items — keep it occupied
-          table.orderId = openOrderForTable.id;
-          if(table.status === 'Disponible') table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
-          syncTableOrderSnapshot(table, openOrderForTable);
-          return;
+        if(!table.orderId) return;
+        const order = state.orders.find(o => o.id === table.orderId);
+        if(order && !isClosedOrder(order) && order.items && order.items.length > 0){
+          table.customer = order.customer || '';
+          table.orderTotal = Number(order.total || 0);
+          table.orderStartedAt = order.createdAt || '';
         }
-        // If table is occupied but no order with items exists, keep status only if
-        // it was explicitly set (don't auto-free — only pay can free)
-        if(table.status === 'Ocupada' || table.status === 'En proceso de pago'){
-          // Check if ANY open order exists (even empty) — if so, keep status
-          const anyOpenOrder = state.orders.find(o => (o.id === table.orderId || o.tableId === table.id) && !isClosedOrder(o));
-          if(!anyOpenOrder){
-            // No open order at all — the table was freed by paying
-            table.status = 'Disponible';
-            table.orderId = null;
-            table.customer = '';
-            table.orderTotal = 0;
-            table.orderStartedAt = null;
-          }
-        }
-        // Para multi-order tables
+        // Multi-order tables update their count
         if(isMultiOrderTable(table)){
           updateMultiOrderTableStatus(table.id);
         }
@@ -13364,20 +13350,27 @@ function itemSeq(item){
   return t ? new Date(t).getTime() : 0;
 }
 // Apply a remote item into a collection using last-write-wins.
-// Returns true if state changed. Protects the order being actively edited.
+// CRITICAL: For orders, NEVER change status from 'Abierto' to 'Pagado' via sync.
+// Tables auto-paying is prevented by this rule.
 function applyRemoteItem(coll, payload){
   if(!payload) return false;
   state[coll] = state[coll] || [];
   const docId = cloudDocId(payload);
   let idx = state[coll].findIndex(it => cloudDocId(it) === docId);
-  // For tables, also match by name (different devices may generate different IDs for same table)
+  // For tables, also match by name
   if(idx < 0 && coll === 'tables' && payload.name){
     idx = state[coll].findIndex(it => String(it.name || '').toLowerCase().trim() === String(payload.name || '').toLowerCase().trim());
   }
   if(idx < 0){ state[coll].push(payload); return true; }
-  // Never overwrite the order currently open/being edited on this device
+  // Never overwrite the order currently being edited on this device
   if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return false;
-  // Newest version wins
+  // NEVER auto-pay: if local order is 'Abierto', reject any remote that says 'Pagado'
+  // Orders can ONLY be paid by the user clicking Pay on their device
+  if(coll === 'orders'){
+    const local = state[coll][idx];
+    if(local && local.status === 'Abierto' && payload.status === 'Pagado') return false;
+  }
+  // Newest version wins (for non-status-changing updates)
   if(itemSeq(payload) >= itemSeq(state[coll][idx])){
     state[coll][idx] = payload;
     return true;
@@ -13613,29 +13606,6 @@ function handleAWSMessage(msg) {
     }
     if(!cloudInitialSyncDone){
       cloudInitialSyncDone = true;
-      // Smart sync: after snapshots arrive, only upload LOCAL items that the cloud
-      // doesn't have yet (by docId). Never overwrite cloud data with fake timestamps.
-      setTimeout(async () => {
-        if(!cloudConnected) return;
-        for(const coll of CLOUD_COLLECTIONS){
-          const items = state[coll] || [];
-          if(!items.length) continue;
-          if(coll === 'deliveryZones') continue; // Zones are code-defined
-          if(coll === 'products') continue; // Products are fixed in cloud — don't re-push
-          const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
-          for(let i = 0; i < items.length; i++){
-            const item = items[i];
-            if(!item || typeof item !== 'object') continue;
-            const docId = cloudDocId(item);
-            // Only push if the cloud doesn't have this item yet
-            if(shadow[docId]) continue;
-            const payload = { ...item, _ord: i, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
-            sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
-            shadow[docId] = cloudShadowKey(payload);
-            if((i + 1) % 20 === 0) await new Promise(r => setTimeout(r, 50));
-          }
-        }
-      }, 3000);
     }
     scheduleRemoteApply();
     updateCloudStatus();
@@ -13764,6 +13734,9 @@ async function pushIncremental(force = false, allowDeletes = false) {
   ensureCloudIds();
 
   CLOUD_COLLECTIONS.forEach(coll => {
+    // Products are managed by the cloud — never push back to avoid duplicates
+    if(coll === 'products') return;
+    if(coll === 'deliveryZones') return;
     const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
     const seen = new Set();
     (state[coll] || []).forEach((item, index) => {
@@ -13805,19 +13778,20 @@ function queueCloudPush() {
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }
 
-// Auto-sync: after connecting, push all local data to the cloud in batches.
-// This ensures the cloud always has the complete and latest data.
+// Manual full sync — ONLY used by the "Forzar sincronización completa" button.
+// Never runs automatically. Pushes all local data to the cloud.
 async function autoSyncLocalToCloud(){
   if(!cloudConnected) return;
-  // Push config first (cash history, brand, etc.)
+  // Push config
   cloudConfigShadow = '';
   const cfgPayload = cloudConfigPayload();
   sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
   cloudConfigShadow = cloudConfigKey(cfgPayload);
-  // Push collections in batches to avoid WebSocket message size limits
+  // Push collections in batches
   for(const coll of CLOUD_COLLECTIONS){
     const items = state[coll] || [];
     if(!items.length) continue;
+    if(coll === 'deliveryZones') continue;
     const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
     let pushed = 0;
     for(let i = 0; i < items.length; i++){
@@ -13825,12 +13799,11 @@ async function autoSyncLocalToCloud(){
       if(!item || typeof item !== 'object') continue;
       const docId = cloudDocId(item);
       const key = cloudShadowKey(item);
-      if(shadow[docId] === key) continue; // Already in sync
+      if(shadow[docId] === key) continue;
       const payload = { ...item, _ord: i, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
       sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
       shadow[docId] = key;
       pushed++;
-      // Pause every 20 items to avoid flooding the WebSocket
       if(pushed % 20 === 0) await new Promise(r => setTimeout(r, 100));
     }
   }

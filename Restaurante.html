@@ -689,9 +689,10 @@
         const email = document.getElementById('loginEmail').value.trim();
         const pass = document.getElementById('loginPassword').value;
         if (!email || !pass) { showLoginError('Complete todos los campos'); return; }
-        // Simple local auth (can be replaced with Firebase Auth)
-        if (pass.length < 4) { showLoginError('Contrase\u00f1a incorrecta'); return; }
+        if (pass.length < 4) { showLoginError('Contraseña incorrecta'); return; }
         currentUser = { email };
+        // ALWAYS persist session so reload keeps user logged in
+        localStorage.setItem('combatti_cafe_user', email);
         document.getElementById('loginContainer').style.display = 'none';
         document.getElementById('appContainer').classList.add('active');
         document.getElementById('userEmail').textContent = email;
@@ -707,6 +708,7 @@
 
     function logout() {
         currentUser = null;
+        localStorage.removeItem('combatti_cafe_user');
         document.getElementById('appContainer').classList.remove('active');
         document.getElementById('loginContainer').style.display = 'flex';
     }
@@ -1462,7 +1464,14 @@
 
     // ===== INIT ON LOAD =====
     document.addEventListener('DOMContentLoaded', () => {
-        // Auto-login check (skip login if already has session)
+        // BRUTE FORCE: Always load state from localStorage FIRST
+        loadFromLocal();
+        // Ensure cash structure
+        if (!state.cash || typeof state.cash !== 'object') {
+            state.cash = { open: false, openingAmount: 0, openedAt: null, closedAt: null, turno: 'dia', movements: [], history: [], openedBy: '' };
+        }
+
+        // Auto-login check
         const savedEmail = localStorage.getItem('combatti_cafe_user');
         if (savedEmail) {
             currentUser = { email: savedEmail };
@@ -1474,28 +1483,7 @@
         }
     });
 
-    // Override login to save session
-    const _origLogin = login;
-    window.login = function() {
-        const email = document.getElementById('loginEmail').value.trim();
-        const pass = document.getElementById('loginPassword').value;
-        if (!email || !pass) { showLoginError('Complete todos los campos'); return; }
-        if (pass.length < 4) { showLoginError('Contrase\u00f1a incorrecta'); return; }
-        currentUser = { email };
-        localStorage.setItem('combatti_cafe_user', email);
-        document.getElementById('loginContainer').style.display = 'none';
-        document.getElementById('appContainer').classList.add('active');
-        document.getElementById('userEmail').textContent = email;
-        init();
-        renderAll();
-    };
-
-    window.logout = function() {
-        currentUser = null;
-        localStorage.removeItem('combatti_cafe_user');
-        document.getElementById('appContainer').classList.remove('active');
-        document.getElementById('loginContainer').style.display = 'flex';
-    };
+    
 
     </script>
 </body>

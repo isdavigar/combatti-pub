@@ -13490,20 +13490,8 @@ function dedupeStateCollections(){
     if (!Array.isArray(arr)) return;
     const seen = new Set();
     const out = [];
-    if(coll === 'products'){
-      // Dedupe by id AND by name+category
-      const seenNames = new Set();
-      arr.forEach(it => {
-        const id = it && it.id != null ? String(it.id) : '';
-        if (id && seen.has(id)) return;
-        if (id) seen.add(id);
-        const nameKey = `${String(it.category || '').toLowerCase().trim()}|${String(it.name || '').toLowerCase().trim()}`;
-        if(nameKey && nameKey !== '|' && seenNames.has(nameKey)) return;
-        if(nameKey && nameKey !== '|') seenNames.add(nameKey);
-        out.push(it);
-      });
-    } else if(coll === 'tables'){
-      // Dedupe by id AND by name (case-insensitive) — prevents duplicate tables
+    if(coll === 'tables'){
+      // Dedupe tables by id AND by name (case-insensitive)
       const seenNames = new Set();
       arr.forEach(it => {
         const id = it && it.id != null ? String(it.id) : '';
@@ -13515,6 +13503,7 @@ function dedupeStateCollections(){
         out.push(it);
       });
     } else {
+      // All other collections: dedupe by ID only (NEVER by name — products are sacred)
       arr.forEach(it => {
         const id = it && it.id != null ? String(it.id) : '';
         if (id && seen.has(id)) return;

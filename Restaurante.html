@@ -9619,6 +9619,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const report = buildCashReport(cashPeriodStart(), new Date(closedAt));
       state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
       state.cash.openedBy = null; state.cash.openedByUser = null;
+      // Save immediately to IndexedDB so reloading never shows "open"
+      saveStateToDatabase(appStateSnapshot());
       const lastHistory = currentCashRecord();
       const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
       const countedCash = clampNumber(byId('closeCountedInput')?.value || 0);

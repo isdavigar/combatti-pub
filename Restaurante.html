@@ -5208,7 +5208,15 @@
       });
     }
     function replaceRequestedDeliveryZones(){
-      state.deliveryZones = REQUESTED_DELIVERY_ZONES.map(([name, fee]) => normalizeDeliveryZone({ id:`zone_${slugify(name)}`, name, fee }));
+      // Always use the defined zones — these are the source of truth
+      const zones = REQUESTED_DELIVERY_ZONES.map(([name, fee]) => normalizeDeliveryZone({ id:`zone_${slugify(name)}`, name, fee }));
+      // Dedupe by fee value to avoid repeats
+      const seen = new Set();
+      state.deliveryZones = zones.filter(z => {
+        if(seen.has(z.fee)) return false;
+        seen.add(z.fee);
+        return true;
+      });
     }
     // Id estable y deterministico por nombre de mesa. Asi la "Mesa 5" tiene el
     // MISMO id en todos los dispositivos y la nube ya no la duplica.
@@ -13529,8 +13537,10 @@ function handleAWSMessage(msg) {
       const docId = cloudDocId(item);
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
-    // Cloud-first BUT keep local if it has MORE data (avoids losing unsynced orders)
+    // Cloud data REPLACES local data entirely (cloud is source of truth)
     if (items.length > 0) {
+      // Don't overwrite delivery zones from cloud — code defines them
+      if(coll === 'deliveryZones') { cloudSnapshotsReceived++; scheduleRemoteApply(); return; }
       const localCount = (state[coll] || []).length;
       if(items.length >= localCount){
         // Cloud has same or more data — use cloud
@@ -13558,6 +13568,7 @@ function handleAWSMessage(msg) {
     // Real-time document update from another device
     const { collection: coll, docId, payload } = msg;
     if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
+    if (coll === 'deliveryZones') return; // Zones are code-defined, not synced
     cloudShadow[coll] = cloudShadow[coll] || {};
     cloudShadow[coll][docId] = cloudShadowKey(payload);
     state[coll] = state[coll] || [];

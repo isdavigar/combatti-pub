@@ -5168,19 +5168,24 @@
 
     function cleanupEmptyCurrentOrder(){
       if(!currentOrder) return;
-      // Only delete the order if it's truly empty and was never saved to the system.
-      // An order is considered "saved" if it has items, was sent to kitchen, was printed, or was paid.
+      // Only delete the order if it's truly empty and was never saved.
+      // A order with items NEVER gets deleted here — only pay can free the table.
       const hasItems = currentOrder.items && currentOrder.items.length > 0;
-      const wasSaved = currentOrder.printed || currentOrder.sentToKitchenAt || currentOrder.paidAt || hasItems;
+      if(hasItems){
+        // Has items — keep everything as-is, just close the modal reference
+        currentOrder = null; currentOrderTableId = null;
+        return;
+      }
+      const wasSaved = currentOrder.printed || currentOrder.sentToKitchenAt || currentOrder.paidAt;
       if(!wasSaved){
-        // Order is truly empty/unsaved — remove it and free the table
+        // Empty and never saved — remove it and free the table
         const table = state.tables.find(t => t.id === currentOrder.tableId);
         state.orders = state.orders.filter(o => o.id !== currentOrder.id);
         if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
         else if(table){ table.status = 'Disponible'; table.orderId = null; }
+        persistAll();
       }
       currentOrder = null; currentOrderTableId = null;
-      persistAll();
     }
 
     function initialProducts(){
@@ -5633,23 +5638,30 @@
       state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
       state.tables.forEach((table, index) => {
         normalizeTable(table, index);
-        // Check if this table has any open order (by orderId or by tableId)
-        const openOrderForTable = state.orders.find(o => (o.id === table.orderId || o.tableId === table.id) && !isClosedOrder(o));
+        // Check if this table has any open order WITH items
+        const openOrderForTable = state.orders.find(o => (o.id === table.orderId || o.tableId === table.id) && !isClosedOrder(o) && o.items && o.items.length > 0);
         if(openOrderForTable){
-          // Table has an active order — keep it occupied
+          // Table has an active order with items — keep it occupied
           table.orderId = openOrderForTable.id;
-          if(table.kind === 'Mesa' && table.status === 'Disponible') table.status = 'Ocupada';
+          if(table.status === 'Disponible') table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
           syncTableOrderSnapshot(table, openOrderForTable);
           return;
         }
-        // If table status is 'Ocupada' or 'En proceso de pago' but no order found,
-        // DON'T reset it — the order might arrive in the next sync message.
-        // Only reset if table was explicitly marked as 'Disponible' by a pay action.
+        // If table is occupied but no order with items exists, keep status only if
+        // it was explicitly set (don't auto-free — only pay can free)
         if(table.status === 'Ocupada' || table.status === 'En proceso de pago'){
-          // Keep the status — it was set by a real user action (saveOrder or openTableOrder)
-          return;
+          // Check if ANY open order exists (even empty) — if so, keep status
+          const anyOpenOrder = state.orders.find(o => (o.id === table.orderId || o.tableId === table.id) && !isClosedOrder(o));
+          if(!anyOpenOrder){
+            // No open order at all — the table was freed by paying
+            table.status = 'Disponible';
+            table.orderId = null;
+            table.customer = '';
+            table.orderTotal = 0;
+            table.orderStartedAt = null;
+          }
         }
-        // Para multi-order tables, verificar status
+        // Para multi-order tables
         if(isMultiOrderTable(table)){
           updateMultiOrderTableStatus(table.id);
         }
@@ -7947,11 +7959,18 @@ const colors = [
       }
       normalizeOrderContact(order);
       currentOrder = order;
-      table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
-      table.orderId = order.id;
-      syncTableOrderSnapshot(table, order);
-      if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
-      persistAll(false);
+      // Only change table status if this is a NEW order (not viewing existing)
+      const isNewOrder = !order.items || order.items.length === 0;
+      if(isNewOrder){
+        table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago';
+        table.orderId = order.id;
+        syncTableOrderSnapshot(table, order);
+        if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
+        persistAll(false);
+      } else {
+        // Existing order with items — don't change table status, just open for viewing
+        currentOrderTableId = tableId;
+      }
       renderOrderModalContent(); modals.order.show();
     }
     function renderDeliveryZoneOptions(order = currentOrder){

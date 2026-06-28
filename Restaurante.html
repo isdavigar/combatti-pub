@@ -13620,32 +13620,18 @@ function queueCloudPush() {
   cloudPushTimer = setTimeout(() => pushIncremental(), CLOUD_PUSH_DEBOUNCE_MS);
 }
 
-// Auto-sync: after connecting and receiving snapshots, check if local has more data
-// than what's in the cloud shadow. If so, push local data to fill the gaps.
+// Auto-sync: after connecting, ALWAYS push all local data to the cloud.
+// This ensures the cloud always has the complete and latest data.
 function autoSyncLocalToCloud(){
   if(!cloudConnected) return;
-  let localHasMore = false;
+  // Always force a full push — clear shadow to re-upload everything
   CLOUD_COLLECTIONS.forEach(coll => {
-    const shadow = cloudShadow[coll] || {};
-    const localItems = state[coll] || [];
-    const shadowCount = Object.keys(shadow).length;
-    // If local has significantly more items than the cloud, push them
-    if(localItems.length > shadowCount + 2){
-      localHasMore = true;
-      // Clear shadow for this collection to force re-upload
+    if((state[coll] || []).length > 0){
       cloudShadow[coll] = {};
     }
   });
-  // Also check config (cash history, brand, etc.)
-  const localCashRecords = (state.cash?.history || []).length;
-  const configStr = cloudConfigShadow || '';
-  if(localCashRecords > 0 && (!configStr || configStr.length < 100)){
-    localHasMore = true;
-    cloudConfigShadow = '';
-  }
-  if(localHasMore){
-    pushIncremental(true);
-  }
+  cloudConfigShadow = '';
+  pushIncremental(true);
 }
 
 // ===== Auto-start =====

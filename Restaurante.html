@@ -13361,13 +13361,33 @@ function cloudConfigKey(p) { const c = { ...p }; delete c._device; delete c._seq
 
 function applyConfigRemote(data) {
   if (!data) return;
-  // Cash state: only apply if remote config is newer (prevents old devices from
-  // overwriting newer cash/open-shift state). Other fields always apply.
   const remoteSeq = Number(data._seq || 0);
   if (data.cash != null) {
+    // Merge cash history by id (union of all closed records) so every device
+    // converges to the same complete history — never lose a closure.
+    const localCash = state.cash || {};
+    const localHistory = Array.isArray(localCash.history) ? localCash.history : [];
+    const remoteHistory = Array.isArray(data.cash.history) ? data.cash.history : [];
+    const byId = new Map();
+    localHistory.forEach(r => { if(r && r.id) byId.set(r.id, r); });
+    remoteHistory.forEach(r => {
+      if(!r || !r.id){ return; }
+      const existing = byId.get(r.id);
+      if(!existing){ byId.set(r.id, r); return; }
+      // Keep the newer version of the record (closed beats open, newer timestamp wins)
+      const exTime = new Date(existing.closedAt || existing.openedAt || 0).getTime();
+      const rTime = new Date(r.closedAt || r.openedAt || 0).getTime();
+      if(r.closedAt && !existing.closedAt) byId.set(r.id, r);
+      else if(rTime >= exTime) byId.set(r.id, r);
+    });
+    const mergedHistory = [...byId.values()].sort((a,b)=> new Date(a.openedAt||0) - new Date(b.openedAt||0));
+    // For the current open/closed cash state, use the newer config
     if(remoteSeq >= (lastAppliedConfigSeq || 0)){
-      state.cash = data.cash;
+      state.cash = { ...data.cash, history: mergedHistory };
       lastAppliedConfigSeq = remoteSeq || lastAppliedConfigSeq;
+    } else {
+      // Keep our cash state but still adopt the merged (more complete) history
+      state.cash = { ...localCash, history: mergedHistory };
     }
   }
   if (data.brand != null) state.brand = data.brand;
@@ -13497,7 +13517,7 @@ function scheduleReconnect() {
     awsReconnectTimer = null;
     awsReconnecting = false;
     connectAWS();
-  }, 5000);
+  }, 2000);
 }
 
 function sendAWS(data) {
@@ -13852,6 +13872,27 @@ window.addEventListener('online', () => {
 });
 window.addEventListener('offline', () => { cloudConnected = false; updateCloudStatus(); });
 
+// Reconnect and re-sync when the user returns to the app (key for mobile devices
+// that suspend the WebSocket when switched to background).
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && cloudSyncEnabled){
+    if(!awsSocket || awsSocket.readyState !== WebSocket.OPEN){
+      connectAWS();
+    } else {
+      // Connection alive — request fresh data to ensure we're up to date
+      requestInitialSync();
+    }
+  }
+});
+
+// Keepalive ping every 25s to prevent the WebSocket from idle-disconnecting
+setInterval(() => {
+  if(awsSocket && awsSocket.readyState === WebSocket.OPEN){
+    try { awsSocket.send(JSON.stringify({ action: 'ping' })); } catch(_){}
+  } else if(cloudSyncEnabled && !awsReconnecting){
+    connectAWS();
+  }
+}, 25000);
 
   </script>
 </body>

@@ -5167,11 +5167,12 @@
 
     function cleanupEmptyCurrentOrder(){
       if(!currentOrder) return;
-      // Si el pedido no fue guardado (nunca se marcó como printed ni se envió
-      // a cocina), eliminar el pedido completo y liberar la mesa.
-      const wasNeverSaved = !currentOrder.printed && !currentOrder.sentToKitchenAt && !currentOrder.paidAt;
-      const isEmpty = !currentOrder.items.length;
-      if(isEmpty || wasNeverSaved){
+      // Only delete the order if it's truly empty and was never saved to the system.
+      // An order is considered "saved" if it has items, was sent to kitchen, was printed, or was paid.
+      const hasItems = currentOrder.items && currentOrder.items.length > 0;
+      const wasSaved = currentOrder.printed || currentOrder.sentToKitchenAt || currentOrder.paidAt || hasItems;
+      if(!wasSaved){
+        // Order is truly empty/unsaved — remove it and free the table
         const table = state.tables.find(t => t.id === currentOrder.tableId);
         state.orders = state.orders.filter(o => o.id !== currentOrder.id);
         if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
@@ -13556,7 +13557,14 @@ function handleAWSMessage(msg) {
         }
       }
     }
-    scheduleRemoteApply();
+    // Render immediately for order changes (real-time sales updates)
+    if(coll === 'orders' || coll === 'tables'){
+      syncAllTableOrderSnapshots();
+      saveStateToDatabase(appStateSnapshot());
+      renderAll();
+    } else {
+      scheduleRemoteApply();
+    }
     return;
   }
 

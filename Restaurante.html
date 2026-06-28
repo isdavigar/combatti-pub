@@ -13650,6 +13650,9 @@ async function forceDownloadFromCloud(){
   toast('Descargando datos de la nube...', 'info');
   // Clear all local collection data to receive fresh from cloud
   CLOUD_COLLECTIONS.forEach(coll => { state[coll] = []; });
+  // Clear config data too (cash, brand, etc.) so it reloads from cloud
+  state.cash = { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
+  state.historicalSales = [];
   // Reset sync state
   cloudInitialSyncDone = false;
   cloudSnapshotsReceived = 0;
@@ -13667,22 +13670,24 @@ async function forceDownloadFromCloud(){
     saveStateToDatabase(appStateSnapshot());
     renderAll();
     const pedidos = (state.orders || []).filter(o => o.status === 'Pagado').length;
+    const activos = (state.orders || []).filter(o => o.status === 'Abierto').length;
     const cuadres = (state.cash?.history || []).length;
     const ventasManuales = (state.historicalSales || []).length;
-    if(pedidos === 0 && cuadres === 0){
-      toast('La nube no tiene pedidos ni cuadres. Usa "Forzar sincronización completa" desde el dispositivo principal primero.', 'warning');
+    const cajaAbierta = state.cash?.open ? 'Sí' : 'No';
+    if(pedidos === 0 && cuadres === 0 && activos === 0){
+      toast('La nube no tiene datos. Usa "Forzar sincronización completa" desde el dispositivo principal.', 'warning');
     } else {
-      toast(`Descarga completa: ${pedidos} pedidos, ${cuadres} cuadres, ${ventasManuales} ventas manuales`, 'success');
+      toast(`Descarga completa: ${pedidos} ventas, ${activos} activos, ${cuadres} cuadres. Caja: ${cajaAbierta}`, 'success');
     }
   };
   const checkInterval = setInterval(() => {
-    if(cloudSnapshotsReceived >= CLOUD_COLLECTIONS.length || cloudInitialSyncDone){
+    if(cloudSnapshotsReceived >= CLOUD_COLLECTIONS.length || (cloudInitialSyncDone && cloudSnapshotsReceived >= 3)){
       clearInterval(checkInterval);
-      setTimeout(finish, 300);
+      setTimeout(finish, 500);
     }
-  }, 500);
+  }, 300);
   // Fallback timeout
-  setTimeout(() => { clearInterval(checkInterval); finish(); }, 10000);
+  setTimeout(() => { clearInterval(checkInterval); finish(); }, 8000);
 }
 
 window.addEventListener('online', () => {

@@ -10872,8 +10872,9 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const report = buildCashReport(from, to);
       // If orders are not available locally but record has stored totals, use record data
       const recordHasMethodData = record.methodTotals && PAYMENT_METHODS.some(m => Number(record.methodTotals[m] || 0) > 0);
-      const reportHasData = report.sales > 0;
-      const useRecordData = !reportHasData && (Number(record.sales || 0) > 0 || recordHasMethodData);
+      const recordSales = Number(record.sales || 0);
+      const reportIsIncomplete = recordSales > 0 && report.sales < recordSales * 0.9;
+      const useRecordData = reportIsIncomplete || (report.sales === 0 && (recordSales > 0 || recordHasMethodData));
       const effectiveSales = useRecordData ? Number(record.sales || 0) : report.sales;
       const effectiveMethodTotals = useRecordData && record.methodTotals ? record.methodTotals : report.methodTotals;
       const effectiveTips = useRecordData ? Number(record.tips || 0) : report.tips;

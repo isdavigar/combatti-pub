@@ -8621,6 +8621,20 @@ const colors = [
       currentOrder._seq = Date.now();
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
+      // Auto-register delivery fee as expense (money to pay delivery driver)
+      if(Number(currentOrder.deliveryFee || 0) > 0){
+        const deliveryExpense = {
+          id: uid(),
+          type: 'Egreso',
+          concept: `Domicilio ${currentOrder.tableName || ''} - ${currentOrder.customer || 'Cliente'}`.trim(),
+          amount: Number(currentOrder.deliveryFee),
+          source: 'EFECTIVO',
+          date: currentOrder.paidAt || new Date().toISOString(),
+          autoDelivery: true,
+          orderId: currentOrder.id
+        };
+        state.movements.push(deliveryExpense);
+      }
       persistAll();
       pushIncremental(true); // Sync immediately to all devices
       const paidOrderId = currentOrder.id;

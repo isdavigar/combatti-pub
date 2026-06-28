@@ -11500,15 +11500,28 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const typeLabel = String(movement.type || 'movimiento').toLowerCase();
       confirmAction({
         title:`Eliminar ${typeLabel}`,
-        message:`¿Eliminar el ${typeLabel} <strong>${escapeHtml(movement.concept || '')}</strong> por <strong>${money(movement.amount)}</strong>?<br><br>Esta acción no se puede deshacer.`,
+        message:`¿Eliminar el ${typeLabel} <strong>${escapeHtml(movement.concept || '')}</strong> por <strong>${money(movement.amount)}</strong>?<br><br>Se eliminará de todos los dispositivos y de la base de datos.`,
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
-        onConfirm: () => {
+        onConfirm: async () => {
+          // Remove from movements array
           state.movements = state.movements.filter(m => m.id !== id);
+          // Also remove from cash history records (expenseHistory and movementsHistory)
+          (state.cash.history || []).forEach(record => {
+            if(Array.isArray(record.expenseHistory)){
+              record.expenseHistory = record.expenseHistory.filter(m => m.id !== id);
+            }
+            if(Array.isArray(record.movementsHistory)){
+              record.movementsHistory = record.movementsHistory.filter(m => m.id !== id);
+            }
+          });
           persistAll();
-          toast(`${movement.type || 'Movimiento'} eliminado`, 'info');
+          await forceCloudSyncNow();
+          toast(`${movement.type || 'Movimiento'} eliminado de todos los dispositivos`, 'info');
           renderCashView();
+          renderCashHistory();
           renderMovements();
+          renderDashboard();
         }
       });
     }

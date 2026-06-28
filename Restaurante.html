@@ -8516,6 +8516,7 @@ const colors = [
       if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
       const sentToKitchen = printComanda ? sendOrderToKitchen(currentOrder) : false;
       persistAll();
+      pushIncremental(true); // Sync immediately to all devices
       renderQuickOrderPanel();
       if(printComanda){
         modals.order.hide();
@@ -8597,6 +8598,7 @@ const colors = [
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
       persistAll();
+      pushIncremental(true); // Sync immediately to all devices
       const paidOrderId = currentOrder.id;
       paymentReviewState = { orderId:null, snapshot:'' };
       toast('Pedido pagado y guardado en historial', 'success');
@@ -13174,7 +13176,7 @@ function parseMoneyValue(value){
 // logra con WebSockets a través de API Gateway.
 // =====================================================
 const CLOUD_COLLECTIONS = ['users','tables','products','orders','movements','supplies','deliveryZones','kitchenTickets','deletedOrders','historicalSales'];
-const CLOUD_PUSH_DEBOUNCE_MS = 300;
+const CLOUD_PUSH_DEBOUNCE_MS = 100;
 const AWS_WS_URL = 'wss://4qf3jjqn3j.execute-api.us-east-1.amazonaws.com/production/';
 
 let cloudSyncEnabled = true;

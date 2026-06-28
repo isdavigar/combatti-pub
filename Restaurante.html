@@ -10462,7 +10462,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     async function forceCloudSyncNow(){
       try{
         if(typeof pushIncremental === 'function'){
-          await pushIncremental(true);
+          await pushIncremental(true, true); // Allow deletes — this is for explicit delete actions
         }
       }catch(_){}
     }
@@ -13503,28 +13503,24 @@ function handleAWSMessage(msg) {
     }
     if(!cloudInitialSyncDone){
       cloudInitialSyncDone = true;
-      // FORCE PUSH: always upload ALL local data to the cloud after connecting
-      // This ensures the cloud always has the latest from this device
+      // Smart sync: after snapshots arrive, only upload LOCAL items that the cloud
+      // doesn't have yet (by docId). Never overwrite cloud data with fake timestamps.
       setTimeout(async () => {
         if(!cloudConnected) return;
-        // Push config (cash history, brand, etc.)
-        cloudConfigShadow = '';
-        const cfgPayload = cloudConfigPayload();
-        sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
-        cloudConfigShadow = cloudConfigKey(cfgPayload);
-        // Push all collections — clear shadow to force re-upload
         for(const coll of CLOUD_COLLECTIONS){
           const items = state[coll] || [];
           if(!items.length) continue;
           if(coll === 'deliveryZones') continue; // Zones are code-defined
-          cloudShadow[coll] = cloudShadow[coll] || {};
+          const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
           for(let i = 0; i < items.length; i++){
             const item = items[i];
             if(!item || typeof item !== 'object') continue;
             const docId = cloudDocId(item);
+            // Only push if the cloud doesn't have this item yet
+            if(shadow[docId]) continue;
             const payload = { ...item, _ord: i, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
             sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
-            cloudShadow[coll][docId] = cloudShadowKey(payload);
+            shadow[docId] = cloudShadowKey(payload);
             if((i + 1) % 20 === 0) await new Promise(r => setTimeout(r, 50));
           }
         }
@@ -13652,7 +13648,7 @@ function handleAWSMessage(msg) {
 }
 
 // ===== Push changes to AWS =====
-async function pushIncremental(force = false) {
+async function pushIncremental(force = false, allowDeletes = false) {
   if ((!cloudSyncEnabled && !force) || !awsSocket || awsSocket.readyState !== WebSocket.OPEN) return;
   ensureCloudIds();
 
@@ -13670,12 +13666,15 @@ async function pushIncremental(force = false) {
         shadow[docId] = key;
       }
     });
-    Object.keys(shadow).forEach(docId => {
-      if (!seen.has(docId)) {
-        sendAWS({ action: 'sync', type: 'delete', collection: coll, docId });
-        delete shadow[docId];
-      }
-    });
+    // Only delete when explicitly allowed (explicit delete actions), never during routine syncs
+    if(allowDeletes){
+      Object.keys(shadow).forEach(docId => {
+        if (!seen.has(docId)) {
+          sendAWS({ action: 'sync', type: 'delete', collection: coll, docId });
+          delete shadow[docId];
+        }
+      });
+    }
   });
 
   const cfgPayload = cloudConfigPayload();
@@ -13768,7 +13767,7 @@ function updateCloudStatus() {
 function saveFirebaseConfig() { toast('Configuración de nube no disponible (usando AWS)', 'info'); }
 function enableCloudSync() { autoStartCloudSync(); }
 function disableCloudSync() { cloudSyncEnabled = false; if(awsSocket) awsSocket.close(); updateCloudStatus(); }
-async function forceCloudSyncNow() { await pushIncremental(true); }
+async function forceCloudSyncNow() { await pushIncremental(true, true); }
 
 // Borrar caché local y resetear — solo admin del sistema
 async function resetLocalCache(){

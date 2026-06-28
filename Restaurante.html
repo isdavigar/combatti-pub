@@ -13429,12 +13429,10 @@ function applyConfigRemote(data) {
       if(rTime > exTime) byId.set(r.id, r);
     });
     const mergedHistory = [...byId.values()].sort((a,b)=> new Date(a.openedAt||0) - new Date(b.openedAt||0));
-    if(remoteSeq >= (lastAppliedConfigSeq || 0)){
-      state.cash = { ...data.cash, history: mergedHistory };
-      lastAppliedConfigSeq = remoteSeq || lastAppliedConfigSeq;
-    } else {
-      state.cash = { ...localCash, history: mergedHistory };
-    }
+    // ALWAYS accept cash state from remote — especially close operations.
+    // If remote says cash is closed, it was an admin action that must propagate everywhere.
+    state.cash = { ...data.cash, history: mergedHistory };
+    lastAppliedConfigSeq = remoteSeq || lastAppliedConfigSeq;
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);

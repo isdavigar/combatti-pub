@@ -13497,7 +13497,7 @@ function handleAWSMessage(msg) {
   }
 
   if (msg.type === 'snapshot') {
-    // Initial collection load
+    // Initial collection load — CLOUD ALWAYS WINS (cloud-first architecture)
     const coll = msg.collection;
     const items = (msg.items || []).map(item => {
       // Si el item viene como string JSON (de DynamoDB), parsearlo
@@ -13509,6 +13509,7 @@ function handleAWSMessage(msg) {
       const docId = cloudDocId(item);
       cloudShadow[coll][docId] = cloudShadowKey(item);
     });
+    // Cloud data REPLACES local data entirely (cloud is source of truth)
     if (items.length > 0) {
       state[coll] = cloudSortByOrd(items);
     }

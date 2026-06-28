@@ -9654,6 +9654,11 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(currentView === 'movimientos') renderMovements();
       // Force push config to cloud immediately so all devices see caja closed
       cloudConfigShadow = '';
+      const closeCfg = cloudConfigPayload();
+      sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfg });
+      cloudConfigShadow = cloudConfigKey(closeCfg);
+      lastAppliedConfigSeq = Number(closeCfg._seq || 0);
+      // Also do a regular push for the collections
       pushIncremental(true).catch(() => {});
       }catch(e){
         console.error('Error al cerrar caja:', e);
@@ -13731,7 +13736,7 @@ async function pushIncremental(force = false, allowDeletes = false) {
   ensureCloudIds();
 
   CLOUD_COLLECTIONS.forEach(coll => {
-    // Products are managed by the cloud — never push back to avoid duplicates
+    // Products and delivery zones are managed by the cloud — never push back
     if(coll === 'products') return;
     if(coll === 'deliveryZones') return;
     const shadow = cloudShadow[coll] || (cloudShadow[coll] = {});
@@ -13743,13 +13748,12 @@ async function pushIncremental(force = false, allowDeletes = false) {
       const key = cloudShadowKey(item);
       if (shadow[docId] !== key) {
         const seq = Date.now();
-        item._seq = seq; // Stamp locally so last-write-wins merges compare correctly
+        item._seq = seq;
         const payload = { ...item, _ord: index, _device: CLOUD_DEVICE_ID, _seq: seq };
         sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
         shadow[docId] = key;
       }
     });
-    // Only delete when explicitly allowed (explicit delete actions), never during routine syncs
     if(allowDeletes){
       Object.keys(shadow).forEach(docId => {
         if (!seen.has(docId)) {
@@ -13760,12 +13764,14 @@ async function pushIncremental(force = false, allowDeletes = false) {
     }
   });
 
+  // Config (cash state) is ONLY pushed when cloudConfigShadow is explicitly cleared
+  // This prevents accidental re-opening of closed cash by other devices
   const cfgPayload = cloudConfigPayload();
   const cfgKey = cloudConfigKey(cfgPayload);
   if (cfgKey !== cloudConfigShadow) {
     sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
     cloudConfigShadow = cfgKey;
-    lastAppliedConfigSeq = Number(cfgPayload._seq || 0); // We are the latest config author
+    lastAppliedConfigSeq = Number(cfgPayload._seq || 0);
   }
 }
 

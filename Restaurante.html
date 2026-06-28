@@ -13273,6 +13273,7 @@ let cloudInitialSyncDone = false;
 let cloudSnapshotsReceived = 0;
 let cloudShadow = {};
 let cloudConfigShadow = '';
+let lastAppliedConfigSeq = 0;
 let cloudLastError = '';
 let awsSocket = null;
 let awsReconnectTimer = null;
@@ -13301,6 +13302,30 @@ function cloudShadowKey(item) {
 function cloudSortByOrd(arr) {
   if (!Array.isArray(arr)) return arr;
   return arr.slice().sort((a, b) => (Number(a._ord) || 0) - (Number(b._ord) || 0));
+}
+// Timestamp of an item for last-write-wins comparisons
+function itemSeq(item){
+  if(!item) return 0;
+  if(item._seq) return Number(item._seq) || 0;
+  const t = item.updatedAt || item.paidAt || item.createdAt;
+  return t ? new Date(t).getTime() : 0;
+}
+// Apply a remote item into a collection using last-write-wins.
+// Returns true if state changed. Protects the order being actively edited.
+function applyRemoteItem(coll, payload){
+  if(!payload) return false;
+  state[coll] = state[coll] || [];
+  const docId = cloudDocId(payload);
+  const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
+  if(idx < 0){ state[coll].push(payload); return true; }
+  // Never overwrite the order currently open/being edited on this device
+  if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return false;
+  // Newest version wins
+  if(itemSeq(payload) >= itemSeq(state[coll][idx])){
+    state[coll][idx] = payload;
+    return true;
+  }
+  return false;
 }
 function cloudConfigPayload() {
   return {
@@ -13336,7 +13361,15 @@ function cloudConfigKey(p) { const c = { ...p }; delete c._device; delete c._seq
 
 function applyConfigRemote(data) {
   if (!data) return;
-  if (data.cash != null) { state.cash = data.cash; }
+  // Cash state: only apply if remote config is newer (prevents old devices from
+  // overwriting newer cash/open-shift state). Other fields always apply.
+  const remoteSeq = Number(data._seq || 0);
+  if (data.cash != null) {
+    if(remoteSeq >= (lastAppliedConfigSeq || 0)){
+      state.cash = data.cash;
+      lastAppliedConfigSeq = remoteSeq || lastAppliedConfigSeq;
+    }
+  }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = normalizeShift(data.shift);
   if (Array.isArray(data.categories)) state.categories = data.categories;
@@ -13545,52 +13578,24 @@ function handleAWSMessage(msg) {
   }
 
   if (msg.type === 'snapshot') {
-    // Initial collection load
+    // Initial/bulk collection load from cloud
     const coll = msg.collection;
     const items = (msg.items || []).map(item => {
-      // Si el item viene como string JSON (de DynamoDB), parsearlo
       if(typeof item === 'string') try { return JSON.parse(item); } catch(_){ return item; }
       return item;
     }).filter(Boolean);
-    cloudShadow[coll] = {};
-    items.forEach(item => {
-      const docId = cloudDocId(item);
-      cloudShadow[coll][docId] = cloudShadowKey(item);
+    cloudShadow[coll] = cloudShadow[coll] || {};
+    // Delivery zones are code-defined — ignore cloud copies
+    if(coll === 'deliveryZones'){ cloudSnapshotsReceived++; scheduleRemoteApply(); return; }
+    // Merge each remote item using last-write-wins; never lose local-only items
+    items.forEach(remote => {
+      const docId = cloudDocId(remote);
+      cloudShadow[coll][docId] = cloudShadowKey(remote);
+      applyRemoteItem(coll, remote);
     });
-    // Cloud data merges with local — newest version of each item wins, nothing is lost
-    if (items.length > 0) {
-      // Don't overwrite delivery zones from cloud — code defines them
-      if(coll === 'deliveryZones') { cloudSnapshotsReceived++; scheduleRemoteApply(); return; }
-      if(coll === 'orders'){
-        // Smart merge for orders: keep the most recently updated version of each order.
-        // NEVER auto-close an order — local open orders are preserved unless cloud is newer.
-        const byId = new Map();
-        (state.orders || []).forEach(o => byId.set(cloudDocId(o), o));
-        items.forEach(remote => {
-          const id = cloudDocId(remote);
-          const local = byId.get(id);
-          if(!local){ byId.set(id, remote); return; }
-          // Both exist — keep the newer one by timestamp
-          const localTime = Number(local._seq || 0) || new Date(local.updatedAt || local.paidAt || 0).getTime();
-          const remoteTime = Number(remote._seq || 0) || new Date(remote.updatedAt || remote.paidAt || 0).getTime();
-          // If local is being edited right now, always keep local
-          if(typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === id) return;
-          if(remoteTime >= localTime) byId.set(id, remote);
-        });
-        state.orders = cloudSortByOrd([...byId.values()]);
-      } else {
-        const localCount = (state[coll] || []).length;
-        if(items.length >= localCount){
-          state[coll] = cloudSortByOrd(items);
-        } else {
-          const cloudIds = new Set(items.map(it => cloudDocId(it)));
-          const localExtras = (state[coll] || []).filter(it => !cloudIds.has(cloudDocId(it)));
-          state[coll] = cloudSortByOrd([...items, ...localExtras]);
-        }
-      }
-    }
+    state[coll] = cloudSortByOrd(state[coll] || []);
     cloudSnapshotsReceived++;
-    // Render immediately for key collections (don't wait for all snapshots)
+    // Render immediately for key collections
     if(coll === 'orders' || coll === 'tables'){
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
@@ -13602,47 +13607,17 @@ function handleAWSMessage(msg) {
   }
 
   if (msg.type === 'change') {
-    // Real-time document update from another device
+    // Real-time single-document update from another device
     const { collection: coll, docId, payload } = msg;
-    if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore own writes
-    if (coll === 'deliveryZones') return; // Zones are code-defined, not synced
+    if (payload && payload._device === CLOUD_DEVICE_ID) return; // Ignore our own echoes
+    if (coll === 'deliveryZones') return; // Code-defined
     cloudShadow[coll] = cloudShadow[coll] || {};
     cloudShadow[coll][docId] = cloudShadowKey(payload);
-    state[coll] = state[coll] || [];
-    const idx = state[coll].findIndex(it => cloudDocId(it) === docId);
-    if (idx >= 0) {
-      // Don't overwrite the order currently being edited on this device
-      if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return;
-      // Don't accept a 'Pagado' status if local order is 'Abierto' and was updated more recently
-      if(coll === 'orders' && payload.status === 'Pagado'){
-        const local = state[coll][idx];
-        if(local && local.status === 'Abierto'){
-          const localTime = Number(local._seq || 0) || new Date(local.updatedAt || 0).getTime();
-          const remoteTime = Number(payload._seq || 0) || new Date(payload.updatedAt || payload.paidAt || 0).getTime();
-          if(localTime > remoteTime) return; // Local is newer, reject stale 'Pagado'
-        }
-      }
-      state[coll][idx] = payload;
-    } else {
-      state[coll].push(payload);
+    const changed = applyRemoteItem(coll, payload);
+    if(changed){
+      state[coll] = cloudSortByOrd(state[coll] || []);
     }
-    state[coll] = cloudSortByOrd(state[coll]);
-    // If an order was paid/closed, immediately update its table status
-    if(coll === 'orders' && payload && (payload.status === 'Pagado' || payload.status === 'Cortesía' || payload.status === 'Credito')){
-      const table = (state.tables || []).find(t => t.id === payload.tableId);
-      if(table){
-        if(typeof isMultiOrderTable === 'function' && isMultiOrderTable(table)){
-          if(typeof updateMultiOrderTableStatus === 'function') updateMultiOrderTableStatus(table.id);
-        } else {
-          table.status = 'Disponible';
-          table.orderId = null;
-          table.customer = '';
-          table.orderTotal = 0;
-          table.orderStartedAt = null;
-        }
-      }
-    }
-    // Render immediately for order changes (real-time sales updates)
+    // Render immediately for orders/tables (real-time sales & dashboard)
     if(coll === 'orders' || coll === 'tables'){
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
@@ -13678,7 +13653,9 @@ async function pushIncremental(force = false, allowDeletes = false) {
       seen.add(docId);
       const key = cloudShadowKey(item);
       if (shadow[docId] !== key) {
-        const payload = { ...item, _ord: index, _device: CLOUD_DEVICE_ID, _seq: Date.now() };
+        const seq = Date.now();
+        item._seq = seq; // Stamp locally so last-write-wins merges compare correctly
+        const payload = { ...item, _ord: index, _device: CLOUD_DEVICE_ID, _seq: seq };
         sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload });
         shadow[docId] = key;
       }
@@ -13699,6 +13676,7 @@ async function pushIncremental(force = false, allowDeletes = false) {
   if (cfgKey !== cloudConfigShadow) {
     sendAWS({ action: 'sync', type: 'putConfig', payload: cfgPayload });
     cloudConfigShadow = cfgKey;
+    lastAppliedConfigSeq = Number(cfgPayload._seq || 0); // We are the latest config author
   }
 }
 

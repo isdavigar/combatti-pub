@@ -5195,7 +5195,7 @@
       ['Jugos naturales','Maracuyá',8000]
     ];
     const REQUESTED_DELIVERY_ZONES = [
-      ['Domi 10mil',10000], ['Domi 12mil',12000], ['Domi 14mil',14000], ['Domi 8mil',8000], ['Domi 6mil',6000], ['Domi 5mil',5000], ['Domi 4mil',4000], ['Domi 3mil',3000], ['Domi taxi',60000]
+      ['Domi 2mil',2000], ['Domi 3mil',3000], ['Domi 4mil',4000], ['Domi 5mil',5000], ['Domi 6mil',6000], ['Domi 7mil',7000], ['Domi 8mil',8000], ['Domi 9mil',9000], ['Domi 10mil',10000], ['Domi 11mil',11000], ['Domi 12mil',12000], ['Domi 13mil',13000], ['Domi 14mil',14000]
     ];
     function mergeRequestedProducts(){
       const existing = new Set((state.products || []).map(p => `${normalizeCategory(p.category).toLowerCase()}|${String(p.name || '').trim().toLowerCase()}`));
@@ -7925,6 +7925,10 @@ const colors = [
       if(isMultiOrderTable(table) && !orderId && !forceNew){ openMultiOrderHub(tableId); return; }
       currentOrderTableId = tableId;
       let order = orderId ? state.orders.find(o => o.id === orderId) : (isMultiOrderTable(table) ? null : state.orders.find(o => o.tableId === tableId && !isClosedOrder(o)));
+      // Also try finding by table.orderId if not found by tableId
+      if(!order && !orderId && table.orderId){
+        order = state.orders.find(o => o.id === table.orderId && !isClosedOrder(o));
+      }
       if(order && isClosedOrder(order)){ viewOrderTicket(order.id, 'TICKET'); currentOrderTableId = null; return; }
       if(isMultiOrderTable(table) && forceNew) order = null;
       if(!order){
@@ -8512,6 +8516,12 @@ const colors = [
       renderOrderTotals();
       if(!currentOrder.items.length){ toast('Agrega al menos un producto antes de guardar', 'warning'); return; }
       const table = state.tables.find(t => t.id === currentOrder.tableId);
+      // Delivery orders MUST have a zone selected
+      if(table && table.kind === 'Domicilio' && !currentOrder.deliveryZoneId){
+        toast('Selecciona la zona y valor de domicilio antes de guardar', 'warning');
+        byId('orderDeliveryZoneInput')?.focus();
+        return;
+      }
       const savedOrderId = currentOrder.id;
       currentOrder.seller = currentUser?.username || 'Sin usuario';
       currentOrder.updatedAt = new Date().toISOString();

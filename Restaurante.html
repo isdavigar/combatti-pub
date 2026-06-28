@@ -11037,6 +11037,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
                 <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewOrderTicket('${order.id}', 'TICKET')" title="Ver ticket"><i class="fa-solid fa-eye"></i></button>
                 <button class="btn btn-sm btn-outline-primary btn-pill" onclick="printOrderTicket('${order.id}', 'TICKET')" title="Imprimir"><i class="fa-solid fa-print"></i></button>
                 ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-warning btn-pill" onclick="moveOrderToDate('${order.id}')" title="Mover a otro día"><i class="fa-solid fa-calendar-day"></i></button>` : ''}
+                ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-info btn-pill" onclick="returnOrderToTable('${order.id}')" title="Devolver a mesa"><i class="fa-solid fa-rotate-left"></i></button>` : ''}
                 ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-secondary btn-pill" onclick="editPaidOrder('${order.id}')" title="Editar venta"><i class="fa-solid fa-pen"></i></button>` : ''}
                 ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deleteOrderFromHistory('${order.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>` : ''}
               </div>
@@ -11045,6 +11046,61 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         </div>`;
       }).join('') || '<div class="p-3 text-secondary">No hay pedidos pagados todavia.</div>';
       renderHistoryPager('orderHistoryPagination', pager.page, pager.totalPages, pager.totalItems, 'setOrderHistoryPage');
+    }
+
+    // Devolver un pedido pagado a su mesa original (reabrirlo).
+    function returnOrderToTable(orderId){
+      if(!requireSystemAdmin('devolver pedidos a mesa')) return;
+      const order = state.orders.find(o => o.id === orderId);
+      if(!order){ toast('Pedido no encontrado', 'warning'); return; }
+      const table = state.tables.find(t => t.id === order.tableId);
+      const tableName = table ? table.name : (order.tableName || 'Mesa desconocida');
+      confirmAction({
+        title:'Devolver pedido a mesa',
+        message:`¿Devolver el pedido de <strong>${escapeHtml(tableName)}</strong> por <strong>${money(order.total || 0)}</strong> a la mesa?<br><br>El pedido volverá a estado <strong>Abierto</strong> y la mesa quedará <strong>Ocupada</strong>.`,
+        confirmLabel:'Sí, devolver a mesa',
+        confirmClass:'btn-info',
+        onConfirm: () => performReturnOrderToTable(orderId)
+      });
+    }
+    function performReturnOrderToTable(orderId){
+      const order = state.orders.find(o => o.id === orderId);
+      if(!order) return;
+      const table = state.tables.find(t => t.id === order.tableId);
+      // Revert order status
+      order.status = 'Abierto';
+      order.kitchenStatus = 'En cocina';
+      order.paidAt = null;
+      order.updatedAt = new Date().toISOString();
+      order._seq = Date.now();
+      // Restore inventory
+      restoreInventoryForOrder(order);
+      // Remove from cash history references
+      state.cash.history = (state.cash.history || []).map(record => ({
+        ...record,
+        orders: Array.isArray(record.orders) ? record.orders.filter(id => id !== orderId) : record.orders
+      }));
+      // Reopen the table
+      if(table){
+        if(table.kind === 'Mesa'){
+          table.status = 'Ocupada';
+          table.orderId = order.id;
+        } else {
+          table.status = 'En proceso de pago';
+          table.orderId = order.id;
+        }
+        if(typeof isMultiOrderTable === 'function' && isMultiOrderTable(table)){
+          updateMultiOrderTableStatus(table.id);
+        }
+        syncTableOrderSnapshot(table, order);
+      }
+      persistAll();
+      pushIncremental(true);
+      renderOrderHistory();
+      renderTables();
+      renderCashView();
+      renderDashboard();
+      toast(`Pedido devuelto a ${table ? table.name : 'mesa'}. La mesa está ocupada de nuevo.`, 'success');
     }
 
     // Mover una venta a otro día y/o turno (cambiar la fecha de pago y turno).

@@ -146,6 +146,10 @@
         .menu-item-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
         .menu-item-row:last-child { border-bottom:none; }
         .reports-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; margin-bottom:20px; }
+        .caja-container { max-width:900px; }
+        .caja-status-card { background:var(--bg-card); border-radius:12px; padding:25px; text-align:center; border:1px solid var(--border); margin-bottom:20px; }
+        .caja-status-card h2 { margin-top:10px; font-size:1.4rem; }
+        .caja-info-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:12px; margin-bottom:20px; }
         .rpt-card { background:var(--bg-card); border-radius:12px; padding:18px; text-align:center; border:1px solid var(--border); }
         .rpt-card .val { font-size:1.8rem; font-weight:700; color:var(--secondary); margin:8px 0 4px; }
         .rpt-card .lbl { color:var(--text-muted); font-size:0.8rem; }
@@ -201,6 +205,7 @@
                 <div class="nav-item active" onclick="showView('mesas')"><i class="fas fa-chair"></i><span>Mesas</span></div>
                 <div class="nav-item" onclick="showView('delivery')"><i class="fas fa-motorcycle"></i><span>Delivery</span></div>
                 <div class="nav-item" onclick="showView('cocina')"><i class="fas fa-blender"></i><span>Cocina</span></div>
+                <div class="nav-item" onclick="showView('caja')"><i class="fas fa-cash-register"></i><span>Caja</span></div>
                 <div class="nav-item" onclick="showView('menu')"><i class="fas fa-mug-hot"></i><span>Menú</span></div>
                 <div class="nav-item" onclick="showView('reportes')"><i class="fas fa-chart-bar"></i><span>Reportes</span></div>
             </nav>
@@ -230,6 +235,30 @@
                 <!-- COCINA -->
                 <div id="viewCocina" class="view">
                     <div id="kitchenGrid" class="kitchen-grid"></div>
+                </div>
+                <!-- CAJA -->
+                <div id="viewCaja" class="view">
+                    <div class="caja-container">
+                        <div class="caja-status-card" id="cajaStatusCard">
+                            <div class="caja-status-icon" id="cajaStatusIcon"><i class="fas fa-lock"></i></div>
+                            <h2 id="cajaStatusTitle">Caja Cerrada</h2>
+                            <p id="cajaStatusMsg" style="color:var(--text-muted)">Abra la caja para comenzar a operar</p>
+                        </div>
+                        <div class="caja-info-grid" id="cajaInfoGrid" style="display:none">
+                            <div class="rpt-card"><i class="fas fa-door-open"></i><div class="val" id="cajaFondo">$0</div><div class="lbl">Fondo Apertura</div></div>
+                            <div class="rpt-card"><i class="fas fa-clock"></i><div class="val" id="cajaHoraApertura">--:--</div><div class="lbl">Hora Apertura</div></div>
+                            <div class="rpt-card"><i class="fas fa-receipt"></i><div class="val" id="cajaVentasCount">0</div><div class="lbl">Ventas Realizadas</div></div>
+                            <div class="rpt-card"><i class="fas fa-dollar-sign"></i><div class="val" id="cajaTotalVentas">$0</div><div class="lbl">Total Vendido</div></div>
+                            <div class="rpt-card"><i class="fas fa-money-bill-wave"></i><div class="val" id="cajaEfectivo">$0</div><div class="lbl">Efectivo</div></div>
+                            <div class="rpt-card"><i class="fas fa-wallet"></i><div class="val" id="cajaSaldoEstimado">$0</div><div class="lbl">Saldo Estimado</div></div>
+                        </div>
+                        <div class="caja-actions" style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
+                            <button class="btn btn-success" id="btnAbrirCaja" onclick="showAbrirCajaModal()"><i class="fas fa-lock-open"></i> Abrir Caja</button>
+                            <button class="btn btn-danger" id="btnCerrarCaja" onclick="cerrarCaja()" style="display:none"><i class="fas fa-lock"></i> Cerrar Caja</button>
+                            <button class="btn btn-info" id="btnMovimiento" onclick="showMovimientoModal()" style="display:none"><i class="fas fa-exchange-alt"></i> Registrar Movimiento</button>
+                        </div>
+                        <div id="cajaMovimientos" style="margin-top:20px;"></div>
+                    </div>
                 </div>
                 <!-- MENU -->
                 <div id="viewMenu" class="view">
@@ -351,6 +380,54 @@
         </div>
     </div>
 
+    <!-- ABRIR CAJA MODAL -->
+    <div id="abrirCajaModal" class="modal-overlay">
+        <div class="modal">
+            <h2><i class="fas fa-lock-open"></i> Abrir Caja</h2>
+            <div class="modal-section">
+                <label>Monto Inicial (Fondo)</label>
+                <input type="number" id="cajaMontoInicial" placeholder="0" step="1" min="0">
+            </div>
+            <div class="modal-section">
+                <label>Turno</label>
+                <select id="cajaTurno" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text-primary);">
+                    <option value="dia">Turno Día</option>
+                    <option value="noche">Turno Noche</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-confirm" onclick="abrirCaja()"><i class="fas fa-lock-open"></i> Abrir</button>
+                <button class="btn-modal-cancel" onclick="closeAbrirCajaModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MOVIMIENTO MODAL -->
+    <div id="movimientoModal" class="modal-overlay">
+        <div class="modal">
+            <h2><i class="fas fa-exchange-alt"></i> Registrar Movimiento</h2>
+            <div class="modal-section">
+                <label>Tipo</label>
+                <select id="movTipo" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text-primary);">
+                    <option value="ingreso">Ingreso</option>
+                    <option value="egreso">Egreso</option>
+                </select>
+            </div>
+            <div class="modal-section">
+                <label>Monto</label>
+                <input type="number" id="movMonto" placeholder="0" step="1" min="0">
+            </div>
+            <div class="modal-section">
+                <label>Descripción</label>
+                <input type="text" id="movDescripcion" placeholder="Motivo del movimiento">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-confirm" onclick="registrarMovimiento()"><i class="fas fa-check"></i> Registrar</button>
+                <button class="btn-modal-cancel" onclick="closeMovimientoModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase (kept for auth compatibility) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -376,7 +453,16 @@
         menu: [],         // {id, name, price, category}
         categories: [],   // {id, name}
         sales: [],        // completed sales
-        deliveries: []    // delivery orders
+        deliveries: [],   // delivery orders
+        cash: {           // caja state - persisted across reloads
+            open: false,
+            openingAmount: 0,
+            openedAt: null,
+            closedAt: null,
+            turno: 'dia',
+            movements: [],  // {id, type:'ingreso'|'egreso', amount, description, createdAt}
+            history: []     // historical closures
+        }
     };
 
     // Current order context
@@ -389,6 +475,12 @@
     // ===== INIT =====
     function init() {
         loadFromLocal();
+        // Ensure cash state exists (backward compatibility with older saved states)
+        if (!state.cash || typeof state.cash !== 'object') {
+            state.cash = { open: false, openingAmount: 0, openedAt: null, closedAt: null, turno: 'dia', movements: [], history: [] };
+        }
+        if (!Array.isArray(state.cash.movements)) state.cash.movements = [];
+        if (!Array.isArray(state.cash.history)) state.cash.history = [];
         if (!state.tables.length) initDefaultTables();
         if (!state.categories.length) initDefaultMenu();
         updateDateTime();
@@ -601,16 +693,17 @@
     function showView(view) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        const titles = { mesas:'Mesas', delivery:'Delivery', cocina:'Cocina', menu:'Men\u00fa', reportes:'Reportes' };
+        const titles = { mesas:'Mesas', delivery:'Delivery', cocina:'Cocina', caja:'Caja', menu:'Men\u00fa', reportes:'Reportes' };
         document.getElementById('viewTitle').textContent = titles[view] || view;
-        const viewMap = { mesas:'viewMesas', delivery:'viewDelivery', cocina:'viewCocina', menu:'viewMenu', reportes:'viewReportes' };
+        const viewMap = { mesas:'viewMesas', delivery:'viewDelivery', cocina:'viewCocina', caja:'viewCaja', menu:'viewMenu', reportes:'viewReportes' };
         document.getElementById(viewMap[view]).classList.add('active');
         // highlight nav
         const navItems = document.querySelectorAll('.nav-item');
-        const idx = ['mesas','delivery','cocina','menu','reportes'].indexOf(view);
+        const idx = ['mesas','delivery','cocina','caja','menu','reportes'].indexOf(view);
         if (idx >= 0) navItems[idx].classList.add('active');
         // Refresh views
         if (view === 'cocina') renderKitchen();
+        if (view === 'caja') renderCaja();
         if (view === 'reportes') loadReports();
         if (view === 'delivery') renderDeliveries();
         if (view === 'menu') renderMenuManagement();
@@ -1031,6 +1124,185 @@
         pushToCloud('orders', order);
         renderKitchen();
         showToast('Pedido actualizado: ' + newStatus, 'info');
+    }
+
+    // ===== CAJA (CASH REGISTER) =====
+    function renderCaja() {
+        // Ensure cash state exists
+        if (!state.cash) {
+            state.cash = { open: false, openingAmount: 0, openedAt: null, closedAt: null, turno: 'dia', movements: [], history: [] };
+        }
+
+        const isOpen = state.cash.open;
+        const statusIcon = document.getElementById('cajaStatusIcon');
+        const statusTitle = document.getElementById('cajaStatusTitle');
+        const statusMsg = document.getElementById('cajaStatusMsg');
+        const statusCard = document.getElementById('cajaStatusCard');
+        const infoGrid = document.getElementById('cajaInfoGrid');
+        const btnAbrir = document.getElementById('btnAbrirCaja');
+        const btnCerrar = document.getElementById('btnCerrarCaja');
+        const btnMov = document.getElementById('btnMovimiento');
+
+        if (isOpen) {
+            statusIcon.innerHTML = '<i class="fas fa-lock-open" style="color:var(--success);font-size:2.5rem;"></i>';
+            statusTitle.textContent = 'Caja Abierta';
+            statusTitle.style.color = 'var(--success)';
+            statusMsg.textContent = 'Turno: ' + (state.cash.turno === 'noche' ? 'Noche' : 'Día') + ' | Abierta: ' + (state.cash.openedAt ? new Date(state.cash.openedAt).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '--:--');
+            infoGrid.style.display = 'grid';
+            btnAbrir.style.display = 'none';
+            btnCerrar.style.display = 'inline-flex';
+            btnMov.style.display = 'inline-flex';
+
+            // Calculate totals
+            const salesSinceOpen = state.sales.filter(s => state.cash.openedAt && new Date(s.createdAt) >= new Date(state.cash.openedAt));
+            const totalVentas = salesSinceOpen.reduce((s, sale) => s + sale.total, 0);
+            const efectivoVentas = salesSinceOpen.filter(s => s.paymentMethod === 'efectivo').reduce((s, sale) => s + sale.total, 0);
+            const ingresos = (state.cash.movements || []).filter(m => m.type === 'ingreso').reduce((s, m) => s + m.amount, 0);
+            const egresos = (state.cash.movements || []).filter(m => m.type === 'egreso').reduce((s, m) => s + m.amount, 0);
+            const saldoEstimado = state.cash.openingAmount + efectivoVentas + ingresos - egresos;
+
+            document.getElementById('cajaFondo').textContent = formatMoney(state.cash.openingAmount);
+            document.getElementById('cajaHoraApertura').textContent = state.cash.openedAt ? new Date(state.cash.openedAt).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '--:--';
+            document.getElementById('cajaVentasCount').textContent = salesSinceOpen.length;
+            document.getElementById('cajaTotalVentas').textContent = formatMoney(totalVentas);
+            document.getElementById('cajaEfectivo').textContent = formatMoney(efectivoVentas);
+            document.getElementById('cajaSaldoEstimado').textContent = formatMoney(saldoEstimado);
+        } else {
+            statusIcon.innerHTML = '<i class="fas fa-lock" style="color:var(--warning);font-size:2.5rem;"></i>';
+            statusTitle.textContent = 'Caja Cerrada';
+            statusTitle.style.color = 'var(--warning)';
+            statusMsg.textContent = 'Abra la caja para comenzar a operar';
+            infoGrid.style.display = 'none';
+            btnAbrir.style.display = 'inline-flex';
+            btnCerrar.style.display = 'none';
+            btnMov.style.display = 'none';
+        }
+
+        // Render movements
+        renderCajaMovimientos();
+    }
+
+    function renderCajaMovimientos() {
+        const container = document.getElementById('cajaMovimientos');
+        if (!container) return;
+        const movements = state.cash.movements || [];
+        if (!movements.length) {
+            container.innerHTML = '';
+            return;
+        }
+        container.innerHTML = '<h3 style="color:var(--secondary);margin-bottom:10px;"><i class="fas fa-list"></i> Movimientos del Turno</h3>' +
+            movements.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).map(m => {
+                const isIngreso = m.type === 'ingreso';
+                const time = new Date(m.createdAt).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-card);border-radius:8px;margin-bottom:6px;border-left:3px solid ${isIngreso ? 'var(--success)' : 'var(--danger)'}">
+                    <div>
+                        <span style="font-weight:600;">${isIngreso ? '+' : '-'} ${formatMoney(m.amount)}</span>
+                        <span style="color:var(--text-muted);margin-left:10px;font-size:0.85rem;">${m.description || ''}</span>
+                    </div>
+                    <span style="color:var(--text-muted);font-size:0.8rem;">${time}</span>
+                </div>`;
+            }).join('');
+    }
+
+    function showAbrirCajaModal() {
+        document.getElementById('cajaMontoInicial').value = '';
+        document.getElementById('abrirCajaModal').classList.add('active');
+    }
+
+    function closeAbrirCajaModal() {
+        document.getElementById('abrirCajaModal').classList.remove('active');
+    }
+
+    function abrirCaja() {
+        const monto = parseFloat(document.getElementById('cajaMontoInicial').value) || 0;
+        const turno = document.getElementById('cajaTurno').value || 'dia';
+
+        state.cash = state.cash || {};
+        state.cash.open = true;
+        state.cash.openingAmount = monto;
+        state.cash.openedAt = now();
+        state.cash.closedAt = null;
+        state.cash.turno = turno;
+        state.cash.movements = [];
+
+        saveToLocal();
+        pushToCloud('config', { _type: 'cash', data: state.cash });
+        closeAbrirCajaModal();
+        renderCaja();
+        showToast('Caja abierta - Fondo: ' + formatMoney(monto), 'success');
+    }
+
+    function cerrarCaja() {
+        if (!confirm('¿Cerrar la caja? Se generará un resumen del turno.')) return;
+
+        // Calculate closing summary
+        const salesSinceOpen = state.sales.filter(s => state.cash.openedAt && new Date(s.createdAt) >= new Date(state.cash.openedAt));
+        const totalVentas = salesSinceOpen.reduce((s, sale) => s + sale.total, 0);
+        const efectivoVentas = salesSinceOpen.filter(s => s.paymentMethod === 'efectivo').reduce((s, sale) => s + sale.total, 0);
+        const ingresos = (state.cash.movements || []).filter(m => m.type === 'ingreso').reduce((s, m) => s + m.amount, 0);
+        const egresos = (state.cash.movements || []).filter(m => m.type === 'egreso').reduce((s, m) => s + m.amount, 0);
+
+        // Save to history
+        const closure = {
+            id: uid(),
+            openedAt: state.cash.openedAt,
+            closedAt: now(),
+            openingAmount: state.cash.openingAmount,
+            turno: state.cash.turno,
+            totalVentas,
+            efectivoVentas,
+            ingresos,
+            egresos,
+            saldoFinal: state.cash.openingAmount + efectivoVentas + ingresos - egresos,
+            salesCount: salesSinceOpen.length,
+            movements: [...(state.cash.movements || [])]
+        };
+
+        if (!state.cash.history) state.cash.history = [];
+        state.cash.history.push(closure);
+
+        // Close
+        state.cash.open = false;
+        state.cash.closedAt = now();
+        state.cash.movements = [];
+
+        saveToLocal();
+        pushToCloud('config', { _type: 'cash', data: state.cash });
+        renderCaja();
+        showToast('Caja cerrada - Total vendido: ' + formatMoney(totalVentas), 'info');
+    }
+
+    function showMovimientoModal() {
+        document.getElementById('movMonto').value = '';
+        document.getElementById('movDescripcion').value = '';
+        document.getElementById('movimientoModal').classList.add('active');
+    }
+
+    function closeMovimientoModal() {
+        document.getElementById('movimientoModal').classList.remove('active');
+    }
+
+    function registrarMovimiento() {
+        const tipo = document.getElementById('movTipo').value;
+        const monto = parseFloat(document.getElementById('movMonto').value) || 0;
+        const descripcion = document.getElementById('movDescripcion').value.trim();
+
+        if (monto <= 0) { showToast('Ingrese un monto válido', 'error'); return; }
+
+        if (!state.cash.movements) state.cash.movements = [];
+        state.cash.movements.push({
+            id: uid(),
+            type: tipo,
+            amount: monto,
+            description: descripcion,
+            createdAt: now()
+        });
+
+        saveToLocal();
+        pushToCloud('config', { _type: 'cash', data: state.cash });
+        closeMovimientoModal();
+        renderCaja();
+        showToast((tipo === 'ingreso' ? 'Ingreso' : 'Egreso') + ' registrado: ' + formatMoney(monto), 'success');
     }
 
     // ===== MENU MANAGEMENT =====

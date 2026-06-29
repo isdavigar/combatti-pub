@@ -1462,6 +1462,10 @@
         if (!state.cash || typeof state.cash !== 'object') {
             state.cash = { open: false, openingAmount: 0, openedAt: null, closedAt: null, turno: 'dia', movements: [], history: [], openedBy: '' };
         }
+        // FORCE CLOSE: cerrar caja bruscamente (remover esta linea después de confirmar)
+        state.cash.open = false;
+        state.cash.openedBy = '';
+        saveToLocal();
 
         // Auto-login check
         const savedEmail = localStorage.getItem('combatti_cafe_user');

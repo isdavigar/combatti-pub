@@ -587,26 +587,18 @@
             const s = localStorage.getItem('combatti_cafe_state');
             if (s) { const parsed = JSON.parse(s); Object.assign(state, parsed); }
         } catch(e){}
-        // BRUTE FORCE: Also load cash state from separate backup key
-        try {
-            const cashBackup = localStorage.getItem('combatti_cafe_cash');
-            if (cashBackup) {
-                const cashParsed = JSON.parse(cashBackup);
-                if (cashParsed && typeof cashParsed === 'object') {
-                    // If main state didn't have cash or it got corrupted, use backup
-                    if (!state.cash || typeof state.cash !== 'object') {
+        // If main state doesn't have cash, try backup key
+        if (!state.cash || typeof state.cash !== 'object') {
+            try {
+                const cashBackup = localStorage.getItem('combatti_cafe_cash');
+                if (cashBackup) {
+                    const cashParsed = JSON.parse(cashBackup);
+                    if (cashParsed && typeof cashParsed === 'object') {
                         state.cash = cashParsed;
-                    } else {
-                        // If backup says open but main says closed, trust the backup
-                        // (the backup is always written at the same time, so they should match)
-                        // But if they differ, prefer the one that says open (safer for not losing data)
-                        if (cashParsed.open && !state.cash.open) {
-                            state.cash = cashParsed;
-                        }
                     }
                 }
-            }
-        } catch(e){}
+            } catch(e){}
+        }
     }
 
     // ===== AWS WEBSOCKET =====

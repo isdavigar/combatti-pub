@@ -9560,11 +9560,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function showCloseCashModal(){
       try{
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
-      // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
+      // Cualquier Administrador puede cerrar la caja, sin importar quién la abrió.
       const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
       const me = String(currentUser?.username || '').toLowerCase();
-      if(opener && me && opener !== me && !isSystemAdmin()){
-        toast(`Solo ${state.cash.openedByUser || state.cash.openedBy} (quien abrió la caja) o el administrador del sistema pueden cerrarla.`, 'warning');
+      const isAdminUser = currentUser && (currentUser.role === 'Administrador' || currentUser.role === SYSTEM_ADMIN_ROLE);
+      if(opener && me && opener !== me && !isAdminUser){
+        toast(`Solo ${state.cash.openedByUser || state.cash.openedBy} (quien abrió la caja) o un administrador pueden cerrarla.`, 'warning');
         return;
       }
       if(!requireNoActiveOrders('cerrar caja')) return;
@@ -9581,11 +9582,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     async function closeCash(){
       try{
       if(!state.cash.open){ toast('No hay caja abierta para cerrar', 'warning'); return; }
-      // Solo puede cerrar la caja quien la abrió, o el administrador del sistema.
+      // Cualquier Administrador puede cerrar la caja, sin importar quién la abrió.
       const opener = String(state.cash.openedByUser || state.cash.openedBy || '').toLowerCase();
       const me = String(currentUser?.username || '').toLowerCase();
-      if(opener && me && opener !== me && !isSystemAdmin()){
-        toast(`Solo ${state.cash.openedByUser || state.cash.openedBy} (quien abrió la caja) o el administrador del sistema pueden cerrarla.`, 'warning');
+      const isAdminUser = currentUser && (currentUser.role === 'Administrador' || currentUser.role === SYSTEM_ADMIN_ROLE);
+      if(opener && me && opener !== me && !isAdminUser){
+        toast(`Solo ${state.cash.openedByUser || state.cash.openedBy} (quien abrió la caja) o un administrador pueden cerrarla.`, 'warning');
         return;
       }
       if(!requireNoActiveOrders('cerrar caja')) return;

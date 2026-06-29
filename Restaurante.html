@@ -4739,11 +4739,28 @@
       });
     }
     async function loadStateFromDatabase(){
-      // NO-OP: Todo viene de AWS. No se lee nada local.
-      return null;
+      try{
+        const db = await openAppDatabase();
+        dbReady = true;
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readonly');
+          const req = tx.objectStore(DB_STORE).get(DB_STATE_KEY);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      } catch(err){ return null; }
     }
     async function saveStateToDatabase(data){
-      // NO-OP: Todo se maneja desde AWS. No se guarda nada local.
+      try{
+        const db = await openAppDatabase();
+        dbReady = true;
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readwrite');
+          tx.objectStore(DB_STORE).put(structuredClone(data), DB_STATE_KEY);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch(err){}
     }
     function readLegacyState(){
       // NO-OP: No se lee data legacy. Todo desde AWS.
@@ -5338,10 +5355,9 @@
     }
 
     async function initData(){
-      // Clear any old cached data - everything comes from AWS
-      try { const db = await openAppDatabase(); const tx = db.transaction(DB_STORE, 'readwrite'); tx.objectStore(DB_STORE).clear(); } catch(e){}
-      const saved = null; // No local data - wait for AWS
-      const legacy = null;
+      // Load local cache for instant display (cloud will override when it responds)
+      const saved = await loadStateFromDatabase();
+      const legacy = saved ? null : null;
       const users = saved?.users || legacy?.users || null;
       const tables = saved?.tables || legacy?.tables || null;
       const products = saved?.products || legacy?.products || null;

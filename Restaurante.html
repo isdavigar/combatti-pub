@@ -235,17 +235,15 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg-dark);color:var(--tex
 <div id="cajaContainer" class="caja-container"></div>
 </div>
 <div id="sec-menu" class="section">
-<h2 class="section-title"><i class="fas fa-book-open"></i> Menú</h2>
+<h2 class="section-title"><i class="fas fa-book-open"></i> Menú (147 productos fijos)</h2>
 <div class="menu-container">
 <div class="menu-categories">
 <h4>Categorías</h4>
 <div id="menuCatList"></div>
-<div class="add-cat-form"><input type="text" id="newCatName" placeholder="Nueva categoría"><button onclick="addCategory()"><i class="fas fa-plus"></i></button></div>
 </div>
 <div class="menu-products">
 <h4 id="menuProdTitle">Productos</h4>
 <div id="menuProdList"></div>
-<div class="add-prod-form"><input type="text" id="newProdName" placeholder="Nombre"><input type="number" id="newProdPrice" placeholder="Precio" step="0.01"><button onclick="addProduct()"><i class="fas fa-plus"></i> Agregar</button></div>
 </div>
 </div>
 </div>
@@ -306,11 +304,163 @@ body{font-family:'Segoe UI',sans-serif;background:var(--bg-dark);color:var(--tex
 </div>
 </div>
 <script>
+const FIXED_PRODUCTS = [
+    {id:1,name:'Pechuga de Pollo 300gr',price:30000,category:'Combatti Grill'},
+    {id:2,name:'Lomo de cerdo 250gr',price:28000,category:'Combatti Grill'},
+    {id:3,name:'Churrasco de res 250gr',price:33000,category:'Combatti Grill'},
+    {id:4,name:'Pechugas de pollo gratinada 300gr',price:33000,category:'Combatti Grill'},
+    {id:5,name:'BBQ Ribs 300gr aprox.',price:36000,category:'Combatti Grill'},
+    {id:6,name:'Roll de Pollo',price:37000,category:'Combatti Grill'},
+    {id:7,name:'Baby Beef 250gr',price:38000,category:'Combatti Grill'},
+    {id:8,name:'Lasana de pollo',price:27000,category:'Lasana'},
+    {id:9,name:'Lasana bolonesa',price:30000,category:'Lasana'},
+    {id:10,name:'Lasana mixta',price:34000,category:'Lasana'},
+    {id:11,name:'Pasta Carbonara',price:27000,category:'Pastas'},
+    {id:12,name:'Pasta bolonesa',price:30000,category:'Pastas'},
+    {id:13,name:'Pasta marinera',price:35000,category:'Pastas'},
+    {id:14,name:'Fajita de pechuga apanada',price:17000,category:'Combatti Kids'},
+    {id:15,name:'Salchipapa kids',price:16000,category:'Combatti Kids'},
+    {id:16,name:'Classic Burger',price:22000,category:'Hamburguesas'},
+    {id:17,name:'Chiken Burger',price:22000,category:'Hamburguesas'},
+    {id:18,name:'Sweet Costena',price:28000,category:'Hamburguesas'},
+    {id:19,name:'La Gomela',price:30000,category:'Hamburguesas'},
+    {id:20,name:'La Menor',price:32000,category:'Hamburguesas'},
+    {id:21,name:'La Mistica',price:32000,category:'Hamburguesas'},
+    {id:22,name:'La Black Pork',price:34000,category:'Hamburguesas'},
+    {id:23,name:'La Ranger',price:36000,category:'Hamburguesas'},
+    {id:24,name:'La Serrano',price:36000,category:'Hamburguesas'},
+    {id:25,name:'La Propia',price:38000,category:'Hamburguesas'},
+    {id:26,name:'Perro Clasico',price:10000,category:'Hot Dogs'},
+    {id:27,name:'Perro Gemelo',price:13000,category:'Hot Dogs'},
+    {id:28,name:'Perro Napolitano',price:16000,category:'Hot Dogs'},
+    {id:29,name:'Perro Escoces',price:17000,category:'Hot Dogs'},
+    {id:30,name:'Perro Americano',price:17000,category:'Hot Dogs'},
+    {id:31,name:'Perro Suizo',price:18000,category:'Hot Dogs'},
+    {id:32,name:'Perro Espanol',price:19000,category:'Hot Dogs'},
+    {id:33,name:'Perro Starly',price:22000,category:'Hot Dogs'},
+    {id:34,name:'Perro LeBron',price:22000,category:'Hot Dogs'},
+    {id:35,name:'Perro El Rocky',price:22000,category:'Hot Dogs'},
+    {id:36,name:'Perro Braulio',price:30000,category:'Hot Dogs'},
+    {id:37,name:'Perro Pity Leon',price:30000,category:'Hot Dogs'},
+    {id:38,name:'Perro El General',price:32000,category:'Hot Dogs'},
+    {id:39,name:'Salchipapa Sencilla',price:19000,category:'Salchipapas'},
+    {id:40,name:'Salchipapa Costena',price:24000,category:'Salchipapas'},
+    {id:41,name:'Salchipapa La Pudosky',price:26000,category:'Salchipapas'},
+    {id:42,name:'Salchipapa Suiza',price:27000,category:'Salchipapas'},
+    {id:43,name:'Salchipapa Chicken',price:28000,category:'Salchipapas'},
+    {id:44,name:'Salchipapa Mix',price:28000,category:'Salchipapas'},
+    {id:45,name:'Salchipapa Crispy',price:30000,category:'Salchipapas'},
+    {id:46,name:'Salchipapa La Calena',price:30000,category:'Salchipapas'},
+    {id:47,name:'Salchipapa La Granjera',price:30000,category:'Salchipapas'},
+    {id:48,name:'Salchipapa La Combi',price:32000,category:'Salchipapas'},
+    {id:49,name:'Salvada La J2',price:55000,category:'Salchipapas'},
+    {id:50,name:'Pizza Tradicional',price:22000,category:'Pizza'},
+    {id:51,name:'Pizza Hawaiana',price:25000,category:'Pizza'},
+    {id:52,name:'Pizza Pepperoni',price:25000,category:'Pizza'},
+    {id:53,name:'Pizza La Margarita',price:27000,category:'Pizza'},
+    {id:54,name:'Pizza La Malefica',price:28000,category:'Pizza'},
+    {id:55,name:'Pizza La Espanola',price:28000,category:'Pizza'},
+    {id:56,name:'Pizza La Pull Pork',price:30000,category:'Pizza'},
+    {id:57,name:'Pizza Ana Claret',price:30000,category:'Pizza'},
+    {id:58,name:'Pizza La Carnivora',price:32000,category:'Pizza'},
+    {id:59,name:'Sandwich Classic',price:18000,category:'Sandwich'},
+    {id:60,name:'Sandwich Pork',price:20000,category:'Sandwich'},
+    {id:61,name:'Sandwich Gaucho',price:23000,category:'Sandwich'},
+    {id:62,name:'Sandwich Boom Mix',price:25000,category:'Sandwich'},
+    {id:63,name:'Chuzo de Pollo',price:25000,category:'Chuzos'},
+    {id:64,name:'Chuzo Mixto',price:28000,category:'Chuzos'},
+    {id:65,name:'Chuzo Suizo',price:29000,category:'Chuzos'},
+    {id:66,name:'Chuzo 4 Carne',price:33000,category:'Chuzos'},
+    {id:67,name:'Chuzo Bimboleto',price:36000,category:'Chuzos'},
+    {id:68,name:'Mazorca de pollo',price:23000,category:'Mazorcas'},
+    {id:69,name:'Mazorca mixta',price:26000,category:'Mazorcas'},
+    {id:70,name:'Mazorca 4 Carne',price:29000,category:'Mazorcas'},
+    {id:71,name:'Mazorca la cataleya',price:32000,category:'Mazorcas'},
+    {id:72,name:'Patacon de Pollo',price:25000,category:'Patacones'},
+    {id:73,name:'Patacon Mixto',price:28000,category:'Patacones'},
+    {id:74,name:'Patacon 4 Carnes',price:31000,category:'Patacones'},
+    {id:75,name:'Patacon El Makia',price:33000,category:'Patacones'},
+    {id:76,name:'Patacon El Marino',price:36000,category:'Patacones'},
+    {id:77,name:'Coca Cola pet 400ml',price:6000,category:'Bebida'},
+    {id:78,name:'Kola Roman pet 400ml',price:6000,category:'Bebida'},
+    {id:79,name:'Quatro pet 400ml',price:6000,category:'Bebida'},
+    {id:80,name:'Jugo Hit personal',price:6000,category:'Bebida'},
+    {id:81,name:'Soda Bretana',price:6000,category:'Bebida'},
+    {id:82,name:'Soda Hatsu',price:7000,category:'Bebida'},
+    {id:83,name:'Ginger Canada Dry',price:6000,category:'Bebida'},
+    {id:84,name:'Botella de Agua 600ml',price:4000,category:'Bebida'},
+    {id:85,name:'Ginger Schweppes',price:6000,category:'Bebida'},
+    {id:86,name:'Cerezada',price:8000,category:'Jugos Naturales'},
+    {id:87,name:'Coco',price:8000,category:'Jugos Naturales'},
+    {id:88,name:'Mandarina',price:8000,category:'Jugos Naturales'},
+    {id:89,name:'Fresa',price:8000,category:'Jugos Naturales'},
+    {id:90,name:'Limonada Natural',price:8000,category:'Jugos Naturales'},
+    {id:91,name:'Limonada Yerba Buena',price:8000,category:'Jugos Naturales'},
+    {id:92,name:'Stella Artois',price:9000,category:'Cervezas'},
+    {id:93,name:'Coronita',price:8000,category:'Cervezas'},
+    {id:94,name:'BBC',price:11000,category:'Cervezas'},
+    {id:95,name:'Papa Francesa',price:8000,category:'Adiciones'},
+    {id:96,name:'Tocineta',price:5000,category:'Adiciones'},
+    {id:97,name:'Queso Mozzarella',price:5000,category:'Adiciones'},
+    {id:98,name:'Michelada',price:1500,category:'Adicionales'},
+    {id:99,name:'Adicional de carne',price:5000,category:'Adicionales'},
+    {id:100,name:'Adicional de cerdo',price:5000,category:'Adicionales'},
+    {id:101,name:'Adicional de pepperoni',price:5000,category:'Adicionales'},
+    {id:102,name:'Adicional de pollo',price:6000,category:'Adicionales'},
+    {id:103,name:'Adicional de suiza',price:7000,category:'Adicionales'},
+    {id:104,name:'Aros de cebolla',price:5000,category:'Adicionales'},
+    {id:105,name:'Borde de queso',price:5000,category:'Adicionales'},
+    {id:106,name:'Cigarros Luky',price:9500,category:'Adicionales'},
+    {id:107,name:'Deditos de mozzarella',price:16000,category:'Adicionales'},
+    {id:108,name:'Fritos Albeiro',price:7000,category:'Adicionales'},
+    {id:109,name:'Huevo frito',price:2000,category:'Adicionales'},
+    {id:110,name:'Mini pechuga asada',price:6000,category:'Adicionales'},
+    {id:111,name:'Papas enchuladas',price:10000,category:'Adicionales'},
+    {id:112,name:'Adicional de arroz',price:2500,category:'Adicionales'},
+    {id:113,name:'Almuerzo Luisa especial',price:17000,category:'Almuerzos'},
+    {id:114,name:'Almuerzo pechuga asada',price:19000,category:'Almuerzos'},
+    {id:115,name:'Almuerzo Santiago',price:22000,category:'Almuerzos'},
+    {id:116,name:'Carne salteada',price:19000,category:'Almuerzos'},
+    {id:117,name:'Carne asada',price:19000,category:'Almuerzos'},
+    {id:118,name:'Cerdo asado',price:19000,category:'Almuerzos'},
+    {id:119,name:'Cerdo salteado',price:19000,category:'Almuerzos'},
+    {id:120,name:'Chuleta',price:19000,category:'Almuerzos'},
+    {id:121,name:'Pasta corta bolonesa',price:19000,category:'Almuerzos'},
+    {id:122,name:'Pasta corta carbonara',price:19000,category:'Almuerzos'},
+    {id:123,name:'Pechuga bechamel',price:19000,category:'Almuerzos'},
+    {id:124,name:'Pechuga gratinada',price:19000,category:'Almuerzos'},
+    {id:125,name:'Pollo bechamel',price:19000,category:'Almuerzos'},
+    {id:126,name:'Pollo salteado',price:19000,category:'Almuerzos'},
+    {id:127,name:'Bowl mixto',price:18000,category:'Bowls'},
+    {id:128,name:'Bowl carne',price:18000,category:'Bowls'},
+    {id:129,name:'Bowl cerdo',price:18000,category:'Bowls'},
+    {id:130,name:'Bowl pollo',price:18000,category:'Bowls'},
+    {id:131,name:'Adicional de patacon',price:5000,category:'Entradas'},
+    {id:132,name:'Bollo chorizo',price:10000,category:'Entradas'},
+    {id:133,name:'Bollo HAVANA',price:12000,category:'Entradas'},
+    {id:134,name:'Chicharrones',price:18000,category:'Entradas'},
+    {id:135,name:'Chicharrones Don Dario',price:17000,category:'Entradas'},
+    {id:136,name:'Chorizo de ternera',price:7000,category:'Entradas'},
+    {id:137,name:'Patacones con Hogao',price:8000,category:'Entradas'},
+    {id:138,name:'Patacones HAVANA',price:12000,category:'Entradas'},
+    {id:139,name:'Patacon con proteina',price:16000,category:'Entradas'},
+    {id:140,name:'Roll 25',price:25000,category:'Entradas'},
+    {id:141,name:'Roll de pollo Albeiro',price:30000,category:'Entradas'},
+    {id:142,name:'Picada Combatti',price:55000,category:'Picadas'},
+    {id:143,name:'Agua de manzana 600ml',price:6000,category:'Bebidas'},
+    {id:144,name:'Mr. Tea',price:6000,category:'Bebidas'},
+    {id:145,name:'Postobon manzana 400ml',price:6000,category:'Bebidas'},
+    {id:146,name:'Coca cola 1.5 litros',price:10000,category:'Bebidas'},
+    {id:147,name:'Maracuya',price:8000,category:'Jugos Naturales'}
+];
+
+const FIXED_CATEGORIES = ["Adicionales", "Adiciones", "Almuerzos", "Bebida", "Bebidas", "Bowls", "Cervezas", "Chuzos", "Combatti Grill", "Combatti Kids", "Entradas", "Hamburguesas", "Hot Dogs", "Jugos Naturales", "Lasana", "Mazorcas", "Pastas", "Patacones", "Picadas", "Pizza", "Salchipapas", "Sandwich"];
+
 let state = {
     tables: [],
     orders: [],
-    menu: [],
-    categories: [],
+    menu: FIXED_PRODUCTS.slice(), // Always use fixed products
+    categories: FIXED_CATEGORIES.slice(),
     sales: [],
     cash: {open:false,openingAmount:0,openedAt:null,closedAt:null,turno:'dia',openedBy:'',movements:[],history:[]}
 };
@@ -349,27 +499,12 @@ function pushCollection(collection){
 }
 
 function initDefaults(){
+    // Products and categories are FIXED (147 products, 22 categories) - never change
+    state.menu = FIXED_PRODUCTS.slice();
+    state.categories = FIXED_CATEGORIES.slice();
     if(state.tables.length===0){
         for(let i=1;i<=10;i++) state.tables.push({id:i,name:'Mesa '+i});
         pushCollection('tables');
-    }
-    if(state.categories.length===0){
-        const cats=['Cafés','Tés','Bebidas Frías','Pastelería','Sándwiches','Desayunos','Postres'];
-        cats.forEach((c,i)=>state.categories.push({id:Date.now()+i,name:c}));
-        pushCollection('categories');
-    }
-    if(state.menu.length===0){
-        const items=[
-            {name:'Espresso',price:2.50,category:'Cafés'},{name:'Americano',price:3.00,category:'Cafés'},{name:'Cappuccino',price:3.50,category:'Cafés'},{name:'Latte',price:3.75,category:'Cafés'},{name:'Mocha',price:4.00,category:'Cafés'},
-            {name:'Té Verde',price:2.50,category:'Tés'},{name:'Té Negro',price:2.50,category:'Tés'},{name:'Manzanilla',price:2.50,category:'Tés'},{name:'Chai Latte',price:3.50,category:'Tés'},{name:'Té de Frutas',price:3.00,category:'Tés'},
-            {name:'Frappe Mocha',price:4.50,category:'Bebidas Frías'},{name:'Smoothie Frutas',price:4.00,category:'Bebidas Frías'},{name:'Limonada',price:3.00,category:'Bebidas Frías'},{name:'Iced Coffee',price:3.50,category:'Bebidas Frías'},{name:'Milkshake',price:4.50,category:'Bebidas Frías'},
-            {name:'Croissant',price:2.50,category:'Pastelería'},{name:'Muffin',price:2.75,category:'Pastelería'},{name:'Brownie',price:3.00,category:'Pastelería'},{name:'Cookie',price:1.50,category:'Pastelería'},{name:'Danish',price:3.00,category:'Pastelería'},
-            {name:'Club Sándwich',price:5.50,category:'Sándwiches'},{name:'Sándwich Pollo',price:5.00,category:'Sándwiches'},{name:'Panini Vegetal',price:4.50,category:'Sándwiches'},{name:'BLT',price:5.00,category:'Sándwiches'},{name:'Wrap',price:4.75,category:'Sándwiches'},
-            {name:'Huevos Benedict',price:6.50,category:'Desayunos'},{name:'Pancakes',price:5.50,category:'Desayunos'},{name:'Avocado Toast',price:5.00,category:'Desayunos'},{name:'Omelette',price:5.50,category:'Desayunos'},{name:'Granola Bowl',price:4.50,category:'Desayunos'},
-            {name:'Cheesecake',price:4.50,category:'Postres'},{name:'Tiramisú',price:4.50,category:'Postres'},{name:'Flan',price:3.50,category:'Postres'},{name:'Helado',price:3.00,category:'Postres'},{name:'Crème Brûlée',price:4.00,category:'Postres'}
-        ];
-        items.forEach((it,i)=>state.menu.push({id:Date.now()+i+100,name:it.name,price:it.price,category:it.category}));
-        pushCollection('menu');
     }
     saveState();
 }
@@ -418,6 +553,8 @@ function connectWS(){
                 // Collection snapshot from cloud - CLOUD IS TRUTH
                 if(msg.type==='snapshot'&&msg.collection){
                     const items=(msg.items||[]).map(i=>typeof i==='string'?JSON.parse(i):i).filter(Boolean);
+                    // Products and categories are FIXED - never overwrite from cloud
+                    if(msg.collection==='menu'||msg.collection==='categories') return;
                     if(items.length>0&&state[msg.collection]!==undefined){
                         state[msg.collection]=items;
                         saveState();renderAll();
@@ -451,13 +588,11 @@ function connectWS(){
 
 function wsSend(data){try{if(ws&&ws.readyState===1) ws.send(JSON.stringify(data));}catch(e){}}
 function syncAll(){
-    // Request all data from cloud - cloud is source of truth
+    // Request data from cloud (products/categories are FIXED locally)
     wsSend({action:'sync',type:'getConfig'});
     wsSend({action:'sync',type:'getAll',collection:'tables'});
     wsSend({action:'sync',type:'getAll',collection:'orders'});
     wsSend({action:'sync',type:'getAll',collection:'sales'});
-    wsSend({action:'sync',type:'getAll',collection:'menu'});
-    wsSend({action:'sync',type:'getAll',collection:'categories'});
 }
 
 function renderAll(){renderMesas();renderDelivery();renderKitchen();renderCaja();renderMenu();renderReports();}
@@ -785,67 +920,24 @@ function renderMenu(){
     const catList=document.getElementById('menuCatList');
     catList.innerHTML='';
     state.categories.forEach(c=>{
-        catList.innerHTML+=`<div class="menu-cat-item ${selectedManageCategory===c.id?'active':''}" onclick="selectManageCat(${c.id})"><span>${c.name}</span><button class="delete-cat" onclick="deleteCategory(${c.id},event)"><i class="fas fa-trash"></i></button></div>`;
+        catList.innerHTML+=`<div class="menu-cat-item ${selectedManageCategory===c?'active':''}" onclick="selectManageCat('${c}')"><span>${c}</span></div>`;
     });
     const prodList=document.getElementById('menuProdList');
     const title=document.getElementById('menuProdTitle');
     if(selectedManageCategory){
-        const cat=state.categories.find(c=>c.id===selectedManageCategory);
-        title.textContent='Productos - '+(cat?cat.name:'');
-        const prods=state.menu.filter(m=>{const c=state.categories.find(ct=>ct.id===selectedManageCategory);return c&&m.category===c.name;});
+        title.textContent='Productos - '+selectedManageCategory;
+        const prods=state.menu.filter(m=>m.category===selectedManageCategory);
         prodList.innerHTML='';
         prods.forEach(p=>{
-            prodList.innerHTML+=`<div class="product-item"><div class="product-info"><span class="product-name">${p.name}</span><span class="product-price">$${p.price.toFixed(2)}</span></div><button class="delete-prod" onclick="deleteProduct(${p.id})"><i class="fas fa-trash"></i></button></div>`;
+            prodList.innerHTML+=`<div class="product-item"><div class="product-info"><span class="product-name">${p.name}</span><span class="product-price">$${p.price.toLocaleString()}</span></div></div>`;
         });
     }else{
-        title.textContent='Productos';
-        prodList.innerHTML='<p style="color:var(--text-muted)">Seleccione una categor\u00eda</p>';
+        title.textContent='Productos ('+state.menu.length+' items)';
+        prodList.innerHTML='<p style="color:var(--text-muted)">Seleccione una categoría</p>';
     }
 }
 
-function selectManageCat(id){selectedManageCategory=id;renderMenu();}
-
-function addCategory(){
-    const name=document.getElementById('newCatName').value.trim();
-    if(!name)return;
-    const cat={id:Date.now(),name:name};
-    state.categories.push(cat);
-    document.getElementById('newCatName').value='';
-    saveState();renderMenu();
-    wsSend({action:'sync',type:'put',collection:'categories',item:cat});
-}
-
-function deleteCategory(id,e){
-    e.stopPropagation();
-    if(!confirm('\u00bfEliminar categor\u00eda?'))return;
-    const cat=state.categories.find(c=>c.id===id);
-    if(cat) state.menu=state.menu.filter(m=>m.category!==cat.name);
-    state.categories=state.categories.filter(c=>c.id!==id);
-    if(selectedManageCategory===id) selectedManageCategory=null;
-    saveState();renderMenu();
-    wsSend({action:'sync',type:'delete',collection:'categories',docId:id});
-}
-
-function addProduct(){
-    if(!selectedManageCategory){alert('Seleccione una categor\u00eda');return;}
-    const name=document.getElementById('newProdName').value.trim();
-    const price=parseFloat(document.getElementById('newProdPrice').value)||0;
-    if(!name||price<=0){alert('Complete nombre y precio');return;}
-    const cat=state.categories.find(c=>c.id===selectedManageCategory);
-    const prod={id:Date.now(),name:name,price:price,category:cat?cat.name:''};
-    state.menu.push(prod);
-    document.getElementById('newProdName').value='';
-    document.getElementById('newProdPrice').value='';
-    saveState();renderMenu();
-    wsSend({action:'sync',type:'put',collection:'menu',item:prod});
-}
-
-function deleteProduct(id){
-    if(!confirm('\u00bfEliminar producto?'))return;
-    state.menu=state.menu.filter(m=>m.id!==id);
-    saveState();renderMenu();
-    wsSend({action:'sync',type:'delete',collection:'menu',docId:id});
-}
+function selectManageCat(cat){selectedManageCategory=cat;renderMenu();}
 
 function renderReports(){
     const dateFilter=document.getElementById('reportDate').value;

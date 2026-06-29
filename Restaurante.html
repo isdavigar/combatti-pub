@@ -336,13 +336,27 @@ function loadState(){
     if(!state.sales) state.sales=[];
 }
 
+// Push entire collection to cloud
+function pushCollection(collection){
+    if(collection==='cash'){
+        wsSend({action:'sync',type:'putConfig',payload:state.cash});
+    }else{
+        const items=state[collection];
+        if(Array.isArray(items)){
+            items.forEach(item=>wsSend({action:'sync',type:'put',collection:collection,item:item}));
+        }
+    }
+}
+
 function initDefaults(){
     if(state.tables.length===0){
         for(let i=1;i<=10;i++) state.tables.push({id:i,name:'Mesa '+i});
+        pushCollection('tables');
     }
     if(state.categories.length===0){
         const cats=['Cafés','Tés','Bebidas Frías','Pastelería','Sándwiches','Desayunos','Postres'];
         cats.forEach((c,i)=>state.categories.push({id:Date.now()+i,name:c}));
+        pushCollection('categories');
     }
     if(state.menu.length===0){
         const items=[
@@ -355,6 +369,7 @@ function initDefaults(){
             {name:'Cheesecake',price:4.50,category:'Postres'},{name:'Tiramisú',price:4.50,category:'Postres'},{name:'Flan',price:3.50,category:'Postres'},{name:'Helado',price:3.00,category:'Postres'},{name:'Crème Brûlée',price:4.00,category:'Postres'}
         ];
         items.forEach((it,i)=>state.menu.push({id:Date.now()+i+100,name:it.name,price:it.price,category:it.category}));
+        pushCollection('menu');
     }
     saveState();
 }
@@ -389,14 +404,43 @@ function connectWS(){
         ws.onmessage=function(e){
             try{
                 const msg=JSON.parse(e.data);
-                if(msg.type==='snapshot'&&msg.collection&&msg.items){
-                    if(state[msg.collection]!==undefined){state[msg.collection]=msg.items;saveState();renderAll();}
-                }else if(msg.type==='update'&&msg.collection&&msg.item){
-                    if(Array.isArray(state[msg.collection])){
-                        const idx=state[msg.collection].findIndex(x=>x.id===msg.item.id);
-                        if(idx>=0) state[msg.collection][idx]=msg.item; else state[msg.collection].push(msg.item);
+                // Config (cash state) from cloud
+                if(msg.type==='config'&&msg.payload){
+                    state.cash=msg.payload;
+                    saveState();renderAll();
+                    return;
+                }
+                if(msg.type==='configChange'&&msg.payload){
+                    state.cash=msg.payload;
+                    saveState();renderAll();
+                    return;
+                }
+                // Collection snapshot from cloud - CLOUD IS TRUTH
+                if(msg.type==='snapshot'&&msg.collection){
+                    const items=(msg.items||[]).map(i=>typeof i==='string'?JSON.parse(i):i).filter(Boolean);
+                    if(items.length>0&&state[msg.collection]!==undefined){
+                        state[msg.collection]=items;
                         saveState();renderAll();
                     }
+                    return;
+                }
+                // Single item update from cloud
+                if(msg.type==='update'&&msg.collection&&msg.item){
+                    if(Array.isArray(state[msg.collection])){
+                        const idx=state[msg.collection].findIndex(x=>x.id===msg.item.id);
+                        if(idx>=0) state[msg.collection][idx]=msg.item;
+                        else state[msg.collection].push(msg.item);
+                        saveState();renderAll();
+                    }
+                    return;
+                }
+                // Item deleted from cloud
+                if(msg.type==='delete'&&msg.collection&&msg.docId){
+                    if(Array.isArray(state[msg.collection])){
+                        state[msg.collection]=state[msg.collection].filter(x=>x.id!==msg.docId);
+                        saveState();renderAll();
+                    }
+                    return;
                 }
             }catch(err){}
         };
@@ -407,6 +451,9 @@ function connectWS(){
 
 function wsSend(data){try{if(ws&&ws.readyState===1) ws.send(JSON.stringify(data));}catch(e){}}
 function syncAll(){
+    // Request all data from cloud - cloud is source of truth
+    wsSend({action:'sync',type:'getConfig'});
+    wsSend({action:'sync',type:'getAll',collection:'tables'});
     wsSend({action:'sync',type:'getAll',collection:'orders'});
     wsSend({action:'sync',type:'getAll',collection:'sales'});
     wsSend({action:'sync',type:'getAll',collection:'menu'});
@@ -711,6 +758,7 @@ function abrirCaja(){
     state.cash.openedBy=user.email||'';
     state.cash.movements=[];
     saveState();
+    wsSend({action:'sync',type:'putConfig',payload:state.cash});
     closeCajaModal();
     renderCaja();
 }

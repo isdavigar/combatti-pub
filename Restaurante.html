@@ -13368,12 +13368,8 @@ function applyRemoteItem(coll, payload){
   if(idx < 0){ state[coll].push(payload); return true; }
   // Never overwrite the order currently being edited on this device
   if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return false;
-  // NEVER auto-pay: if local order is 'Abierto', reject any remote that says 'Pagado'
-  // Orders can ONLY be paid by the user clicking Pay on their device
-  if(coll === 'orders'){
-    const local = state[coll][idx];
-    if(local && local.status === 'Abierto' && payload.status === 'Pagado') return false;
-  }
+  // Accept ALL order status changes from other devices (cloud is source of truth)
+  // This ensures that when one device pays/closes an order, all others see it immediately
   // Newest version wins (for non-status-changing updates)
   if(itemSeq(payload) >= itemSeq(state[coll][idx])){
     state[coll][idx] = payload;

@@ -5426,6 +5426,7 @@
         state.historicalSales = Array.isArray(historicalSales) ? historicalSales : [];
         state.activeSessions = (typeof activeSessions === 'object' && activeSessions) ? activeSessions : {};
         state.customWidgets = Array.isArray(customWidgets) ? customWidgets : [];
+        // Cash state: use local as TEMPORARY until cloud responds with real state
         state.cash = cash || { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
         state.categories = Array.isArray(categories) ? categories : [];
         state.supplies = Array.isArray(supplies) ? supplies.map(normalizeSupply) : [];
@@ -9474,11 +9475,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // Cerrar modal y actualizar UI inmediatamente
       modals.cashOpen?.hide?.();
       setValue('cashOpenAmount', '');
-      persistAll(false);
       renderAll();
-      toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
-      // Push a la nube en segundo plano (no bloquear UI)
+      // Push config to cloud IMMEDIATELY (all devices must see caja open)
+      sendAWS({ action: 'sync', type: 'putConfig', payload: cloudConfigPayload() });
       pushIncremental(true).catch(() => {});
+      saveStateToDatabase(appStateSnapshot());
+      toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
     }
     let closeExpectedCash = 0;
     function updateCloseDiscrepancy(){
@@ -9610,7 +9612,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const report = buildCashReport(cashPeriodStart(), new Date(closedAt));
       state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
       state.cash.openedBy = null; state.cash.openedByUser = null;
-      // Save immediately to IndexedDB so reloading never shows "open"
+      // CRITICAL: Push caja closed to cloud IMMEDIATELY (before anything else can fail)
+      sendAWS({ action: 'sync', type: 'putConfig', payload: cloudConfigPayload() });
       saveStateToDatabase(appStateSnapshot());
       const lastHistory = currentCashRecord();
       const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
@@ -9643,12 +9646,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       toast('Caja cerrada e informe generado', 'success');
       renderAll();
       if(currentView === 'movimientos') renderMovements();
-      // Force push config to cloud immediately so all devices see caja closed
-      cloudConfigShadow = '';
-      const closeCfg = cloudConfigPayload();
-      sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfg });
-      cloudConfigShadow = cloudConfigKey(closeCfg);
-      lastAppliedConfigSeq = Number(closeCfg._seq || 0);
+      // Config already pushed above. Update shadow.
+      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
       // Also do a regular push for the collections
       pushIncremental(true).catch(() => {});
       }catch(e){
@@ -13598,18 +13597,23 @@ function handleAWSMessage(msg) {
     if(!cloudInitialSyncDone){
       cloudInitialSyncDone = true;
     }
+    // Render immediately when config (cash state) arrives from cloud
+    syncAllTableOrderSnapshots();
+    saveStateToDatabase(appStateSnapshot());
+    renderAll();
     scheduleRemoteApply();
     updateCloudStatus();
     return;
   }
 
   if (msg.type === 'configChange') {
-    // Real-time config update from another device
+    // Real-time config update from another device (cash open/close, etc.)
     if (msg.payload && msg.payload._device !== CLOUD_DEVICE_ID) {
       isApplyingRemoteState = true;
       applyConfigRemote(msg.payload);
       isApplyingRemoteState = false;
-      // Render immediately — config includes cash state which affects dashboard
+      // CRITICAL: Render and save immediately - cash state must be visible on all devices
+      syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
       renderAll();
     }

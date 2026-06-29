@@ -13640,13 +13640,22 @@ function handleAWSMessage(msg) {
       scheduleRemoteApply();
       return;
     }
-    // Merge each remote item using last-write-wins; never lose local-only items
-    items.forEach(remote => {
-      const docId = cloudDocId(remote);
-      cloudShadow[coll][docId] = cloudShadowKey(remote);
-      applyRemoteItem(coll, remote);
-    });
-    state[coll] = cloudSortByOrd(state[coll] || []);
+    // For orders: cloud ALWAYS replaces local (cloud is single source of truth)
+    if(coll === 'orders'){
+      state.orders = cloudSortByOrd(items);
+      items.forEach(remote => {
+        const docId = cloudDocId(remote);
+        cloudShadow[coll][docId] = cloudShadowKey(remote);
+      });
+    } else {
+      // Other collections: merge using last-write-wins
+      items.forEach(remote => {
+        const docId = cloudDocId(remote);
+        cloudShadow[coll][docId] = cloudShadowKey(remote);
+        applyRemoteItem(coll, remote);
+      });
+      state[coll] = cloudSortByOrd(state[coll] || []);
+    }
     cloudSnapshotsReceived++;
     // Render immediately for key collections
     if(coll === 'orders' || coll === 'tables'){

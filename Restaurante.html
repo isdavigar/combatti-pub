@@ -612,9 +612,6 @@ function confirmCharge(){
     }
     const sale={id:Date.now(),items:[...currentOrder.items],total:total,paymentMethod:selectedPayment,type:currentOrder.type,createdAt:new Date().toISOString(),date:new Date().toISOString().split('T')[0],detail:currentOrder.type==='mesa'?'Mesa '+(currentOrder.tableId||''):currentOrder.clientName||'Delivery'};
     state.sales.push(sale);
-    if(state.cash.open&&selectedPayment==='efectivo'){
-        state.cash.movements.push({type:'ingreso',amount:total,description:'Venta #'+sale.id,date:new Date().toISOString()});
-    }
     if(currentOrder.orderId){
         const order=state.orders.find(o=>o.id===currentOrder.orderId);
         if(order) order.status='completado';

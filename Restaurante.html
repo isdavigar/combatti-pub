@@ -13648,14 +13648,10 @@ function handleAWSMessage(msg) {
       state[coll] = cloudSortByOrd(state[coll] || []);
     }
     cloudSnapshotsReceived++;
-    // Render immediately for key collections
-    if(coll === 'orders' || coll === 'tables'){
-      syncAllTableOrderSnapshots();
-      saveStateToDatabase(appStateSnapshot());
-      renderAll();
-    } else {
-      scheduleRemoteApply();
-    }
+    // Render immediately for ALL collections (ensures sales/movements visible instantly)
+    syncAllTableOrderSnapshots();
+    saveStateToDatabase(appStateSnapshot());
+    renderAll();
     return;
   }
 

@@ -4739,58 +4739,18 @@
       });
     }
     async function loadStateFromDatabase(){
-      try{
-        const db = await openAppDatabase();
-        dbReady = true;
-        return await new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, 'readonly');
-          const req = tx.objectStore(DB_STORE).get(DB_STATE_KEY);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => reject(req.error);
-        });
-      } catch(err){
-        console.warn('IndexedDB lectura:', err);
-        dbReady = false;
-        return null;
-      }
+      // NO-OP: Todo viene de AWS. No se lee nada local.
+      return null;
     }
     async function saveStateToDatabase(data){
-      try{
-        const db = await openAppDatabase();
-        dbReady = true;
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, 'readwrite');
-          tx.objectStore(DB_STORE).put(structuredClone(data), DB_STATE_KEY);
-          tx.oncomplete = resolve;
-          tx.onerror = () => reject(tx.error);
-        });
-      } catch(err){
-        console.warn('IndexedDB guardado:', err);
-      }
+      // NO-OP: Todo se maneja desde AWS. No se guarda nada local.
     }
     function readLegacyState(){
-      const readJson = (key, fallback = null) => {
-        try{ return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; }
-        catch(_){ return fallback; }
-      };
-      return {
-        users:readJson(STORAGE.users),
-        tables:readJson(STORAGE.tables),
-        products:readJson(STORAGE.products),
-        orders:readJson(STORAGE.orders),
-        movements:readJson(STORAGE.movements),
-        cash:readJson(STORAGE.cash),
-        brand:readJson(STORAGE.brand),
-        categories:readJson(STORAGE.categories),
-        supplies:readJson(STORAGE.supplies, []),
-        deliveryZones:readJson(STORAGE.deliveryZones, []),
-        deletedOrders:readJson(STORAGE.deletedOrders, []),
-        dataVersion:localStorage.getItem(STORAGE.dataVersion),
-        tableLayoutVersion:localStorage.getItem('combatti_table_layout_version'),
-        theme:localStorage.getItem(STORAGE.theme) || 'light',
-        shift:localStorage.getItem(STORAGE.shift) || 'Dia'
-      };
+      // NO-OP: No se lee data legacy. Todo desde AWS.
+      return null;
     }
+
+    
     function appStateSnapshot(){
       return {
         users:state.users, tables:state.tables, products:state.products, orders:state.orders,
@@ -5378,8 +5338,10 @@
     }
 
     async function initData(){
-      const saved = await loadStateFromDatabase();
-      const legacy = saved ? null : readLegacyState();
+      // Clear any old cached data - everything comes from AWS
+      try { const db = await openAppDatabase(); const tx = db.transaction(DB_STORE, 'readwrite'); tx.objectStore(DB_STORE).clear(); } catch(e){}
+      const saved = null; // No local data - wait for AWS
+      const legacy = null;
       const users = saved?.users || legacy?.users || null;
       const tables = saved?.tables || legacy?.tables || null;
       const products = saved?.products || legacy?.products || null;

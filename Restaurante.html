@@ -5468,7 +5468,10 @@
         if(!(licenseState.local.firebaseConfig && licenseState.local.firebaseConfig.projectId)) markDefaultProductsPurged();
       }
       syncAllTableOrderSnapshots();
-      persistAll(false);
+      // On init: ONLY save locally and render. DO NOT push to cloud.
+      // Cloud will send fresh data via snapshot which replaces local.
+      saveStateToDatabase(appStateSnapshot());
+      renderAll();
     }
 
     function persistAll(render = true){
@@ -13637,6 +13640,9 @@ function handleAWSMessage(msg) {
         const docId = cloudDocId(remote);
         cloudShadow[coll][docId] = cloudShadowKey(remote);
       });
+      // Save fresh cloud data to IndexedDB immediately (prevents stale data on next reload)
+      syncAllTableOrderSnapshots();
+      saveStateToDatabase(appStateSnapshot());
     } else {
       // Other collections: merge using last-write-wins
       items.forEach(remote => {

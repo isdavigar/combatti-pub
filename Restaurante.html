@@ -13343,7 +13343,7 @@ function itemSeq(item){
 }
 // Apply a remote item into a collection using last-write-wins.
 // CRITICAL: For orders, NEVER change status from 'Abierto' to 'Pagado' via sync.
-// Tables auto-paying is prevented by this rule.
+// Apply a single remote item update from the cloud.
 function applyRemoteItem(coll, payload){
   if(!payload) return false;
   state[coll] = state[coll] || [];
@@ -13354,11 +13354,13 @@ function applyRemoteItem(coll, payload){
     idx = state[coll].findIndex(it => String(it.name || '').toLowerCase().trim() === String(payload.name || '').toLowerCase().trim());
   }
   if(idx < 0){ state[coll].push(payload); return true; }
-  // Never overwrite the order currently being edited on this device
-  if(coll === 'orders' && typeof currentOrder !== 'undefined' && currentOrder && currentOrder.id === docId) return false;
-  // Accept ALL order status changes from other devices (cloud is source of truth)
-  // This ensures that when one device pays/closes an order, all others see it immediately
-  // Newest version wins (for non-status-changing updates)
+  // Accept ALL changes from other devices (cloud is source of truth)
+  // For orders and tables: ALWAYS accept (cloud is truth)
+  if(coll === 'orders' || coll === 'tables'){
+    state[coll][idx] = payload;
+    return true;
+  }
+  // Other collections: newest version wins
   if(itemSeq(payload) >= itemSeq(state[coll][idx])){
     state[coll][idx] = payload;
     return true;
@@ -13628,9 +13630,9 @@ function handleAWSMessage(msg) {
       scheduleRemoteApply();
       return;
     }
-    // For orders: cloud ALWAYS replaces local (cloud is single source of truth)
-    if(coll === 'orders'){
-      state.orders = cloudSortByOrd(items);
+    // Orders AND Tables: cloud ALWAYS replaces local (cloud is single source of truth)
+    if(coll === 'orders' || coll === 'tables'){
+      state[coll] = cloudSortByOrd(items);
       items.forEach(remote => {
         const docId = cloudDocId(remote);
         cloudShadow[coll][docId] = cloudShadowKey(remote);

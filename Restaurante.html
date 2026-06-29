@@ -13636,6 +13636,8 @@ function handleAWSMessage(msg) {
     // Orders AND Tables: cloud ALWAYS replaces local (cloud is single source of truth)
     if(coll === 'orders' || coll === 'tables'){
       state[coll] = cloudSortByOrd(items);
+      // Reset cloud shadow to match what we just received (prevents pushing stale data back)
+      cloudShadow[coll] = {};
       items.forEach(remote => {
         const docId = cloudDocId(remote);
         cloudShadow[coll][docId] = cloudShadowKey(remote);
@@ -13674,6 +13676,9 @@ function handleAWSMessage(msg) {
     const changed = applyRemoteItem(coll, payload);
     if(changed){
       state[coll] = cloudSortByOrd(state[coll] || []);
+      // Update shadow to match what cloud sent - prevents echoing it back
+      const updatedItem = state[coll].find(it => cloudDocId(it) === docId);
+      if(updatedItem) cloudShadow[coll][docId] = cloudShadowKey(updatedItem);
     }
     // Render immediately for orders/tables (real-time sales & dashboard)
     if(coll === 'orders' || coll === 'tables'){

@@ -5451,6 +5451,8 @@
               r.closedAt = state.cash.closedAt;
             }
           });
+          // Push auto-close to cloud so all devices know
+          setTimeout(() => sendAWS({ action: 'sync', type: 'putConfig', payload: cloudConfigPayload() }), 3000);
         }
       }
       // Liberar pedidos huérfanos que quedaron "Abierto" sin mesa activa

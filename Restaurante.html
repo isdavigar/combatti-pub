@@ -6465,8 +6465,15 @@
     // y este equipo estaba esperando en la vista de caja, entra al software normal.
      function reactToCashStateForSync(){
       if(currentUser && state.cash.open && cashGateView){
+        // Caja se abrió remotamente - entrar al sistema
         cashGateView = false;
         openView(firstAllowedView());
+        renderAll();
+      }
+      if(currentUser && !state.cash.open && !cashGateView && !isSystemAdmin()){
+        // Caja se cerró remotamente - volver a vista de caja
+        cashGateView = true;
+        openView('caja');
         renderAll();
       }
       updateCashActionButtons();
@@ -13618,6 +13625,8 @@ function handleAWSMessage(msg) {
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
       renderAll();
+      // React to cash state changes (open/close from another device)
+      if(typeof reactToCashStateForSync === 'function') reactToCashStateForSync();
     }
     return;
   }

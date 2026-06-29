@@ -5449,9 +5449,9 @@
         if(!(licenseState.local.firebaseConfig && licenseState.local.firebaseConfig.projectId)) markDefaultProductsPurged();
       }
       syncAllTableOrderSnapshots();
-      // On init: ONLY save locally and render. DO NOT push to cloud.
-      // Cloud will send fresh data via snapshot which replaces local.
-      saveStateToDatabase(appStateSnapshot());
+      // On init: render immediately with whatever we have.
+      // Only save to local cache if we loaded actual data (not empty defaults).
+      if(saved) saveStateToDatabase(appStateSnapshot());
       renderAll();
     }
 

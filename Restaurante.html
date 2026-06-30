@@ -6708,7 +6708,7 @@
       const turnoStart = state.cash.open ? cashPeriodStart() : startOfDay(today);
       const turnoOrderSales = state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= turnoStart && new Date(o.paidAt) <= endOfDay(today)).reduce((a,b)=>a + (b.total || 0), 0);
       const rangeSales = salesBetweenByBusiness(range.from, range.to);
-      const todaySales = state.cash.open ? turnoOrderSales : 0;
+      const todaySales = turnoOrderSales;
       const sales7 = salesBetweenByBusiness(new Date(today.getTime() - 6*24*60*60*1000), endOfDay(today));
       const sales30 = salesBetweenByBusiness(new Date(today.getTime() - 29*24*60*60*1000), endOfDay(today));
       const salesYear = salesBetweenByBusiness(startOfYear(today), endOfDay(today));

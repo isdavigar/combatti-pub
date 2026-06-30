@@ -52,6 +52,12 @@ public class SecurityConfig {
                             response.getWriter().write(
                                     "{\"status\":401,\"error\":\"No autenticado\"}");
                         })
+                        .accessDeniedHandler((request, response, deniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.getWriter().write(
+                                    "{\"status\":403,\"error\":\"Acceso denegado\"}");
+                        })
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

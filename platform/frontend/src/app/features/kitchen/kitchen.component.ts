@@ -1,7 +1,9 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 
 import { Order, OrderStatus, OrdersService } from '../../core/orders.service';
+import { RealtimeService } from '../../core/realtime.service';
 
 @Component({
   selector: 'app-kitchen',
@@ -101,6 +103,8 @@ import { Order, OrderStatus, OrdersService } from '../../core/orders.service';
 })
 export class KitchenComponent implements OnInit {
   private readonly ordersService = inject(OrdersService);
+  private readonly realtime = inject(RealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly orders = signal<Order[]>([]);
   readonly loading = signal(true);
@@ -108,6 +112,10 @@ export class KitchenComponent implements OnInit {
 
   ngOnInit(): void {
     this.reload();
+    this.realtime.connect();
+    this.realtime.orderEvents$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reload());
   }
 
   reload(): void {

@@ -1,7 +1,9 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 
 import { OrdersService, RestaurantTable } from '../../core/orders.service';
+import { RealtimeService } from '../../core/realtime.service';
 
 @Component({
   selector: 'app-tables',
@@ -96,12 +98,22 @@ import { OrdersService, RestaurantTable } from '../../core/orders.service';
 export class TablesComponent implements OnInit {
   private readonly ordersService = inject(OrdersService);
   private readonly router = inject(Router);
+  private readonly realtime = inject(RealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly tables = signal<RestaurantTable[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
   ngOnInit(): void {
+    this.reload();
+    this.realtime.connect();
+    this.realtime.orderEvents$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reload());
+  }
+
+  private reload(): void {
     this.ordersService.getTables().subscribe({
       next: (tables) => {
         this.tables.set(tables);

@@ -177,6 +177,14 @@ para que el frontend hable con el hardware. Imprime en impresoras térmicas
   cobrar en efectivo, e imprime la comanda al enviar un pedido. Si el bridge
   no está disponible, la app sigue funcionando.
 
+### Tiempo real (WebSocket / STOMP)
+
+El `orders-service` expone un endpoint **STOMP sobre WebSocket** en `/ws`
+(enrutado por el gateway) y publica eventos en `/topic/orders` cuando un
+pedido se **crea**, **cambia de estado** o se **cancela**. Las pantallas de
+**Cocina** y **Mesas** se suscriben y se **actualizan en vivo** entre
+dispositivos. El JWT se valida en el frame `CONNECT` de STOMP.
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

@@ -19,7 +19,8 @@ import { CashService, CashSession, MovementType } from '../../core/cash.service'
 
       @if (loading()) {
         <p class="muted">Cargando…</p>
-      } @else if (session(); as s) {
+      } @else {
+        @if (session(); as s) {
         <section class="card">
           <div class="head">
             <h3>Caja abierta</h3>
@@ -93,6 +94,7 @@ import { CashService, CashSession, MovementType } from '../../core/cash.service'
             {{ opening() ? 'Abriendo…' : 'Abrir caja' }}
           </button>
         </section>
+        }
       }
     </main>
   `,

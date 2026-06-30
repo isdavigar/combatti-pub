@@ -31,6 +31,7 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
     private static final List<String> WHITELIST = List.of(
             "/api/auth/login",
             "/api/auth/health",
+            "/api/catalog/health",
             "/actuator/**"
     );
 

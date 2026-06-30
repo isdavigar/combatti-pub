@@ -1,11 +1,12 @@
 import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/auth.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  imports: [RouterLink],
   template: `
     <header class="topbar">
       <span class="brand">Combatti POS</span>
@@ -21,6 +22,13 @@ import { AuthService } from '../../core/auth.service';
         Has iniciado sesión correctamente. Esta es la base (Fase 0) de la nueva
         plataforma. Los módulos del POS se irán habilitando en las siguientes fases.
       </p>
+
+      <section class="card">
+        <h3>Módulos</h3>
+        <div class="modules">
+          <a routerLink="/menu" class="module-link">🍽️ Menú / Catálogo</a>
+        </div>
+      </section>
 
       <section class="card">
         <h3>Tu sesión</h3>
@@ -100,6 +108,25 @@ import { AuthService } from '../../core/auth.service';
         border-radius: 999px;
         padding: 0.25rem 0.7rem;
         font-size: 0.8rem;
+      }
+      .modules {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+      .module-link {
+        display: inline-block;
+        background: rgba(200, 134, 43, 0.12);
+        border: 1px solid var(--cf-accent);
+        border-radius: 10px;
+        padding: 0.7rem 1.1rem;
+        color: var(--cf-text);
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .module-link:hover {
+        background: var(--cf-accent);
+        color: #1a120b;
       }
     `,
   ],

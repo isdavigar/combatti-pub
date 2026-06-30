@@ -13,5 +13,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
   },
+  {
+    path: 'menu',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/menu/menu.component').then((m) => m.MenuComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

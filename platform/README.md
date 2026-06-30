@@ -76,6 +76,23 @@ npm start            # ng serve -> http://localhost:4200 (proxy a localhost:8080
 | GET    | `/api/auth/me`         | Datos del usuario autenticado        | Sí   |
 | GET    | `/api/auth/health`     | Healthcheck del servicio             | No   |
 
+### Catálogo (catalog-service, vía gateway)
+
+| Método | Ruta                          | Descripción                       | Permiso         |
+|--------|-------------------------------|-----------------------------------|-----------------|
+| GET    | `/api/catalog/categories`     | Lista categorías                  | `catalog.read`  |
+| POST   | `/api/catalog/categories`     | Crea categoría                    | `catalog.write` |
+| PUT    | `/api/catalog/categories/{id}`| Actualiza categoría               | `catalog.write` |
+| DELETE | `/api/catalog/categories/{id}`| Elimina categoría                 | `catalog.write` |
+| GET    | `/api/catalog/products`       | Lista productos (`?categoryId=`)  | `catalog.read`  |
+| GET    | `/api/catalog/products/{id}`  | Detalle de producto               | `catalog.read`  |
+| POST   | `/api/catalog/products`       | Crea producto                     | `catalog.write` |
+| PUT    | `/api/catalog/products/{id}`  | Actualiza producto                | `catalog.write` |
+| DELETE | `/api/catalog/products/{id}`  | Elimina producto                  | `catalog.write` |
+
+> El catálogo se inicializa con **22 categorías y 147 productos** reales
+> migrados de la aplicación actual.
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

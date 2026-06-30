@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8085}
+
+spring:
+  application:
+    name: cash-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/combatti}
+    username: ${DB_USER:combatti}
+    password: ${DB_PASSWORD:combatti}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: cash
+        format_sql: false
+  flyway:
+    enabled: true
+    schemas: cash
+    default-schema: cash
+    create-schemas: true
+
+combatti:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-me-please-change-me-32}
+    issuer: ${JWT_ISSUER:combatti-auth}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

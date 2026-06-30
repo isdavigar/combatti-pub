@@ -76,6 +76,23 @@ npm start            # ng serve -> http://localhost:4200 (proxy a localhost:8080
 | GET    | `/api/auth/me`         | Datos del usuario autenticado        | Sí   |
 | GET    | `/api/auth/health`     | Healthcheck del servicio             | No   |
 
+### Administración de usuarios (auth-service, vía gateway)
+
+| Método | Ruta                              | Descripción                         | Permiso        |
+|--------|-----------------------------------|-------------------------------------|----------------|
+| GET    | `/api/auth/users`                 | Lista usuarios del tenant           | `users.manage` |
+| POST   | `/api/auth/users`                 | Crea usuario                        | `users.manage` |
+| PUT    | `/api/auth/users/{id}`            | Actualiza nombre, roles, estado     | `users.manage` |
+| POST   | `/api/auth/users/{id}/password`   | Resetea la contraseña (admin)       | `users.manage` |
+| DELETE | `/api/auth/users/{id}`            | Elimina usuario (no a sí mismo)     | `users.manage` |
+| GET    | `/api/auth/roles`                 | Lista roles disponibles             | `users.manage` |
+| POST   | `/api/auth/me/password`           | Cambia la propia contraseña         | Autenticado    |
+
+**Hardening**: contraseñas con BCrypt y mínimo de longitud, los hashes nunca
+se exponen, scope por tenant, validación de entrada, y protección contra
+auto-bloqueo (no puedes eliminar tu propia cuenta). El cambio de contraseña
+propia exige la contraseña actual.
+
 ### Catálogo (catalog-service, vía gateway)
 
 | Método | Ruta                          | Descripción                       | Permiso         |

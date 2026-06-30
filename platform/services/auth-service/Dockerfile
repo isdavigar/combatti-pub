@@ -8,6 +8,7 @@ COPY pom.xml ./
 COPY common ./common
 COPY gateway ./gateway
 COPY services ./services
+COPY pos-bridge ./pos-bridge
 
 # -pl + -am construye auth-service y sus dependencias internas (common).
 RUN mvn -B -ntp -pl services/auth-service -am clean package -DskipTests

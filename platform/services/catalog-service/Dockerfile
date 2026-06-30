@@ -7,6 +7,7 @@ COPY pom.xml ./
 COPY common ./common
 COPY gateway ./gateway
 COPY services ./services
+COPY pos-bridge ./pos-bridge
 
 RUN mvn -B -ntp -pl services/catalog-service -am clean package -DskipTests
 

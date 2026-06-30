@@ -1,0 +1,35 @@
+server:
+  port: ${SERVER_PORT:9100}
+
+spring:
+  application:
+    name: pos-bridge
+
+combatti:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-me-please-change-me-32}
+    issuer: ${JWT_ISSUER:combatti-auth}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}
+  security:
+    # Valida el JWT (mismo secreto que la nube). Se puede desactivar para
+    # instalaciones locales aisladas (pos.security.enabled=false).
+    enabled: ${POS_SECURITY_ENABLED:true}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  printer:
+    # Transporte hacia la impresora: 'noop' (sin hardware, registra en log)
+    # o 'network' (impresora térmica de red, socket TCP).
+    type: ${PRINTER_TYPE:noop}
+    host: ${PRINTER_HOST:127.0.0.1}
+    port: ${PRINTER_PORT:9100}
+    business-name: ${BUSINESS_NAME:Combatti}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

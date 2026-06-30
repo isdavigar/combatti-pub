@@ -10,6 +10,7 @@ import {
   OrdersService,
   RestaurantTable,
 } from '../../core/orders.service';
+import { PosBridgeService } from '../../core/pos-bridge.service';
 
 interface CartLine {
   product: Product;
@@ -185,6 +186,7 @@ interface CartLine {
 export class OrderNewComponent implements OnInit {
   private readonly catalog = inject(CatalogService);
   private readonly ordersService = inject(OrdersService);
+  private readonly posBridge = inject(PosBridgeService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -325,6 +327,7 @@ export class OrderNewComponent implements OnInit {
 
     this.ordersService.createOrder(request).subscribe({
       next: (order) => {
+        this.printKitchenBestEffort(order);
         this.submitting.set(false);
         this.success.set(order.id);
         this.cart.set([]);
@@ -334,5 +337,22 @@ export class OrderNewComponent implements OnInit {
         this.error.set('No se pudo crear el pedido.');
       },
     });
+  }
+
+  /** Imprime la comanda de cocina. No bloquea si el bridge no está disponible. */
+  private printKitchenBestEffort(order: { id: number; tableName: string | null; type: OrderType; items: { productName: string; quantity: number; notes: string | null }[] }): void {
+    const destination = order.tableName
+      ?? (order.type === 'DELIVERY' ? 'Domicilio' : order.type === 'TAKEAWAY' ? 'Para llevar' : 'Mesa');
+    this.posBridge
+      .printKitchen({
+        orderId: order.id,
+        destination,
+        items: order.items.map((i) => ({
+          name: i.productName,
+          quantity: i.quantity,
+          notes: i.notes,
+        })),
+      })
+      .subscribe({ next: () => undefined, error: () => undefined });
   }
 }

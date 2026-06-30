@@ -9,11 +9,11 @@ COPY gateway ./gateway
 COPY services ./services
 COPY pos-bridge ./pos-bridge
 
-RUN mvn -B -ntp -pl services/reporting-service -am clean package -DskipTests
+RUN mvn -B -ntp -pl pos-bridge -am clean package -DskipTests
 
 # ---- Runtime stage ----
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /workspace/services/reporting-service/target/reporting-service.jar app.jar
-EXPOSE 8086
+COPY --from=build /workspace/pos-bridge/target/pos-bridge.jar app.jar
+EXPOSE 9100
 ENTRYPOINT ["java", "-jar", "app.jar"]

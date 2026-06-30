@@ -155,6 +155,28 @@ método de pago. `top-products` agrega cantidades e ingresos de pedidos
 **cobrados** (`PAID`). Es un servicio de **solo lectura** que consulta los
 esquemas `payments` y `orders` directamente. Rango por defecto: el día actual.
 
+### POS Local Bridge (pos-bridge — hardware local)
+
+Servicio que corre en la **máquina del local** y expone una API en `localhost`
+para que el frontend hable con el hardware. Imprime en impresoras térmicas
+**ESC/POS** y abre el **cajón monedero**.
+
+| Método | Ruta                          | Descripción                          |
+|--------|-------------------------------|--------------------------------------|
+| POST   | `/api/pos/print/receipt`      | Imprime el recibo (opcional: abre cajón) |
+| POST   | `/api/pos/print/kitchen`      | Imprime la comanda de cocina         |
+| POST   | `/api/pos/cash-drawer/open`   | Abre el cajón monedero               |
+| GET    | `/api/pos/status`             | Transporte de impresora configurado  |
+
+- **Transporte de impresora enchufable** (`PRINTER_TYPE`): `noop` (sin
+  hardware, registra en log) o `network` (impresora de red, socket TCP 9100).
+- Seguridad JWT opcional (`POS_SECURITY_ENABLED`, por defecto `true`; usa el
+  mismo secreto que la nube). Para instalaciones locales aisladas se puede
+  desactivar.
+- El frontend lo usa de forma **best-effort**: imprime recibo + abre cajón al
+  cobrar en efectivo, e imprime la comanda al enviar un pedido. Si el bridge
+  no está disponible, la app sigue funcionando.
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

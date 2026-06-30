@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 
 import { Order, OrdersService } from '../../core/orders.service';
 import { PaymentMethod, PaymentsService } from '../../core/payments.service';
+import { PosBridgeService } from '../../core/pos-bridge.service';
 
 @Component({
   selector: 'app-checkout',
@@ -149,6 +150,7 @@ import { PaymentMethod, PaymentsService } from '../../core/payments.service';
 export class CheckoutComponent implements OnInit {
   private readonly ordersService = inject(OrdersService);
   private readonly paymentsService = inject(PaymentsService);
+  private readonly posBridge = inject(PosBridgeService);
 
   readonly methods: { value: PaymentMethod; label: string }[] = [
     { value: 'CASH', label: 'Efectivo' },
@@ -257,6 +259,7 @@ export class CheckoutComponent implements OnInit {
       .subscribe({
         next: () => {
           // El backend (payments-service) ya marca el pedido como PAID.
+          this.printReceiptBestEffort(order);
           this.submitting.set(false);
           this.success.set(order.id);
           this.selected.set(null);
@@ -267,5 +270,25 @@ export class CheckoutComponent implements OnInit {
           this.error.set('No se pudo registrar el cobro.');
         },
       });
+  }
+
+  /** Imprime el recibo y abre el cajón (efectivo). No bloquea si el bridge falla. */
+  private printReceiptBestEffort(order: Order): void {
+    const isCash = this.method() === 'CASH';
+    this.posBridge
+      .printReceipt({
+        orderId: order.id,
+        items: order.items.map((i) => ({
+          name: i.productName,
+          quantity: i.quantity,
+          lineTotal: i.lineTotal,
+        })),
+        total: order.subtotal,
+        paymentMethod: this.method(),
+        cashReceived: isCash ? this.cashReceived() : null,
+        changeGiven: isCash ? this.change() : null,
+        openDrawer: isCash,
+      })
+      .subscribe({ next: () => undefined, error: () => undefined });
   }
 }

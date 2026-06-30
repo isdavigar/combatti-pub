@@ -4,7 +4,10 @@ Migración del POS monolítico (`Restaurante.html`) a una arquitectura profesion
 cloud-native. Este monorepo contiene el backend de microservicios (Java / Spring
 Boot), el API Gateway, el frontend (Angular) y la infraestructura local.
 
-> **Alcance actual: Fase 0 — Cimientos.** No incluye facturación electrónica DIAN
+> **Estado: plataforma POS completa y operativa.** Incluye catálogo, pedidos,
+> cocina (KDS), cobros, caja, reportes, gestión de usuarios (RBAC), tiempo real,
+> bridge de hardware local, configuración, **API pública de integración** y
+> documentación OpenAPI/Swagger. **No** incluye facturación electrónica DIAN
 > (descartado por decisión del producto).
 
 ## Estructura del monorepo
@@ -13,12 +16,20 @@ Boot), el API Gateway, el frontend (Angular) y la infraestructura local.
 platform/
 ├── pom.xml                  # POM padre (Maven multi-módulo)
 ├── common/                  # Librería compartida (seguridad/JWT, utilidades)
-├── gateway/                 # API Gateway (Spring Cloud Gateway)
+├── gateway/                 # API Gateway (Spring Cloud Gateway, valida JWT)
 ├── services/
-│   └── auth-service/        # Identidad: usuarios, roles, permisos, login JWT
+│   ├── auth-service/        # Identidad: usuarios, roles, permisos, login JWT (8081)
+│   ├── catalog-service/     # Catálogo: categorías y productos (8082)
+│   ├── orders-service/      # Mesas, pedidos y cocina (KDS) + WebSocket (8083)
+│   ├── payments-service/    # Cobros (efectivo, transferencias, mixto) (8084)
+│   ├── cash-service/        # Caja: apertura/cierre/arqueo (8085)
+│   ├── reporting-service/   # Reportes de ventas (solo lectura) (8086)
+│   ├── settings-service/    # Configuración del negocio (8087)
+│   └── integration-service/ # API pública de integración (API keys) (8088)
+├── pos-bridge/              # Bridge de hardware local (ESC/POS, cajón) (9100)
 ├── frontend/                # Aplicación Angular (PWA cloud-native)
 └── infra/
-    └── docker-compose.yml   # PostgreSQL + gateway + auth-service
+    └── docker-compose.yml   # PostgreSQL + todos los servicios + gateway
 ```
 
 ## Stack
@@ -46,10 +57,9 @@ cd platform/infra
 docker compose up --build
 ```
 
-Esto levanta:
-- PostgreSQL en `localhost:5432`
-- `auth-service` en `localhost:8081`
-- `gateway` en `localhost:8080`
+Esto levanta **PostgreSQL** (`localhost:5432`), los **8 microservicios**
+(`8081`–`8088`), el **pos-bridge** (`9100`) y el **gateway** (`localhost:8080`),
+que es el único punto de entrada de la API (`/api/**`).
 
 ### Frontend (desarrollo)
 
@@ -202,11 +212,74 @@ pedido se **crea**, **cambia de estado** o se **cancela**. Las pantallas de
 **Cocina** y **Mesas** se suscriben y se **actualizan en vivo** entre
 dispositivos. El JWT se valida en el frame `CONNECT` de STOMP.
 
+### Configuración del negocio (settings-service, vía gateway)
+
+| Método | Ruta                | Descripción                                   | Permiso          |
+|--------|---------------------|-----------------------------------------------|------------------|
+| GET    | `/api/settings`     | Configuración del tenant (crea por defecto)   | Autenticado      |
+| PUT    | `/api/settings`     | Actualiza datos, parámetros de venta, impresión | `settings.manage`|
+
+Incluye datos del negocio (nombre, NIT, dirección), parámetros de venta
+(moneda, % impuesto/servicio/propina, pie de recibo) y configuración de
+impresión (transporte, host/puerto de impresoras de caja y cocina).
+
+### API pública de integración (integration-service, vía gateway)
+
+Permite a software externo (e-commerce, pasarelas) consumir la plataforma
+mediante **API keys** con scopes granulares.
+
+**Gestión de keys** (JWT + permiso `integrations.manage`):
+
+| Método | Ruta                          | Descripción                                  |
+|--------|-------------------------------|----------------------------------------------|
+| GET    | `/api/integration/keys`       | Lista las API keys del tenant                |
+| POST   | `/api/integration/keys`       | Crea una key (el secreto se muestra una vez) |
+| DELETE | `/api/integration/keys/{id}`  | Revoca una key                               |
+| GET    | `/api/integration/keys/scopes`| Scopes disponibles                           |
+
+**API pública v1** (header `X-Api-Key: prefijo.secreto`, por scope):
+
+| Método | Ruta                            | Descripción                  | Scope          |
+|--------|---------------------------------|------------------------------|----------------|
+| GET    | `/api/integration/v1/catalog`   | Lista el catálogo            | `catalog:read` |
+| POST   | `/api/integration/v1/orders`    | Crea un pedido externo       | `orders:write` |
+| GET    | `/api/integration/v1/orders/{id}`| Estado de un pedido         | `orders:read`  |
+
+Solo se almacena el prefijo público y el **hash BCrypt** del secreto. El
+servicio actúa de fachada llamando server-to-server a catálogo y pedidos.
+
+## Documentación de la API (OpenAPI / Swagger)
+
+Cada microservicio MVC expone su documentación interactiva con **springdoc**:
+
+- **Swagger UI:** `http://localhost:<puerto>/swagger-ui.html`
+- **OpenAPI JSON:** `http://localhost:<puerto>/v3/api-docs`
+
+| Servicio            | Swagger UI                          |
+|---------------------|-------------------------------------|
+| auth-service        | http://localhost:8081/swagger-ui.html |
+| catalog-service     | http://localhost:8082/swagger-ui.html |
+| orders-service      | http://localhost:8083/swagger-ui.html |
+| payments-service    | http://localhost:8084/swagger-ui.html |
+| cash-service        | http://localhost:8085/swagger-ui.html |
+| reporting-service   | http://localhost:8086/swagger-ui.html |
+| settings-service    | http://localhost:8087/swagger-ui.html |
+| integration-service | http://localhost:8088/swagger-ui.html |
+
+En cada Swagger UI puedes pulsar **Authorize** y pegar un JWT (`Bearer`) para
+probar endpoints autenticados. El `integration-service` además permite
+autorizar con `X-Api-Key` para la API pública `v1`.
+
 ## Roadmap
 
-- **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.
-- **Fase 1:** core POS — catálogo, pedidos/mesas, caja, tiempo real.
-- **Fase 2:** pagos (pasarelas) + reportes + notificaciones.
-- **Fase 3:** POS local bridge (impresoras, cajón, lector de barras, KDS).
-- **Fase 4:** API pública de integración + e-commerce/pasarelas.
-- **Fase 5:** migración de datos y cutover.
+- ✅ **Fase 0:** cimientos — gateway, auth, PostgreSQL, CI, login Angular.
+- ✅ **Fase 1:** core POS — catálogo, pedidos/mesas, cocina (KDS).
+- ✅ **Fase 2:** cobros + caja + reportes + integridad de datos.
+- ✅ **Fase 3:** POS local bridge (impresoras ESC/POS, cajón monedero).
+- ✅ **Fase 4:** tiempo real (WebSocket/STOMP) en cocina y mesas.
+- ✅ **Fase 5:** gestión de usuarios desde la UI + hardening RBAC.
+- ✅ **Fase 6:** UX del salón (plano visual con mesas arrastrables).
+- ✅ **Fase 7:** configuración del sistema (settings-service).
+- ✅ **Fase 8:** API pública de integración (e-commerce/pasarelas).
+- ✅ **Fase 9:** documentación de la API (OpenAPI/Swagger).
+- ⏳ **Siguiente:** observabilidad (métricas/logs), tests E2E, cutover.

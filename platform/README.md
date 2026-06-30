@@ -140,6 +140,18 @@ esperado`. Solo se permite **una caja abierta por tenant** (índice único
 parcial). Los movimientos son **manuales** (decisión heredada de la app
 original).
 
+### Reportes (reporting-service, vía gateway)
+
+| Método | Ruta                          | Descripción                                  | Permiso       |
+|--------|-------------------------------|----------------------------------------------|---------------|
+| GET    | `/api/reports/sales`          | Ventas del periodo (`?from=&to=`, ISO date)  | `reports.read`|
+| GET    | `/api/reports/top-products`   | Productos más vendidos (`?from=&to=&limit=`) | `reports.read`|
+
+`sales` devuelve total, nº de transacciones, ticket promedio y desglose por
+método de pago. `top-products` agrega cantidades e ingresos de pedidos
+**cobrados** (`PAID`). Es un servicio de **solo lectura** que consulta los
+esquemas `payments` y `orders` directamente. Rango por defecto: el día actual.
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

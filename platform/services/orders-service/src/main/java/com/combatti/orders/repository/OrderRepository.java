@@ -20,7 +20,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("""
             SELECT DISTINCT o.table.id
-            FROM Order o
+            FROM Orders o
             WHERE o.tenantId = :tenantId
               AND o.table IS NOT NULL
               AND o.status IN :statuses

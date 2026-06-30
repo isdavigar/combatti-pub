@@ -62,6 +62,17 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+            Apache HttpClient 5 para los tests: hace que TestRestTemplate use
+            HttpComponentsClientHttpRequestFactory en lugar del cliente JDK, que
+            lanza HttpRetryException ("cannot retry due to server authentication,
+            in streaming mode") al recibir un 401 en un POST con body.
+        -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>

@@ -1,0 +1,86 @@
+# Combatti Platform
+
+Migración del POS monolítico (`Restaurante.html`) a una arquitectura profesional
+cloud-native. Este monorepo contiene el backend de microservicios (Java / Spring
+Boot), el API Gateway, el frontend (Angular) y la infraestructura local.
+
+> **Alcance actual: Fase 0 — Cimientos.** No incluye facturación electrónica DIAN
+> (descartado por decisión del producto).
+
+## Estructura del monorepo
+
+```
+platform/
+├── pom.xml                  # POM padre (Maven multi-módulo)
+├── common/                  # Librería compartida (seguridad/JWT, utilidades)
+├── gateway/                 # API Gateway (Spring Cloud Gateway)
+├── services/
+│   └── auth-service/        # Identidad: usuarios, roles, permisos, login JWT
+├── frontend/                # Aplicación Angular (PWA cloud-native)
+└── infra/
+    └── docker-compose.yml   # PostgreSQL + gateway + auth-service
+```
+
+## Stack
+
+| Capa        | Tecnología                                                    |
+|-------------|---------------------------------------------------------------|
+| Backend     | Java 21, Spring Boot 3.3, Spring Cloud Gateway, Spring Security|
+| Persistencia| PostgreSQL 16 + Flyway (migraciones)                          |
+| Seguridad   | JWT (jjwt), BCrypt                                            |
+| Frontend    | Angular 18 (standalone components + signals)                  |
+| Build       | Maven (backend), npm/Angular CLI (frontend)                   |
+| Contenedores| Docker + Docker Compose                                       |
+| CI          | GitHub Actions                                               |
+
+## Cómo ejecutar en local
+
+> Requiere Docker, Java 21 y Node 20+. **Nota:** el sandbox de Kiro no tiene
+> acceso a Maven Central/npm, por eso la verificación de build se hace en CI
+> (GitHub Actions) o en tu máquina local.
+
+### Backend + base de datos (Docker Compose)
+
+```bash
+cd platform/infra
+docker compose up --build
+```
+
+Esto levanta:
+- PostgreSQL en `localhost:5432`
+- `auth-service` en `localhost:8081`
+- `gateway` en `localhost:8080`
+
+### Frontend (desarrollo)
+
+```bash
+cd platform/frontend
+npm ci
+npm start            # ng serve -> http://localhost:4200 (proxy a localhost:8080)
+```
+
+### Credenciales por defecto (seed)
+
+| Usuario | Contraseña | Rol           |
+|---------|------------|---------------|
+| `admin` | `admin123` | Administrador |
+
+> Cambia la contraseña del admin y el secreto JWT (`JWT_SECRET`) antes de
+> cualquier despliegue real.
+
+## Endpoints (Fase 0)
+
+| Método | Ruta (vía gateway)     | Descripción                          | Auth |
+|--------|------------------------|--------------------------------------|------|
+| POST   | `/api/auth/login`      | Inicia sesión, devuelve un JWT       | No   |
+| GET    | `/api/auth/me`         | Datos del usuario autenticado        | Sí   |
+| GET    | `/api/auth/health`     | Healthcheck del servicio             | No   |
+
+## Roadmap
+
+- **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.
+- **Fase 1:** core POS — catálogo, pedidos/mesas, caja, tiempo real.
+- **Fase 2:** pagos (pasarelas) + reportes + notificaciones.
+- **Fase 3:** POS local bridge (impresoras, cajón, lector de barras, KDS).
+- **Fase 4:** API pública de integración + e-commerce/pasarelas.
+- **Fase 5:** migración de datos y cutover.

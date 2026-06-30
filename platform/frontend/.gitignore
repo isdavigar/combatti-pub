@@ -1,0 +1,12 @@
+# dependencias y build
+/node_modules
+/dist
+/.angular
+
+# artefactos de Playwright
+/test-results
+/playwright-report
+/playwright/.cache
+
+# logs
+*.log

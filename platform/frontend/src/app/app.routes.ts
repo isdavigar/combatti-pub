@@ -19,5 +19,23 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/menu/menu.component').then((m) => m.MenuComponent),
   },
+  {
+    path: 'tables',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/tables/tables.component').then((m) => m.TablesComponent),
+  },
+  {
+    path: 'kitchen',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/kitchen/kitchen.component').then((m) => m.KitchenComponent),
+  },
+  {
+    path: 'orders/new',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/order-new/order-new.component').then((m) => m.OrderNewComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

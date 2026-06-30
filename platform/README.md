@@ -93,6 +93,25 @@ npm start            # ng serve -> http://localhost:4200 (proxy a localhost:8080
 > El catálogo se inicializa con **22 categorías y 147 productos** reales
 > migrados de la aplicación actual.
 
+### Pedidos y mesas (orders-service, vía gateway)
+
+| Método | Ruta                              | Descripción                          | Permiso                     |
+|--------|-----------------------------------|--------------------------------------|-----------------------------|
+| GET    | `/api/orders/tables`              | Lista mesas (con estado ocupada)     | `pos.tables` o `pos.orders` |
+| POST   | `/api/orders/tables`              | Crea mesa                            | `pos.tables`                |
+| PUT    | `/api/orders/tables/{id}`         | Actualiza mesa                       | `pos.tables`                |
+| DELETE | `/api/orders/tables/{id}`         | Elimina mesa                         | `pos.tables`                |
+| GET    | `/api/orders`                     | Lista pedidos                        | `pos.orders`                |
+| GET    | `/api/orders/{id}`                | Detalle de pedido                    | `pos.orders`                |
+| POST   | `/api/orders`                     | Crea pedido (mesa/domicilio/llevar)  | `pos.orders`                |
+| PATCH  | `/api/orders/{id}/status`         | Cambia estado                        | `pos.orders`                |
+| POST   | `/api/orders/{id}/cancel`         | Cancela pedido                       | `pos.orders`                |
+| GET    | `/api/orders/kitchen`             | Pedidos en cocina (KDS)              | `pos.kitchen`               |
+| PATCH  | `/api/orders/kitchen/{id}/status` | Avanza estado desde cocina           | `pos.kitchen`               |
+
+> El salón se inicializa con **22 mesas/elementos** reales (Havanas, Mesas,
+> Caja, Rappi, DiDi, Llevar, Domicilios) del layout de la app actual.
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

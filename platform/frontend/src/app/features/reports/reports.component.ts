@@ -31,7 +31,8 @@ import { ReportingService, SalesReport, TopProduct } from '../../core/reporting.
 
       @if (loading()) {
         <p class="muted">Cargando…</p>
-      } @else if (sales(); as s) {
+      } @else {
+        @if (sales(); as s) {
         <section class="cards">
           <div class="kpi">
             <span class="kpi-label">Ventas</span>
@@ -80,6 +81,7 @@ import { ReportingService, SalesReport, TopProduct } from '../../core/reporting.
             </ul>
           }
         </section>
+        }
       }
     </main>
   `,

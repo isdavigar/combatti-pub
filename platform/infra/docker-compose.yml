@@ -75,6 +75,25 @@ services:
     ports:
       - "8083:8083"
 
+  payments-service:
+    build:
+      context: ..
+      dockerfile: services/payments-service/Dockerfile
+    container_name: combatti-payments
+    environment:
+      SERVER_PORT: 8084
+      DB_URL: jdbc:postgresql://postgres:5432/combatti
+      DB_USER: combatti
+      DB_PASSWORD: combatti
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-please-change-me-32}
+      JWT_ISSUER: combatti-auth
+      ORDERS_SERVICE_URI: http://orders-service:8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+
   cash-service:
     build:
       context: ..

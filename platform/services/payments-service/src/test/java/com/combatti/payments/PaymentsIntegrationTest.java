@@ -11,8 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -26,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
+@Import(TestOrderClientConfig.class)
 class PaymentsIntegrationTest {
 
     private static final String SECRET = "dev-secret-change-me-please-change-me-32";
@@ -38,6 +41,9 @@ class PaymentsIntegrationTest {
     @Autowired
     private TestRestTemplate rest;
 
+    @Autowired
+    private TestOrderClientConfig.FakeOrderClient fakeOrderClient;
+
     private final JwtService jwtService = new JwtService(SECRET, 3600, ISSUER);
 
     private HttpHeaders bearer(List<String> permissions) {
@@ -49,20 +55,20 @@ class PaymentsIntegrationTest {
     }
 
     @Test
-    void cashPaymentComputesChange() {
+    void cashPaymentComputesChangeAndMarksOrderPaid() {
         CreatePaymentRequest request = new CreatePaymentRequest(
                 100L, PaymentMethod.CASH, new BigDecimal("65000"), new BigDecimal("70000"), null, null);
 
         ResponseEntity<PaymentDto> response = rest.exchange(
-                "/api/payments", org.springframework.http.HttpMethod.POST,
+                "/api/payments", HttpMethod.POST,
                 new HttpEntity<>(request, bearer(List.of("pos.cash"))), PaymentDto.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         PaymentDto payment = response.getBody();
         assertThat(payment).isNotNull();
-        assertThat(payment.method()).isEqualTo(PaymentMethod.CASH);
         assertThat(payment.changeGiven()).isEqualByComparingTo(new BigDecimal("5000"));
         assertThat(payment.createdBy()).isEqualTo("cajero");
+        assertThat(fakeOrderClient.markedPaid).contains(100L);
     }
 
     @Test
@@ -71,10 +77,11 @@ class PaymentsIntegrationTest {
                 101L, PaymentMethod.CASH, new BigDecimal("65000"), new BigDecimal("60000"), null, null);
 
         ResponseEntity<String> response = rest.exchange(
-                "/api/payments", org.springframework.http.HttpMethod.POST,
+                "/api/payments", HttpMethod.POST,
                 new HttpEntity<>(request, bearer(List.of("pos.cash"))), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(fakeOrderClient.markedPaid).doesNotContain(101L);
     }
 
     @Test
@@ -87,7 +94,7 @@ class PaymentsIntegrationTest {
                 ));
 
         ResponseEntity<PaymentDto> okResponse = rest.exchange(
-                "/api/payments", org.springframework.http.HttpMethod.POST,
+                "/api/payments", HttpMethod.POST,
                 new HttpEntity<>(ok, bearer(List.of("pos.cash"))), PaymentDto.class);
         assertThat(okResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(okResponse.getBody()).isNotNull();
@@ -98,7 +105,7 @@ class PaymentsIntegrationTest {
                 List.of(new PaymentSplitRequest(PaymentMethod.CASH, new BigDecimal("10000"))));
 
         ResponseEntity<String> badResponse = rest.exchange(
-                "/api/payments", org.springframework.http.HttpMethod.POST,
+                "/api/payments", HttpMethod.POST,
                 new HttpEntity<>(bad, bearer(List.of("pos.cash"))), String.class);
         assertThat(badResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -109,12 +116,49 @@ class PaymentsIntegrationTest {
                 104L, PaymentMethod.NEQUI, new BigDecimal("18000"), null, null, null);
 
         ResponseEntity<PaymentDto> response = rest.exchange(
-                "/api/payments", org.springframework.http.HttpMethod.POST,
+                "/api/payments", HttpMethod.POST,
                 new HttpEntity<>(request, bearer(List.of("pos.cash"))), PaymentDto.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().changeGiven()).isNull();
+    }
+
+    @Test
+    void alreadyPaidOrderIsRejected() {
+        CreatePaymentRequest request = new CreatePaymentRequest(
+                200L, PaymentMethod.CASH, new BigDecimal("1000"), new BigDecimal("1000"), null, null);
+
+        ResponseEntity<String> response = rest.exchange(
+                "/api/payments", HttpMethod.POST,
+                new HttpEntity<>(request, bearer(List.of("pos.cash"))), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void nonExistentOrderIsRejected() {
+        CreatePaymentRequest request = new CreatePaymentRequest(
+                300L, PaymentMethod.CASH, new BigDecimal("1000"), new BigDecimal("1000"), null, null);
+
+        ResponseEntity<String> response = rest.exchange(
+                "/api/payments", HttpMethod.POST,
+                new HttpEntity<>(request, bearer(List.of("pos.cash"))), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void amountMismatchIsRejected() {
+        // El pedido 100 tiene subtotal 65000; intentamos cobrar 50000.
+        CreatePaymentRequest request = new CreatePaymentRequest(
+                100L, PaymentMethod.NEQUI, new BigDecimal("50000"), null, null, null);
+
+        ResponseEntity<String> response = rest.exchange(
+                "/api/payments", HttpMethod.POST,
+                new HttpEntity<>(request, bearer(List.of("pos.cash"))), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
@@ -129,7 +173,7 @@ class PaymentsIntegrationTest {
                 105L, PaymentMethod.NEQUI, new BigDecimal("1000"), null, null, null);
 
         ResponseEntity<String> response = rest.exchange(
-                "/api/payments", org.springframework.http.HttpMethod.POST,
+                "/api/payments", HttpMethod.POST,
                 new HttpEntity<>(request, bearer(List.of("catalog.read"))), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);

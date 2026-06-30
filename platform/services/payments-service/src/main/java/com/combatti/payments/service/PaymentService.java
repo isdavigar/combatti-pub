@@ -1,5 +1,7 @@
 package com.combatti.payments.service;
 
+import com.combatti.payments.client.OrderClient;
+import com.combatti.payments.client.OrderSnapshot;
 import com.combatti.payments.domain.Payment;
 import com.combatti.payments.domain.PaymentMethod;
 import com.combatti.payments.domain.PaymentSplit;
@@ -17,10 +19,15 @@ import java.util.List;
 @Service
 public class PaymentService {
 
-    private final PaymentRepository paymentRepository;
+    private static final String STATUS_PAID = "PAID";
+    private static final String STATUS_CANCELLED = "CANCELLED";
 
-    public PaymentService(PaymentRepository paymentRepository) {
+    private final PaymentRepository paymentRepository;
+    private final OrderClient orderClient;
+
+    public PaymentService(PaymentRepository paymentRepository, OrderClient orderClient) {
         this.paymentRepository = paymentRepository;
+        this.orderClient = orderClient;
     }
 
     @Transactional(readOnly = true)
@@ -42,6 +49,19 @@ public class PaymentService {
     public PaymentDto createPayment(String tenantId, String createdBy, CreatePaymentRequest request) {
         BigDecimal amount = request.amount();
 
+        // Validación contra el pedido real (server-to-server).
+        OrderSnapshot order = orderClient.getOrder(tenantId, request.orderId());
+        if (STATUS_PAID.equals(order.status())) {
+            throw new BadRequestException("El pedido ya fue cobrado");
+        }
+        if (STATUS_CANCELLED.equals(order.status())) {
+            throw new BadRequestException("El pedido está cancelado");
+        }
+        if (order.subtotal() != null && order.subtotal().compareTo(amount) != 0) {
+            throw new BadRequestException(
+                    "El monto (" + amount + ") no coincide con el total del pedido (" + order.subtotal() + ")");
+        }
+
         Payment payment = new Payment(tenantId, request.orderId(), request.method(), amount);
         payment.setNotes(request.notes());
         payment.setCreatedBy(createdBy);
@@ -53,7 +73,12 @@ public class PaymentService {
         }
         // Métodos electrónicos (Nequi/Bancolombia/Bold/Bre-B): sin vuelto ni splits.
 
-        return toDto(paymentRepository.save(payment));
+        PaymentDto dto = toDto(paymentRepository.save(payment));
+
+        // Marca el pedido como pagado en el orders-service.
+        orderClient.markPaid(tenantId, request.orderId());
+
+        return dto;
     }
 
     private void applyCash(Payment payment, CreatePaymentRequest request, BigDecimal amount) {

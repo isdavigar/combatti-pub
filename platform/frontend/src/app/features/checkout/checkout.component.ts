@@ -256,20 +256,11 @@ export class CheckoutComponent implements OnInit {
       })
       .subscribe({
         next: () => {
-          // Marca el pedido como pagado en orders-service.
-          this.ordersService.updateStatus(order.id, 'PAID').subscribe({
-            next: () => {
-              this.submitting.set(false);
-              this.success.set(order.id);
-              this.selected.set(null);
-              this.loadOrders();
-            },
-            error: () => {
-              this.submitting.set(false);
-              this.error.set('El cobro se registró, pero no se pudo marcar el pedido como pagado.');
-              this.loadOrders();
-            },
-          });
+          // El backend (payments-service) ya marca el pedido como PAID.
+          this.submitting.set(false);
+          this.success.set(order.id);
+          this.selected.set(null);
+          this.loadOrders();
         },
         error: () => {
           this.submitting.set(false);

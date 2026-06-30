@@ -4,6 +4,7 @@ import com.combatti.common.security.AuthenticatedUser;
 import com.combatti.common.security.JwtService;
 import com.combatti.reporting.web.dto.SalesReportDto;
 import com.combatti.reporting.web.dto.TopProductDto;
+import com.combatti.reporting.web.dto.CategorySalesDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -81,6 +82,20 @@ class ReportingIntegrationTest {
         // El primero (más vendido) debe ser la Hamburguesa (3 unidades).
         assertThat(response.getBody()[0].productName()).isEqualTo("Hamburguesa");
         assertThat(response.getBody()[0].quantity()).isEqualTo(3);
+    }
+
+    @Test
+    void salesByCategoryJoinsCatalog() {
+        ResponseEntity<CategorySalesDto[]> response = rest.exchange(
+                "/api/reports/by-category" + range(), HttpMethod.GET,
+                new HttpEntity<>(bearer(List.of("reports.read"))), CategorySalesDto[].class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().length).isGreaterThanOrEqualTo(2);
+        // Mayor ingreso primero: Hamburguesas (54000) sobre Bebidas (10000).
+        assertThat(response.getBody()[0].category()).isEqualTo("Hamburguesas");
+        assertThat(response.getBody()[0].revenue()).isEqualByComparingTo(new BigDecimal("54000"));
     }
 
     @Test

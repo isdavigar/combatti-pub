@@ -5274,6 +5274,9 @@
     function ensureCashHistory(){
       state.cash = state.cash || { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] };
       state.cash.history = Array.isArray(state.cash.history) ? state.cash.history : [];
+      // Lápidas (tombstones) de cuadres eliminados: garantizan que un cuadre
+      // borrado no resucite al fusionar el historial con la nube/otros equipos.
+      if(!Array.isArray(state.cash.deletedHistoryIds)) state.cash.deletedHistoryIds = [];
       // Si la caja está cerrada pero hay registros huérfanos "Abierta", cerrarlos.
       if(!state.cash.open){
         state.cash.history.forEach(r => {
@@ -5434,7 +5437,7 @@
       saveStateToDatabase(appStateSnapshot());
       // Push changes to cloud (only changed items, never products)
       // NEVER push during remote state application (prevents echo/conflicts)
-      if(cloudConnected && !isApplyingRemoteState && typeof pushIncremental === 'function') pushIncremental(true);
+      if(cloudConnected && !isApplyingRemoteState && typeof pushIncremental === 'function') pushIncremental(false);
       if(render) renderAll();
     }
     function queueAutosave(){
@@ -8522,7 +8525,7 @@ const colors = [
       if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
       const sentToKitchen = printComanda ? sendOrderToKitchen(currentOrder) : false;
       persistAll();
-      pushIncremental(true); // Sync immediately to all devices
+      pushIncremental(false); // Sync immediately to all devices (solo cambios)
       renderQuickOrderPanel();
       if(printComanda){
         modals.order.hide();
@@ -8606,7 +8609,7 @@ const colors = [
       // Domicilios NO se registran automáticamente como egreso
       // El usuario puede registrar gastos manualmente si lo desea
       persistAll();
-      pushIncremental(true); // Sync immediately to all devices
+      pushIncremental(false); // Sync immediately to all devices (solo cambios)
       const paidOrderId = currentOrder.id;
       paymentReviewState = { orderId:null, snapshot:'' };
       toast('Pedido pagado y guardado en historial', 'success');
@@ -8660,7 +8663,7 @@ const colors = [
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
       persistAll();
-      pushIncremental(true); // Sync immediately to all devices
+      pushIncremental(false); // Sync immediately to all devices (solo cambios)
       printKitchenTicket(currentOrder, printType);
       toast(status === 'Credito' ? 'Credito registrado' : 'Cortesía registrada', 'success');
       modals.order.hide(); currentOrder = null; currentOrderTableId = null;
@@ -9440,11 +9443,8 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       setValue('cashOpenAmount', '');
       renderAll();
       // Push config to cloud IMMEDIATELY (all devices must see caja open)
-      const openCfg = cloudConfigPayload();
-      sendAWS({ action: 'sync', type: 'putConfig', payload: openCfg });
-      lastAppliedConfigSeq = Number(openCfg._seq || Date.now());
-      cloudConfigShadow = cloudConfigKey(openCfg);
-      pushIncremental(true).catch(() => {});
+      pushConfigToCloud();
+      pushIncremental(false).catch(() => {});
       saveStateToDatabase(appStateSnapshot());
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
     }
@@ -9578,14 +9578,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       }
       const closedAt = new Date().toISOString();
       const report = buildCashReport(cashPeriodStart(), new Date(closedAt));
-      state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
-      state.cash.openedBy = null; state.cash.openedByUser = null;
-      // CRITICAL: Push caja closed to cloud IMMEDIATELY (before anything else can fail)
-      const closeCfgPayload = cloudConfigPayload();
-      sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfgPayload });
-      lastAppliedConfigSeq = Number(closeCfgPayload._seq || Date.now());
-      cloudConfigShadow = cloudConfigKey(closeCfgPayload);
-      saveStateToDatabase(appStateSnapshot());
+      // IMPORTANTE: obtener el registro de cuadre ABIERTO y guardarle las ventas del
+      // turno ANTES de marcar la caja cerrada o subir nada a la nube. Si fallaba algo
+      // aquí (p.ej. una función inexistente), la caja quedaba cerrada pero el cuadre
+      // se guardaba SIN ventas. Por eso primero completamos el registro.
       const lastHistory = currentCashRecord();
       const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
       const countedCash = clampNumber(byId('closeCountedInput')?.value || 0);
@@ -9595,9 +9591,14 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(lastHistory){
         Object.assign(lastHistory, { closedAt, status:'Cerrada', shift:state.shift, final:report.final, finalAfterDelivery:report.finalAfterDelivery, sales:report.sales, tips:report.tips, deliveryFees:report.deliveryFees, methodTotals:report.methodTotals, cashPayments:report.cashPayments, transferPayments:report.transferPayments, cardPayments:report.cardPayments, creditSales:report.creditSales, courtesyTotal:report.courtesyTotal, income:report.income, expense:report.expense, cashExpense:report.cashExpense, creditCardExpense:report.creditCardExpense, expectedCash:report.final, countedCash:countedProvided ? countedCash : null, discrepancy, orders:report.orders.map(o => o.id), movements:report.movements.map(m => m.id), movementsHistory, expenseHistory });
       }
+      // Ahora sí marcamos la caja como cerrada (con el cuadre ya completo).
+      state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
+      state.cash.openedBy = null; state.cash.openedByUser = null;
+      // CRITICAL: persistir y subir a la nube el estado COMPLETO (caja cerrada + ventas del cuadre).
+      saveStateToDatabase(appStateSnapshot());
+      pushConfigToCloud();
       // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
       // los movimientos, para que el informe incluya ingresos/egresos del turno.
-      cloudConfigShadow = ''; // Force config push (caja state changed)
       persistAll(false);
       // Cerrar modal y actualizar UI inmediatamente (no esperar push a la nube)
       modals.cashClose.hide();
@@ -9617,10 +9618,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       toast('Caja cerrada e informe generado', 'success');
       renderAll();
       if(currentView === 'movimientos') renderMovements();
-      // Config already pushed above. Update shadow.
-      cloudConfigShadow = cloudConfigKey(cloudConfigPayload());
+      // Volver a subir config + colecciones tras limpiar los movimientos del turno.
+      pushConfigToCloud();
       // Also do a regular push for the collections
-      pushIncremental(true).catch(() => {});
+      pushIncremental(false).catch(() => {});
       }catch(e){
         console.error('Error al cerrar caja:', e);
         // Asegurar que el cierre se guarde incluso si algo falló después
@@ -10465,7 +10466,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     async function forceCloudSyncNow(){
       try{
         if(typeof pushIncremental === 'function'){
-          await pushIncremental(true, true); // Allow deletes — this is for explicit delete actions
+          await pushIncremental(true); // Subida completa (los borrados se propagan automáticamente)
         }
       }catch(_){}
     }
@@ -10518,7 +10519,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           }
           // Persist and force full sync
           persistAll(false);
-          try { await pushIncremental(true); } catch(_){}
+          try { await pushIncremental(false); } catch(_){}
           renderDeletedOrders();
           toast('Auditoría de eliminados vaciada permanentemente (local + nube)', 'success');
         }
@@ -10556,7 +10557,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       record.movementsHistory.push(movement);
       // NO descontar del saldo final — los gastos post-cierre son informativos
       persistAll();
-      pushIncremental(true); // Sync immediately — don't lose on reload
+      pushIncremental(false); // Sync immediately — don't lose on reload
       modalFor(document.getElementById('addExpenseModal')).hide();
       renderCashHistory();
       renderCashView();
@@ -10592,15 +10593,22 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
           });
           // Eliminar movimientos vinculados a este cuadre
           state.movements = (state.movements || []).filter(m => m.linkedCashRecord !== id);
+          // Registrar la lápida ANTES de quitarlo, para que el borrado se respete
+          // al fusionar con la nube y NO resucite en otros dispositivos.
+          ensureCashHistory();
+          if(!state.cash.deletedHistoryIds.includes(id)) state.cash.deletedHistoryIds.push(id);
           // Eliminar el cuadre del historial
           state.cash.history = (state.cash.history || []).filter(r => r.id !== id);
           persistAll();
+          // Subir config (lleva la lápida + historial sin el cuadre) y propagar
+          // los borrados de ventas/movimientos a la nube y a todos los dispositivos.
+          pushConfigToCloud();
           await forceCloudSyncNow();
           renderCashHistory();
           renderOrderHistory();
           renderCashView();
           renderDashboard();
-          toast('Cuadre de caja eliminado con todas sus ventas', 'info');
+          toast('Cuadre de caja eliminado con todas sus ventas (en todos los dispositivos)', 'info');
         }
       });
     }
@@ -11115,7 +11123,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         syncTableOrderSnapshot(table, order);
       }
       persistAll();
-      pushIncremental(true);
+      pushIncremental(false);
       renderOrderHistory();
       renderTables();
       renderCashView();
@@ -13277,6 +13285,54 @@ let isApplyingRemoteState = false;
 // _isRemoteRender ya está declarado más arriba (junto a renderAll); reutilizamos esa misma variable
 let lastSentConfigSeq = 0;
 
+// =====================================================================
+// SHADOW DE ITEMS SINCRONIZADOS (clave para sync en tiempo real correcta)
+// Guarda, por colección y por documento, el último contenido+_seq que este
+// dispositivo conoce de la nube. Sirve para:
+//  1) Pushear SOLO los items que este dispositivo realmente cambió (evita que
+//     un equipo con datos viejos pise los datos nuevos de otro = "mesas que se
+//     bajan/quitan solas" y cambios que se revierten).
+//  2) Detectar borrados locales y propagarlos a la nube (un item que estaba en
+//     el shadow y ya no está en el estado = fue borrado -> enviar delete).
+//  3) Resolver conflictos por _seq al recibir cambios (ignorar updates viejos).
+// =====================================================================
+const cloudItemShadow = {}; // { coll: Map(docId -> { seq, hash }) }
+function _shadowFor(coll){ return (cloudItemShadow[coll] = cloudItemShadow[coll] || new Map()); }
+function _itemHash(item){
+  try {
+    const out = {};
+    Object.keys(item)
+      .filter(k => k !== '_seq' && k !== '_device' && k !== '_ord')
+      .sort()
+      .forEach(k => { out[k] = item[k]; });
+    return JSON.stringify(out);
+  } catch(_){ return 'h' + Math.random(); }
+}
+// Une el estado local con un snapshot de la nube usando _seq (gana la versión
+// más reciente por item). Los items que solo existen localmente se CONSERVAN
+// (para que las mesas/pedidos no desaparezcan si el snapshot llega incompleto);
+// los borrados reales se propagan por mensajes 'delete' explícitos.
+function mergeCollectionBySeq(localArr, cloudArr, shadow){
+  const cloudById = new Map();
+  (cloudArr || []).forEach(it => { const id = String(it && (it.id || it._id) || ''); if(id) cloudById.set(id, it); });
+  const localById = new Map();
+  (localArr || []).forEach(it => { const id = String(it && (it.id || it._id) || ''); if(id) localById.set(id, it); });
+  const result = [];
+  const allIds = new Set([...cloudById.keys(), ...localById.keys()]);
+  allIds.forEach(id => {
+    const c = cloudById.get(id), l = localById.get(id);
+    let winner;
+    if(c && l) winner = (Number(c._seq || 0) >= Number(l._seq || 0)) ? c : l;
+    else winner = c || l;
+    if(!winner) return;
+    result.push(winner);
+    // Solo registramos en el shadow los items que la nube YA conoce, para que
+    // los items puramente locales se suban en el próximo push.
+    if(c) shadow.set(id, { seq: Number(winner._seq || 0), hash: _itemHash(winner) });
+  });
+  return result;
+}
+
 const CLOUD_DEVICE_ID = (() => {
   let id = localStorage.getItem('combatti_cloud_device_id_v1') || '';
   if (!id) { id = 'dev_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); localStorage.setItem('combatti_cloud_device_id_v1', id); }
@@ -13373,10 +13429,12 @@ function handleAWSMessage(msg) {
     // DeliveryZones are code-defined
     if(coll === 'deliveryZones') return;
 
-    // Apply cloud data (cloud ALWAYS wins)
+    // Apply cloud data (merge by _seq: gana la versión más reciente por item;
+    // se conservan los items locales que la nube aún no tiene, para que las
+    // mesas/pedidos no desaparezcan si el snapshot llega incompleto).
     if(items.length > 0 && state[coll] !== undefined) {
       isApplyingRemoteState = true;
-      state[coll] = items;
+      state[coll] = mergeCollectionBySeq(state[coll], items, _shadowFor(coll));
       isApplyingRemoteState = false;
     }
 
@@ -13398,11 +13456,17 @@ function handleAWSMessage(msg) {
     if (coll === 'products' || coll === 'deliveryZones') return;
 
     if(Array.isArray(state[coll])) {
-      isApplyingRemoteState = true;
       const docId = String(payload.id || payload._id || '');
+      const shadow = _shadowFor(coll);
+      const remoteSeq = Number(payload._seq || 0);
+      const prev = shadow.get(docId);
+      // Ignorar updates viejos: ya tenemos una versión más reciente de este item.
+      if(prev && Number(prev.seq || 0) > remoteSeq) return;
+      isApplyingRemoteState = true;
       const idx = state[coll].findIndex(it => String(it.id || it._id || '') === docId);
       if(idx >= 0) state[coll][idx] = payload;
       else state[coll].push(payload);
+      shadow.set(docId, { seq: remoteSeq, hash: _itemHash(payload) });
       isApplyingRemoteState = false;
 
       syncAllTableOrderSnapshots();
@@ -13421,10 +13485,15 @@ function handleAWSMessage(msg) {
     const coll = msg.collection;
     if(coll === 'products') return;
     if(Array.isArray(state[coll])) {
+      isApplyingRemoteState = true;
+      _shadowFor(coll).delete(String(msg.docId));
       state[coll] = state[coll].filter(it => String(it.id || it._id || '') !== String(msg.docId));
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
+      _isRemoteRender = true;
       renderAll();
+      _isRemoteRender = false;
+      isApplyingRemoteState = false;
     }
     return;
   }
@@ -13434,13 +13503,19 @@ function handleAWSMessage(msg) {
 function applyConfigFromCloud(data) {
   if (!data) return;
   if (data.cash != null) {
-    // Merge history (keep most complete version)
-    const localHistory = Array.isArray(state.cash?.history) ? state.cash.history : [];
+    // Merge history (keep most complete version), honrando las lápidas de
+    // cuadres eliminados para que un borrado se respete en TODOS los dispositivos.
+    const localCash = state.cash || {};
+    const localHistory = Array.isArray(localCash.history) ? localCash.history : [];
     const remoteHistory = Array.isArray(data.cash.history) ? data.cash.history : [];
+    const tombstones = new Set([
+      ...(Array.isArray(localCash.deletedHistoryIds) ? localCash.deletedHistoryIds : []),
+      ...(Array.isArray(data.cash.deletedHistoryIds) ? data.cash.deletedHistoryIds : [])
+    ]);
     const byId = new Map();
-    remoteHistory.forEach(r => { if(r && r.id) byId.set(r.id, r); });
+    remoteHistory.forEach(r => { if(r && r.id && !tombstones.has(r.id)) byId.set(r.id, r); });
     localHistory.forEach(r => {
-      if(!r || !r.id) return;
+      if(!r || !r.id || tombstones.has(r.id)) return;
       if(!byId.has(r.id)) byId.set(r.id, r);
       else {
         // Keep the one with closedAt (more complete)
@@ -13450,7 +13525,7 @@ function applyConfigFromCloud(data) {
       }
     });
     const mergedHistory = [...byId.values()].sort((a,b) => new Date(a.openedAt||0) - new Date(b.openedAt||0));
-    state.cash = { ...data.cash, history: mergedHistory };
+    state.cash = { ...data.cash, history: mergedHistory, deletedHistoryIds: [...tombstones] };
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = typeof normalizeShift === 'function' ? normalizeShift(data.shift) : data.shift;
@@ -13501,9 +13576,14 @@ function deleteItemFromCloud(collection, docId) {
   sendAWS({ action: 'sync', type: 'delete', collection, docId: String(docId) });
 }
 
-// ===== pushIncremental: push ALL changed items to cloud =====
-// This is called by persistAll() when user makes changes
-async function pushIncremental(force = false, allowDeletes = false) {
+// ===== pushIncremental: push CHANGED items to cloud + propagate deletions =====
+// This is called by persistAll() when user makes changes.
+// - Solo envía items cuyo contenido cambió respecto al shadow (evita pisar datos
+//   nuevos de otros dispositivos con datos viejos).
+// - Detecta items borrados localmente (estaban en el shadow y ya no en el estado)
+//   y envía el delete a la nube para que desaparezcan en todos los dispositivos.
+// - force=true reenvía TODOS los items (subida completa/explícita).
+async function pushIncremental(force = false) {
   if (!cloudConnected || isApplyingRemoteState) return;
 
   // Push config
@@ -13513,30 +13593,42 @@ async function pushIncremental(force = false, allowDeletes = false) {
   CLOUD_COLLECTIONS.forEach(coll => {
     if(coll === 'deliveryZones') return;
     const items = state[coll] || [];
+    const shadow = _shadowFor(coll);
+    const currentIds = new Set();
     items.forEach((item, index) => {
       if(!item || typeof item !== 'object') return;
+      const docId = String(item.id || item._id || '');
+      if(!docId) return;
+      currentIds.add(docId);
+      const hash = _itemHash(item);
+      const prev = shadow.get(docId);
+      // Enviar solo si es nuevo, cambió, o se fuerza la subida completa.
+      if(!force && prev && prev.hash === hash) return;
       item._ord = index;
       item._device = CLOUD_DEVICE_ID;
       item._seq = Date.now();
-      const docId = String(item.id || item._id || '');
-      if(docId) sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload: item });
+      shadow.set(docId, { seq: item._seq, hash });
+      sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload: item });
     });
+    // Propagar borrados: ids que ya estaban sincronizados pero ya no existen
+    // localmente. Solo después del sync inicial para no borrar por estado vacío.
+    if(cloudInitialSyncDone){
+      for(const docId of [...shadow.keys()]){
+        if(!currentIds.has(docId)){
+          shadow.delete(docId);
+          sendAWS({ action: 'sync', type: 'delete', collection: coll, docId });
+        }
+      }
+    }
   });
 }
 
 // ===== forceCloudSyncNow: immediate push (used after pay, close table, etc.) =====
+// Reutiliza pushIncremental para que también respete el shadow (solo cambios) y
+// propague los borrados a la nube de forma inmediata.
 function forceCloudSyncNow() {
   if(!cloudConnected || isApplyingRemoteState) return;
-  pushConfigToCloud();
-  // Push orders and tables immediately (most critical)
-  ['orders','tables','movements'].forEach(coll => {
-    (state[coll] || []).forEach((item, i) => {
-      if(!item) return;
-      item._ord = i; item._device = CLOUD_DEVICE_ID; item._seq = Date.now();
-      const docId = String(item.id || item._id || '');
-      if(docId) sendAWS({ action: 'sync', type: 'put', collection: coll, docId, payload: item });
-    });
-  });
+  pushIncremental(false);
 }
 
 // ===== queueCloudPush (called from some places in the code) =====

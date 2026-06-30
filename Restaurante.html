@@ -5413,34 +5413,8 @@
       }
       state.orders.forEach(order => { normalizeOrderContact(order); normalizeOrderPayments(order); });
       ensureBaselineData(dataVersion !== DATA_VERSION);
-      // Auto-cerrar caja bloqueada: si la caja lleva más de 16 horas abierta,
-      // cerrarla automáticamente para desbloquear el sistema.
-      if(state.cash && state.cash.open && state.cash.openedAt){
-        const hoursOpen = (Date.now() - new Date(state.cash.openedAt).getTime()) / (1000 * 60 * 60);
-        if(hoursOpen > 16){
-          state.cash.open = false;
-          state.cash.closedAt = new Date().toISOString();
-          state.cash.openedBy = null;
-          state.cash.openedByUser = null;
-          // Cerrar el registro huérfano en el historial
-          (state.cash.history || []).forEach(r => {
-            if(r.status === 'Abierta' && !r.closedAt){
-              r.status = 'Cerrada';
-              r.closedAt = state.cash.closedAt;
-            }
-          });
-          // Push auto-close to cloud so all devices know
-          setTimeout(() => sendAWS({ action: 'sync', type: 'putConfig', payload: cloudConfigPayload() }), 3000);
-        }
-      }
-      // Liberar pedidos huérfanos que quedaron "Abierto" sin mesa activa
-      (state.orders || []).filter(o => o.status === 'Abierto').forEach(o => {
-        const table = (state.tables || []).find(t => t.id === o.tableId);
-        if(!table || table.status === 'Disponible'){
-          o.status = 'Pagado';
-          o.paidAt = o.paidAt || new Date().toISOString();
-        }
-      });
+      // NO auto-cerrar caja. Solo se cierra manualmente por un usuario.
+      // NO liberar pedidos automáticamente. Solo el usuario decide.
       // Limpia (una vez) los productos sembrados por defecto. Si no hay nube
       // configurada, se marca como hecho; si la hay, la limpieza también se
       // aplica y se sube al conectar (ver cloudInitialSync).

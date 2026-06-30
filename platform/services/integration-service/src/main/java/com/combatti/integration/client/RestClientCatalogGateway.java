@@ -21,8 +21,9 @@ public class RestClientCatalogGateway implements CatalogGateway {
 
     public RestClientCatalogGateway(
             @Value("${combatti.catalog.base-url:http://localhost:8082}") String baseUrl,
-            JwtService jwtService) {
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+            JwtService jwtService,
+            RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder.baseUrl(baseUrl).build();
         this.jwtService = jwtService;
     }
 

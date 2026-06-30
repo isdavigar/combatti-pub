@@ -32,8 +32,9 @@ public class RestClientOrdersGateway implements OrdersGateway {
 
     public RestClientOrdersGateway(
             @Value("${combatti.orders.base-url:http://localhost:8083}") String baseUrl,
-            JwtService jwtService) {
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+            JwtService jwtService,
+            RestClient.Builder restClientBuilder) {
+        this.restClient = restClientBuilder.baseUrl(baseUrl).build();
         this.jwtService = jwtService;
     }
 

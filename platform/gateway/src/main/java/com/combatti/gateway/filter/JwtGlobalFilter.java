@@ -36,6 +36,9 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
             "/api/payments/health",
             "/api/cash/health",
             "/api/reports/health",
+            "/api/settings/health",
+            "/api/integration/health",
+            "/api/integration/v1/**",
             "/ws/**",
             "/actuator/**"
     );

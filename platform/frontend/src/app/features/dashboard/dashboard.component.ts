@@ -38,6 +38,9 @@ import { AuthService } from '../../core/auth.service';
           @if (canManageSettings()) {
             <a routerLink="/settings" class="module-link">⚙️ Configuración</a>
           }
+          @if (canManageIntegrations()) {
+            <a routerLink="/integrations" class="module-link">🔌 Integraciones</a>
+          }
           <a routerLink="/menu" class="module-link">🍽️ Menú / Catálogo</a>
         </div>
       </section>
@@ -155,6 +158,10 @@ export class DashboardComponent {
 
   canManageSettings(): boolean {
     return this.auth.hasPermission('settings.manage');
+  }
+
+  canManageIntegrations(): boolean {
+    return this.auth.hasPermission('integrations.manage');
   }
 
   logout(): void {

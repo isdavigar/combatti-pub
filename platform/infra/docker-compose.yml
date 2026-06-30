@@ -1,5 +1,14 @@
 name: combatti-platform
 
+# Healthcheck reutilizable: comprueba que el puerto del servicio acepta conexiones
+# (bash /dev/tcp esta disponible en la imagen Ubuntu de eclipse-temurin).
+x-svc-healthcheck: &svc-healthcheck
+  test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/$${SERVER_PORT}' || exit 1"]
+  interval: 15s
+  timeout: 5s
+  retries: 10
+  start_period: 60s
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -38,6 +47,7 @@ services:
         condition: service_healthy
     ports:
       - "8081:8081"
+    healthcheck: *svc-healthcheck
 
   catalog-service:
     build:
@@ -56,6 +66,7 @@ services:
         condition: service_healthy
     ports:
       - "8082:8082"
+    healthcheck: *svc-healthcheck
 
   orders-service:
     build:
@@ -74,6 +85,7 @@ services:
         condition: service_healthy
     ports:
       - "8083:8083"
+    healthcheck: *svc-healthcheck
 
   payments-service:
     build:
@@ -93,6 +105,7 @@ services:
         condition: service_healthy
     ports:
       - "8084:8084"
+    healthcheck: *svc-healthcheck
 
   cash-service:
     build:
@@ -111,6 +124,7 @@ services:
         condition: service_healthy
     ports:
       - "8085:8085"
+    healthcheck: *svc-healthcheck
 
   reporting-service:
     build:
@@ -129,6 +143,7 @@ services:
         condition: service_healthy
     ports:
       - "8086:8086"
+    healthcheck: *svc-healthcheck
 
   pos-bridge:
     build:
@@ -143,6 +158,7 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:4200
     ports:
       - "9100:9100"
+    healthcheck: *svc-healthcheck
 
   settings-service:
     build:
@@ -161,6 +177,7 @@ services:
         condition: service_healthy
     ports:
       - "8087:8087"
+    healthcheck: *svc-healthcheck
 
   integration-service:
     build:
@@ -181,6 +198,7 @@ services:
         condition: service_healthy
     ports:
       - "8088:8088"
+    healthcheck: *svc-healthcheck
 
   gateway:
     build:
@@ -201,16 +219,25 @@ services:
       JWT_ISSUER: combatti-auth
       CORS_ALLOWED_ORIGINS: http://localhost:4200
     depends_on:
-      - auth-service
-      - catalog-service
-      - orders-service
-      - payments-service
-      - cash-service
-      - reporting-service
-      - settings-service
-      - integration-service
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      orders-service:
+        condition: service_healthy
+      payments-service:
+        condition: service_healthy
+      cash-service:
+        condition: service_healthy
+      reporting-service:
+        condition: service_healthy
+      settings-service:
+        condition: service_healthy
+      integration-service:
+        condition: service_healthy
     ports:
       - "8080:8080"
+    healthcheck: *svc-healthcheck
 
 volumes:
   pgdata:

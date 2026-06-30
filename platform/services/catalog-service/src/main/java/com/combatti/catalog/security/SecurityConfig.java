@@ -47,7 +47,7 @@ public class SecurityConfig {
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             response.getWriter().write("{\"status\":401,\"error\":\"No autenticado\"}");
                         })
-                        .accessDeniedHandler((request, response, ex) -> {
+                        .accessDeniedHandler((request, response, deniedEx) -> {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             response.getWriter().write("{\"status\":403,\"error\":\"Acceso denegado\"}");

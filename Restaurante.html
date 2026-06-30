@@ -9437,7 +9437,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       setValue('cashOpenAmount', '');
       renderAll();
       // Push config to cloud IMMEDIATELY (all devices must see caja open)
-      sendAWS({ action: 'sync', type: 'putConfig', payload: cloudConfigPayload() });
+      const openCfg = cloudConfigPayload();
+      sendAWS({ action: 'sync', type: 'putConfig', payload: openCfg });
+      lastAppliedConfigSeq = Number(openCfg._seq || Date.now());
+      cloudConfigShadow = cloudConfigKey(openCfg);
       pushIncremental(true).catch(() => {});
       saveStateToDatabase(appStateSnapshot());
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
@@ -9575,7 +9578,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
       state.cash.openedBy = null; state.cash.openedByUser = null;
       // CRITICAL: Push caja closed to cloud IMMEDIATELY (before anything else can fail)
-      sendAWS({ action: 'sync', type: 'putConfig', payload: cloudConfigPayload() });
+      const closeCfgPayload = cloudConfigPayload();
+      sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfgPayload });
+      lastAppliedConfigSeq = Number(closeCfgPayload._seq || Date.now());
+      cloudConfigShadow = cloudConfigKey(closeCfgPayload);
       saveStateToDatabase(appStateSnapshot());
       const lastHistory = currentCashRecord();
       const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
@@ -13366,6 +13372,8 @@ function cloudConfigKey(p) { const c = { ...p }; delete c._device; delete c._seq
 function applyConfigRemote(data) {
   if (!data) return;
   const remoteSeq = Number(data._seq || 0);
+  // Ignore config that is OLDER than what we last sent (prevents cloud echo overwriting local changes)
+  if (remoteSeq > 0 && lastAppliedConfigSeq > 0 && remoteSeq < lastAppliedConfigSeq) return;
   if (data.cash != null) {
     const localCash = state.cash || {};
     const localHistory = Array.isArray(localCash.history) ? localCash.history : [];

@@ -124,6 +124,22 @@ Métodos de pago: **efectivo** (calcula vuelto), **Nequi**, **Bancolombia**,
 **Bold**, **Bre-B** y **mixto** (desglose por método). El frontend, tras
 registrar el cobro, marca el pedido como `PAID` en el orders-service.
 
+### Caja (cash-service, vía gateway)
+
+| Método | Ruta                        | Descripción                                  | Permiso    |
+|--------|-----------------------------|----------------------------------------------|------------|
+| GET    | `/api/cash/current`         | Caja abierta actual (204 si no hay)          | `pos.cash` |
+| POST   | `/api/cash/open`            | Abre caja (fondo inicial)                    | `pos.cash` |
+| POST   | `/api/cash/movements`       | Registra ingreso/egreso manual               | `pos.cash` |
+| POST   | `/api/cash/close`           | Cierra caja con arqueo (efectivo contado)    | `pos.cash` |
+| GET    | `/api/cash/sessions`        | Historial de turnos                          | `pos.cash` |
+| GET    | `/api/cash/sessions/{id}`   | Detalle de un turno                          | `pos.cash` |
+
+Arqueo: `esperado = fondo + ingresos − egresos`, `diferencia = contado −
+esperado`. Solo se permite **una caja abierta por tenant** (índice único
+parcial). Los movimientos son **manuales** (decisión heredada de la app
+original).
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

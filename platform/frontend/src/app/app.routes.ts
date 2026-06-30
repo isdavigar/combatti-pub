@@ -38,6 +38,12 @@ export const routes: Routes = [
       import('./features/checkout/checkout.component').then((m) => m.CheckoutComponent),
   },
   {
+    path: 'cash',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/cash/cash.component').then((m) => m.CashComponent),
+  },
+  {
     path: 'orders/new',
     canActivate: [authGuard],
     loadComponent: () =>

@@ -25,6 +25,7 @@
         <module>services/catalog-service</module>
         <module>services/orders-service</module>
         <module>services/payments-service</module>
+        <module>services/cash-service</module>
     </modules>
 
     <properties>

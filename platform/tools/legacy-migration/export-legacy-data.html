@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Combatti — Exportar datos del POS anterior</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { color: #19c37d; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem 1.2rem; margin: 1rem 0; }
+    button { background: #19c37d; color: #fff; border: none; border-radius: 8px; padding: 0.7rem 1.2rem; font-size: 1rem; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    pre { background: #f5f5f5; padding: 0.8rem; border-radius: 8px; overflow: auto; max-height: 240px; font-size: 0.8rem; }
+    .ok { color: #1b7a3d; }
+    .warn { color: #b35900; }
+    code { background: #eee; padding: 0.1rem 0.3rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Exportar datos del POS anterior</h1>
+  <p class="warn">
+    Abre esta página en el <strong>mismo navegador y dominio</strong> donde usas
+    el POS anterior (Combatti / <code>Restaurante.html</code>). Lee las claves
+    <code>combatti_*</code> de <code>localStorage</code> y genera un archivo JSON
+    que luego carga el importador en la nueva plataforma.
+  </p>
+
+  <div class="card">
+    <button id="exportBtn">Exportar a JSON</button>
+    <button id="copyBtn" disabled>Copiar al portapapeles</button>
+    <p id="status"></p>
+  </div>
+
+  <div class="card">
+    <strong>Vista previa (resumen):</strong>
+    <pre id="preview">—</pre>
+  </div>
+
+  <script>
+    // Claves que usa el POS anterior (objeto STORAGE del Restaurante.html).
+    var KEYS = [
+      'combatti_users', 'combatti_tables', 'combatti_products', 'combatti_orders',
+      'combatti_movements', 'combatti_cash', 'combatti_brand', 'combatti_theme',
+      'combatti_categories', 'combatti_data_version', 'combatti_shift',
+      'combatti_supplies', 'combatti_delivery_zones', 'combatti_deleted_orders'
+    ];
+
+    function collect() {
+      var out = { exportedAt: new Date().toISOString(), source: 'combatti-legacy-pos', data: {} };
+      KEYS.forEach(function (k) {
+        var raw = localStorage.getItem(k);
+        if (raw == null) { return; }
+        try { out.data[k] = JSON.parse(raw); }
+        catch (e) { out.data[k] = raw; } // si no es JSON, se guarda crudo
+      });
+      return out;
+    }
+
+    function summarize(payload) {
+      var d = payload.data || {};
+      function count(k) { return Array.isArray(d[k]) ? d[k].length : (d[k] ? 1 : 0); }
+      return {
+        productos: count('combatti_products'),
+        categorias: count('combatti_categories'),
+        mesas: count('combatti_tables'),
+        pedidos: count('combatti_orders'),
+        movimientos_caja: count('combatti_movements'),
+        usuarios: count('combatti_users'),
+        marca: d['combatti_brand'] ? 'sí' : 'no'
+      };
+    }
+
+    var lastJson = '';
+
+    document.getElementById('exportBtn').addEventListener('click', function () {
+      var payload = collect();
+      lastJson = JSON.stringify(payload, null, 2);
+      document.getElementById('preview').textContent = JSON.stringify(summarize(payload), null, 2);
+
+      var blob = new Blob([lastJson], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'combatti-export.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      document.getElementById('copyBtn').disabled = false;
+      document.getElementById('status').innerHTML =
+        '<span class="ok">Listo. Se descargó <code>combatti-export.json</code>.</span>';
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', function () {
+      if (!lastJson) { return; }
+      navigator.clipboard.writeText(lastJson).then(function () {
+        document.getElementById('status').innerHTML = '<span class="ok">Copiado al portapapeles.</span>';
+      });
+    });
+  </script>
+</body>
+</html>

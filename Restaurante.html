@@ -5433,10 +5433,13 @@
       syncAllTableOrderSnapshots();
       saveStateToDatabase(appStateSnapshot());
       // Push changes to cloud (only changed items, never products)
-      if(cloudConnected && typeof pushIncremental === 'function') pushIncremental(true);
+      // NEVER push during remote state application (prevents echo/conflicts)
+      if(cloudConnected && !isApplyingRemoteState && typeof pushIncremental === 'function') pushIncremental(true);
       if(render) renderAll();
     }
     function queueAutosave(){
+      // Don't queue autosave during remote state application (prevents pushing stale data back)
+      if(isApplyingRemoteState || _isRemoteRender) return;
       clearTimeout(autosaveTimer);
       autosaveTimer = setTimeout(() => persistAll(false), 180);
     }
@@ -13634,7 +13637,11 @@ function handleAWSMessage(msg) {
     // Render immediately for ALL collections (ensures sales/movements visible instantly)
     syncAllTableOrderSnapshots();
     saveStateToDatabase(appStateSnapshot());
+    isApplyingRemoteState = true;
+    _isRemoteRender = true;
     renderAll();
+    _isRemoteRender = false;
+    isApplyingRemoteState = false;
     return;
   }
 

@@ -112,6 +112,18 @@ npm start            # ng serve -> http://localhost:4200 (proxy a localhost:8080
 > El salón se inicializa con **22 mesas/elementos** reales (Havanas, Mesas,
 > Caja, Rappi, DiDi, Llevar, Domicilios) del layout de la app actual.
 
+### Cobros (payments-service, vía gateway)
+
+| Método | Ruta                        | Descripción                                | Permiso    |
+|--------|-----------------------------|--------------------------------------------|------------|
+| GET    | `/api/payments`             | Lista cobros (`?orderId=` opcional)        | `pos.cash` |
+| GET    | `/api/payments/{id}`        | Detalle de cobro                           | `pos.cash` |
+| POST   | `/api/payments`             | Registra un cobro de un pedido             | `pos.cash` |
+
+Métodos de pago: **efectivo** (calcula vuelto), **Nequi**, **Bancolombia**,
+**Bold**, **Bre-B** y **mixto** (desglose por método). El frontend, tras
+registrar el cobro, marca el pedido como `PAID` en el orders-service.
+
 ## Roadmap
 
 - **Fase 0 (actual):** cimientos — gateway, auth, PostgreSQL, CI, login Angular.

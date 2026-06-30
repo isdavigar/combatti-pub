@@ -32,6 +32,12 @@ export const routes: Routes = [
       import('./features/kitchen/kitchen.component').then((m) => m.KitchenComponent),
   },
   {
+    path: 'checkout',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/checkout/checkout.component').then((m) => m.CheckoutComponent),
+  },
+  {
     path: 'orders/new',
     canActivate: [authGuard],
     loadComponent: () =>

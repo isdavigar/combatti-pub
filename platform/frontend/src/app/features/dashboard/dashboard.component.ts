@@ -29,6 +29,7 @@ import { AuthService } from '../../core/auth.service';
           <a routerLink="/tables" class="module-link">🪑 Mesas</a>
           <a routerLink="/orders/new" class="module-link">🧾 Nuevo pedido</a>
           <a routerLink="/kitchen" class="module-link">👨‍🍳 Cocina</a>
+          <a routerLink="/checkout" class="module-link">💵 Cobrar</a>
           <a routerLink="/menu" class="module-link">🍽️ Menú / Catálogo</a>
         </div>
       </section>

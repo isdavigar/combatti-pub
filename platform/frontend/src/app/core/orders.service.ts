@@ -101,4 +101,17 @@ export class OrdersService {
   updateStatus(orderId: number, status: OrderStatus): Observable<Order> {
     return this.http.patch<Order>(`${this.baseUrl}/${orderId}/status`, { status });
   }
+
+  updateTable(table: RestaurantTable): Observable<RestaurantTable> {
+    return this.http.put<RestaurantTable>(`${this.baseUrl}/tables/${table.id}`, {
+      name: table.name,
+      kind: table.kind,
+      icon: table.icon,
+      posX: table.posX,
+      posY: table.posY,
+      size: table.size,
+      sortOrder: table.sortOrder,
+      active: table.active,
+    });
+  }
 }

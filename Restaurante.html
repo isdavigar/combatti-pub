@@ -6409,8 +6409,9 @@
       // Si la caja ya está abierta (incluida la que sincroniza otro dispositivo),
       // se entra directo al software. Si está cerrada, se marca para reaccionar
       // cuando la nube traiga la caja abierta.
-      if(state.cash.open){ cashGateView = false; openView(firstAllowedView()); }
-      else { cashGateView = true; openView('caja'); }
+      // Siempre abrir la vista principal. Caja cerrada NO bloquea la navegación.
+      cashGateView = false;
+      openView(firstAllowedView());
       renderAll();
     }
     // Cuando la nube indica que la caja pasó a ABIERTA (otro dispositivo la abrió)
@@ -6422,10 +6423,8 @@
         openView(firstAllowedView());
         renderAll();
       }
-      if(currentUser && !state.cash.open && !cashGateView && !isSystemAdmin()){
-        // Caja se cerró remotamente - volver a vista de caja
-        cashGateView = true;
-        openView('caja');
+      // Caja cerrada remotamente: solo actualizar UI, NO bloquear navegación
+      if(currentUser && !state.cash.open){
         renderAll();
       }
       updateCashActionButtons();

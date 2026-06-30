@@ -1,0 +1,53 @@
+name: Platform CI
+
+on:
+  push:
+    branches:
+      - "feat/migracion-microservicios"
+    paths:
+      - "platform/**"
+      - ".github/workflows/platform-ci.yml"
+  pull_request:
+    paths:
+      - "platform/**"
+      - ".github/workflows/platform-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend (Maven build + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and test
+        working-directory: platform
+        run: mvn -B -ntp clean verify
+
+  frontend:
+    name: Frontend (Angular build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: platform/frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        working-directory: platform/frontend
+        run: npm run build

@@ -1,0 +1,59 @@
+name: combatti-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: combatti-postgres
+    environment:
+      POSTGRES_DB: combatti
+      POSTGRES_USER: combatti
+      POSTGRES_PASSWORD: combatti
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U combatti -d combatti"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile
+    container_name: combatti-auth
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://postgres:5432/combatti
+      DB_USER: combatti
+      DB_PASSWORD: combatti
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-please-change-me-32}
+      JWT_ISSUER: combatti-auth
+      JWT_EXPIRATION_SECONDS: 86400
+      SEED_ADMIN_USERNAME: admin
+      SEED_ADMIN_PASSWORD: admin123
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    container_name: combatti-gateway
+    environment:
+      SERVER_PORT: 8080
+      AUTH_SERVICE_URI: http://auth-service:8081
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-please-change-me-32}
+      JWT_ISSUER: combatti-auth
+      CORS_ALLOWED_ORIGINS: http://localhost:4200
+    depends_on:
+      - auth-service
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

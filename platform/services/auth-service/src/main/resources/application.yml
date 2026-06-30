@@ -1,0 +1,44 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/combatti}
+    username: ${DB_USER:combatti}
+    password: ${DB_PASSWORD:combatti}
+  jpa:
+    hibernate:
+      # Flyway es el dueño del esquema; Hibernate no genera ni valida DDL.
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+combatti:
+  jwt:
+    # IMPORTANTE: en producción inyectar JWT_SECRET (>= 32 bytes) por variable de entorno.
+    secret: ${JWT_SECRET:dev-secret-change-me-please-change-me-32}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}
+    issuer: ${JWT_ISSUER:combatti-auth}
+  seed:
+    # Usuario administrador inicial (solo si la tabla de usuarios está vacía).
+    admin-username: ${SEED_ADMIN_USERNAME:admin}
+    admin-password: ${SEED_ADMIN_PASSWORD:admin123}
+    admin-display-name: ${SEED_ADMIN_NAME:Administrador}
+    tenant-id: ${SEED_TENANT_ID:default}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

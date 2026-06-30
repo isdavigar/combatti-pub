@@ -1,0 +1,12 @@
+spring:
+  # En el test sí ejecutamos schema.sql + data.sql para provisionar los datos
+  # que en producción provienen de payments-service y orders-service.
+  sql:
+    init:
+      mode: always
+
+combatti:
+  jwt:
+    secret: dev-secret-change-me-please-change-me-32
+    issuer: combatti-auth
+    expiration-seconds: 86400

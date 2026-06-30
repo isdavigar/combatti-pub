@@ -27,6 +27,10 @@ spring:
           uri: ${CASH_SERVICE_URI:http://localhost:8085}
           predicates:
             - Path=/api/cash/**
+        - id: reporting-service
+          uri: ${REPORTING_SERVICE_URI:http://localhost:8086}
+          predicates:
+            - Path=/api/reports/**
       globalcors:
         cors-configurations:
           '[/**]':

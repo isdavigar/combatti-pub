@@ -93,6 +93,24 @@ services:
     ports:
       - "8085:8085"
 
+  reporting-service:
+    build:
+      context: ..
+      dockerfile: services/reporting-service/Dockerfile
+    container_name: combatti-reporting
+    environment:
+      SERVER_PORT: 8086
+      DB_URL: jdbc:postgresql://postgres:5432/combatti
+      DB_USER: combatti
+      DB_PASSWORD: combatti
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-please-change-me-32}
+      JWT_ISSUER: combatti-auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+
   gateway:
     build:
       context: ..
@@ -105,6 +123,7 @@ services:
       ORDERS_SERVICE_URI: http://orders-service:8083
       PAYMENTS_SERVICE_URI: http://payments-service:8084
       CASH_SERVICE_URI: http://cash-service:8085
+      REPORTING_SERVICE_URI: http://reporting-service:8086
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-please-change-me-32}
       JWT_ISSUER: combatti-auth
       CORS_ALLOWED_ORIGINS: http://localhost:4200
@@ -114,6 +133,7 @@ services:
       - orders-service
       - payments-service
       - cash-service
+      - reporting-service
     ports:
       - "8080:8080"
 

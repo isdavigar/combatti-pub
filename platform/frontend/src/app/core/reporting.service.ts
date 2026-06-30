@@ -25,6 +25,12 @@ export interface TopProduct {
   revenue: number;
 }
 
+export interface CategorySales {
+  category: string;
+  quantity: number;
+  revenue: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportingService {
   private readonly http = inject(HttpClient);
@@ -38,6 +44,10 @@ export class ReportingService {
     let params = this.range(from, to);
     params = params.set('limit', String(limit));
     return this.http.get<TopProduct[]>(`${this.baseUrl}/top-products`, { params });
+  }
+
+  getByCategory(from?: string, to?: string): Observable<CategorySales[]> {
+    return this.http.get<CategorySales[]>(`${this.baseUrl}/by-category`, { params: this.range(from, to) });
   }
 
   private range(from?: string, to?: string): HttpParams {

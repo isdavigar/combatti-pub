@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
-import { ReportingService, SalesReport, TopProduct } from '../../core/reporting.service';
+import { ReportingService, SalesReport, TopProduct, CategorySales } from '../../core/reporting.service';
 
 @Component({
   selector: 'app-reports',
@@ -81,6 +81,23 @@ import { ReportingService, SalesReport, TopProduct } from '../../core/reporting.
             </ul>
           }
         </section>
+
+        <section class="card">
+          <h3>Ventas por categoría</h3>
+          @if (categories().length === 0) {
+            <p class="muted">Sin datos por categoría en el periodo.</p>
+          } @else {
+            <ul class="list">
+              @for (c of categories(); track c.category) {
+                <li>
+                  <span>{{ c.category }}</span>
+                  <span class="qty">{{ c.quantity }}</span>
+                  <strong>{{ money(c.revenue) }}</strong>
+                </li>
+              }
+            </ul>
+          }
+        </section>
         }
       }
     </main>
@@ -117,6 +134,7 @@ export class ReportsComponent implements OnInit {
   readonly to = signal<string>('');
   readonly sales = signal<SalesReport | null>(null);
   readonly topProducts = signal<TopProduct[]>([]);
+  readonly categories = signal<CategorySales[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
@@ -136,6 +154,10 @@ export class ReportsComponent implements OnInit {
     this.reporting.getSales(from, to).subscribe({
       next: (sales) => {
         this.sales.set(sales);
+        this.reporting.getByCategory(from, to).subscribe({
+          next: (categories) => this.categories.set(categories),
+          error: () => this.categories.set([]),
+        });
         this.reporting.getTopProducts(from, to).subscribe({
           next: (products) => {
             this.topProducts.set(products);

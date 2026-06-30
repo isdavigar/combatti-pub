@@ -1,5 +1,6 @@
 package com.combatti.reporting.service;
 
+import com.combatti.reporting.web.dto.CategorySalesDto;
 import com.combatti.reporting.web.dto.MethodTotalDto;
 import com.combatti.reporting.web.dto.SalesReportDto;
 import com.combatti.reporting.web.dto.TopProductDto;
@@ -95,5 +96,38 @@ public class ReportService {
                 tenantId, start, endExclusive, safeLimit);
 
         return products;
+    }
+
+    public List<CategorySalesDto> salesByCategory(String tenantId, LocalDate from, LocalDate to) {
+        LocalDate effectiveFrom = from != null ? from : LocalDate.now(zoneId);
+        LocalDate effectiveTo = to != null ? to : effectiveFrom;
+
+        Timestamp start = Timestamp.from(effectiveFrom.atStartOfDay(zoneId).toInstant());
+        Timestamp endExclusive = Timestamp.from(effectiveTo.plusDays(1).atStartOfDay(zoneId).toInstant());
+
+        List<CategorySalesDto> result = new ArrayList<>();
+        jdbc.query(
+                """
+                SELECT c.name AS category,
+                       COALESCE(SUM(oi.quantity), 0) AS qty,
+                       COALESCE(SUM(oi.line_total), 0) AS revenue
+                FROM orders.order_items oi
+                JOIN orders.orders o ON o.id = oi.order_id
+                JOIN catalog.products p ON p.tenant_id = o.tenant_id AND p.name = oi.product_name
+                JOIN catalog.categories c ON c.id = p.category_id
+                WHERE o.tenant_id = ? AND o.status = 'PAID'
+                  AND o.created_at >= ? AND o.created_at < ?
+                GROUP BY c.name
+                ORDER BY revenue DESC
+                """,
+                rs -> {
+                    result.add(new CategorySalesDto(
+                            rs.getString("category"),
+                            rs.getLong("qty"),
+                            rs.getBigDecimal("revenue")));
+                },
+                tenantId, start, endExclusive);
+
+        return result;
     }
 }

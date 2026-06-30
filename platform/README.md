@@ -121,8 +121,10 @@ npm start            # ng serve -> http://localhost:4200 (proxy a localhost:8080
 | POST   | `/api/payments`             | Registra un cobro de un pedido             | `pos.cash` |
 
 Métodos de pago: **efectivo** (calcula vuelto), **Nequi**, **Bancolombia**,
-**Bold**, **Bre-B** y **mixto** (desglose por método). El frontend, tras
-registrar el cobro, marca el pedido como `PAID` en el orders-service.
+**Bold**, **Bre-B** y **mixto** (desglose por método). El payments-service
+**valida el pedido contra el orders-service** (existencia, que no esté ya
+cobrado/cancelado y que el monto cuadre) y lo **marca `PAID` en el backend**
+(server-to-server, con un token de servicio interno con permiso `pos.orders`).
 
 ### Caja (cash-service, vía gateway)
 
@@ -146,6 +148,7 @@ original).
 |--------|-------------------------------|----------------------------------------------|---------------|
 | GET    | `/api/reports/sales`          | Ventas del periodo (`?from=&to=`, ISO date)  | `reports.read`|
 | GET    | `/api/reports/top-products`   | Productos más vendidos (`?from=&to=&limit=`) | `reports.read`|
+| GET    | `/api/reports/by-category`    | Ventas por categoría (`?from=&to=`)          | `reports.read`|
 
 `sales` devuelve total, nº de transacciones, ticket promedio y desglose por
 método de pago. `top-products` agrega cantidades e ingresos de pedidos

@@ -2,6 +2,7 @@ package com.combatti.reporting.web;
 
 import com.combatti.common.security.AuthenticatedUser;
 import com.combatti.reporting.service.ReportService;
+import com.combatti.reporting.web.dto.CategorySalesDto;
 import com.combatti.reporting.web.dto.SalesReportDto;
 import com.combatti.reporting.web.dto.TopProductDto;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -43,5 +44,14 @@ public class ReportController {
                                            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
                                            @RequestParam(value = "limit", required = false, defaultValue = "10") int limit) {
         return reportService.topProducts(TenantSupport.tenantOf(user), from, to, limit);
+    }
+
+    @GetMapping("/by-category")
+    public List<CategorySalesDto> byCategory(@AuthenticationPrincipal AuthenticatedUser user,
+                                             @RequestParam(value = "from", required = false)
+                                             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                             @RequestParam(value = "to", required = false)
+                                             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return reportService.salesByCategory(TenantSupport.tenantOf(user), from, to);
     }
 }

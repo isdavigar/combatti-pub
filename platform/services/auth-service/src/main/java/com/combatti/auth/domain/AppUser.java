@@ -79,6 +79,22 @@ public class AppUser {
         return passwordHash;
     }
 
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public void clearRoles() {
+        this.roles.clear();
+    }
+
     public String getDisplayName() {
         return displayName;
     }

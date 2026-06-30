@@ -9,5 +9,9 @@ public interface UserRepository extends JpaRepository<AppUser, Long> {
 
     Optional<AppUser> findByTenantIdAndUsername(String tenantId, String username);
 
+    Optional<AppUser> findByTenantIdAndId(String tenantId, Long id);
+
+    java.util.List<AppUser> findByTenantIdOrderByUsernameAsc(String tenantId);
+
     boolean existsByTenantIdAndUsername(String tenantId, String username);
 }

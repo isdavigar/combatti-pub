@@ -1,6 +1,8 @@
 package com.combatti.auth.web;
 
 import com.combatti.auth.service.AuthService;
+import com.combatti.auth.service.UserManagementService;
+import com.combatti.auth.web.dto.ChangePasswordRequest;
 import com.combatti.auth.web.dto.LoginRequest;
 import com.combatti.auth.web.dto.LoginResponse;
 import com.combatti.auth.web.dto.UserDto;
@@ -21,9 +23,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserManagementService userManagementService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UserManagementService userManagementService) {
         this.authService = authService;
+        this.userManagementService = userManagementService;
     }
 
     @PostMapping("/login")
@@ -34,6 +38,13 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserDto> me(@AuthenticationPrincipal AuthenticatedUser principal) {
         return ResponseEntity.ok(authService.toDto(principal));
+    }
+
+    @PostMapping("/me/password")
+    public ResponseEntity<Void> changeMyPassword(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                 @Valid @RequestBody ChangePasswordRequest request) {
+        userManagementService.changeOwnPassword(principal.tenantId(), principal.username(), request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/health")

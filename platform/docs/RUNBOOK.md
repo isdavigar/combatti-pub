@@ -20,7 +20,22 @@ Guía para desplegar la plataforma y migrar los datos del POS anterior.
 
 ## Parte A — Backend (Docker) en AWS
 
-Como ya usas AWS para el sistema anterior, es el camino natural. Dos opciones:
+Como ya usas AWS para el sistema anterior, es el camino natural.
+
+### Opción A0 — Terraform (un comando, recomendada para empezar)
+Hay un módulo Terraform listo en **`platform/infra/aws/`** que provisiona una
+EC2, construye y levanta todo el stack, y **genera automáticamente** un
+`JWT_SECRET` fuerte y la contraseña del admin:
+```bash
+cd platform/infra/aws
+cp terraform.tfvars.example terraform.tfvars   # ajusta region/CORS
+terraform init && terraform apply
+terraform output gateway_url                    # úsalo como BACKEND_URL en Cloudflare
+terraform output -raw admin_password            # contraseña del admin inicial
+```
+Ver `platform/infra/aws/README.md` para el detalle. Luego salta a la
+[Parte B](#parte-b--frontend-en-cloudflare-pages). Las opciones manuales A1/A2
+siguen abajo.
 
 ### Opción A1 — AWS App Runner / ECS Fargate (gestionado)
 1. **Base de datos:** crea una instancia **RDS for PostgreSQL** (una base `combatti`).

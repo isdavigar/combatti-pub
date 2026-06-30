@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euxo pipefail
+
+# --- Docker + plugin compose (Amazon Linux 2023) ---
+dnf update -y
+dnf install -y docker git
+systemctl enable --now docker
+
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -SL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# --- Clonar el repositorio ---
+install -d -o root -g root /opt/combatti
+git clone --branch ${repo_branch} --depth 1 ${repo_url} /opt/combatti
+
+# --- Archivo .env con los secretos (inyectados por Terraform) ---
+cat > /opt/combatti/platform/infra/.env <<'ENVEOF'
+JWT_SECRET=${jwt_secret}
+SEED_ADMIN_USERNAME=admin
+SEED_ADMIN_PASSWORD=${admin_password}
+CORS_ALLOWED_ORIGINS=${cors_allowed_origins}
+ENVEOF
+
+# --- Construir y levantar el stack ---
+cd /opt/combatti/platform/infra
+docker compose up -d --build
+
+# Marca de finalizacion (util para diagnostico).
+echo "combatti backend iniciado: $(date -u)" > /var/log/combatti-deploy.log

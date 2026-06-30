@@ -1,0 +1,10 @@
+# Estado y artefactos de Terraform (pueden contener secretos)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Variables con valores reales (nunca commitear)
+terraform.tfvars
+*.auto.tfvars

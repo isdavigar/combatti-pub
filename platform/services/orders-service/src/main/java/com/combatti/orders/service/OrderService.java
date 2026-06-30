@@ -6,6 +6,7 @@ import com.combatti.orders.domain.OrderItem;
 import com.combatti.orders.domain.OrderStatus;
 import com.combatti.orders.domain.OrderType;
 import com.combatti.orders.domain.RestaurantTable;
+import com.combatti.orders.realtime.OrderEventsPublisher;
 import com.combatti.orders.repository.OrderRepository;
 import com.combatti.orders.repository.RestaurantTableRepository;
 import com.combatti.orders.web.dto.CreateOrderRequest;
@@ -26,10 +27,14 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final RestaurantTableRepository tableRepository;
+    private final OrderEventsPublisher eventsPublisher;
 
-    public OrderService(OrderRepository orderRepository, RestaurantTableRepository tableRepository) {
+    public OrderService(OrderRepository orderRepository,
+                        RestaurantTableRepository tableRepository,
+                        OrderEventsPublisher eventsPublisher) {
         this.orderRepository = orderRepository;
         this.tableRepository = tableRepository;
+        this.eventsPublisher = eventsPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -86,7 +91,9 @@ public class OrderService {
             ));
         }
 
-        return toDto(orderRepository.save(order));
+        OrderDto dto = toDto(orderRepository.save(order));
+        eventsPublisher.publish(OrderEventsPublisher.CREATED, dto);
+        return dto;
     }
 
     @Transactional
@@ -98,7 +105,9 @@ public class OrderService {
             throw new BadRequestException("No se puede cambiar el estado de un pedido cancelado");
         }
         order.setStatus(newStatus);
-        return toDto(order);
+        OrderDto dto = toDto(order);
+        eventsPublisher.publish(OrderEventsPublisher.UPDATED, dto);
+        return dto;
     }
 
     @Transactional
@@ -110,7 +119,9 @@ public class OrderService {
             throw new BadRequestException("No se puede cancelar un pedido ya cobrado");
         }
         order.setStatus(OrderStatus.CANCELLED);
-        return toDto(order);
+        OrderDto dto = toDto(order);
+        eventsPublisher.publish(OrderEventsPublisher.CANCELLED, dto);
+        return dto;
     }
 
     private OrderDto toDto(Order order) {

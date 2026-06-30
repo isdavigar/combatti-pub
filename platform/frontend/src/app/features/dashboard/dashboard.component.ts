@@ -35,6 +35,9 @@ import { AuthService } from '../../core/auth.service';
           @if (canManageUsers()) {
             <a routerLink="/users" class="module-link">👤 Usuarios</a>
           }
+          @if (canManageSettings()) {
+            <a routerLink="/settings" class="module-link">⚙️ Configuración</a>
+          }
           <a routerLink="/menu" class="module-link">🍽️ Menú / Catálogo</a>
         </div>
       </section>
@@ -148,6 +151,10 @@ export class DashboardComponent {
 
   canManageUsers(): boolean {
     return this.auth.hasPermission('users.manage');
+  }
+
+  canManageSettings(): boolean {
+    return this.auth.hasPermission('settings.manage');
   }
 
   logout(): void {

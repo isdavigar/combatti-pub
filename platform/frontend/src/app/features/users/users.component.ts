@@ -1,42 +1,42 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 
 import { Role, UserSummary, UsersService } from '../../core/users.service';
 
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
-    <header class="topbar">
-      <a routerLink="/" class="back">← Volver</a>
-      <span class="brand">Usuarios</span>
-    </header>
+    <div class="section-header mb-3">
+      <div>
+        <h2 class="section-title"><i class="fa-solid fa-users"></i> Usuarios</h2>
+        <p class="section-subtitle">Gestión de usuarios, roles y permisos.</p>
+      </div>
+    </div>
 
-    <main class="content">
-      @if (error()) { <div class="alert">{{ error() }}</div> }
-      @if (success()) { <div class="ok">{{ success() }}</div> }
+    @if (error()) { <div class="alert-banner mb-3"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div> }
+    @if (success()) { <div class="success-banner mb-3"><i class="fa-solid fa-check-circle"></i> {{ success() }}</div> }
 
-      <section class="card">
-        <h3>Nuevo usuario</h3>
+      <section class="glass-card mb-3">
+        <h3 class="section-title mb-2">Nuevo usuario</h3>
         <div class="form-grid">
-          <input placeholder="Usuario" [ngModel]="newUsername()" (ngModelChange)="newUsername.set($event)" name="u" />
-          <input placeholder="Nombre" [ngModel]="newDisplayName()" (ngModelChange)="newDisplayName.set($event)" name="n" />
-          <input placeholder="Contraseña" type="password" [ngModel]="newPassword()" (ngModelChange)="newPassword.set($event)" name="p" />
-          <select [ngModel]="newRole()" (ngModelChange)="newRole.set($event)" name="r">
+          <input class="form-control" placeholder="Usuario" [ngModel]="newUsername()" (ngModelChange)="newUsername.set($event)" name="u" />
+          <input class="form-control" placeholder="Nombre" [ngModel]="newDisplayName()" (ngModelChange)="newDisplayName.set($event)" name="n" />
+          <input class="form-control" placeholder="Contraseña" type="password" [ngModel]="newPassword()" (ngModelChange)="newPassword.set($event)" name="p" />
+          <select class="form-control" [ngModel]="newRole()" (ngModelChange)="newRole.set($event)" name="r">
             @for (role of roles(); track role.id) {
               <option [value]="role.name">{{ role.name }}</option>
             }
           </select>
-          <button type="button" [disabled]="!canCreate() || saving()" (click)="create()">
+          <button class="btn btn-success btn-pill" [disabled]="!canCreate() || saving()" (click)="create()">
             {{ saving() ? 'Creando…' : 'Crear' }}
           </button>
         </div>
       </section>
 
-      <section class="card">
-        <h3>Usuarios ({{ users().length }})</h3>
+      <section class="glass-card">
+        <h3 class="section-title mb-2">Usuarios ({{ users().length }})</h3>
         @if (loading()) {
           <p class="muted">Cargando…</p>
         } @else {
@@ -78,32 +78,26 @@ import { Role, UserSummary, UsersService } from '../../core/users.service';
           </table>
         }
       </section>
-    </main>
   `,
-  styles: [
-    `
-      .topbar { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.5rem; background: var(--cf-surface); border-bottom: 1px solid rgba(0,0,0,0.3); }
-      .back { color: var(--cf-text); text-decoration: none; opacity: 0.85; }
-      .brand { color: var(--cf-accent); font-weight: 700; font-size: 1.1rem; }
-      .content { max-width: 920px; margin: 0 auto; padding: 1.5rem; }
-      .muted { opacity: 0.75; }
-      .card { background: var(--cf-surface); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.2rem; }
-      .card h3 { margin-top: 0; color: var(--cf-accent); }
-      .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; align-items: center; }
-      input, select { padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.2); color: var(--cf-text); }
-      button { border: 1px solid var(--cf-accent); background: transparent; color: var(--cf-accent); border-radius: 8px; padding: 0.45rem 0.7rem; cursor: pointer; }
-      .form-grid button { background: var(--cf-accent); color: #1a120b; font-weight: 700; border: none; }
-      button.danger { border-color: var(--cf-error); color: var(--cf-error); }
-      table.users { width: 100%; border-collapse: collapse; }
-      table.users th, table.users td { text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.9rem; }
-      tr.disabled { opacity: 0.55; }
-      .badge { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: rgba(224,122,95,0.2); border: 1px solid var(--cf-error); }
-      .badge.on { background: rgba(46,125,50,0.2); border-color: #2e7d32; color: #9ed99f; }
-      .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-      .alert { background: rgba(224,122,95,0.15); border: 1px solid var(--cf-error); color: var(--cf-error); padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
-      .ok { background: rgba(46,125,50,0.18); border: 1px solid #2e7d32; color: #9ed99f; padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
-    `,
-  ],
+  styles: [`
+    :host { display: block; }
+    .mb-2 { margin-bottom: .5rem; }
+    .mb-3 { margin-bottom: 1rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .alert-banner { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3); color: #dc2626; border-radius: 14px; padding: .75rem 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .success-banner { background: rgba(25,195,125,.08); border: 1px solid rgba(25,195,125,.3); color: var(--primary); border-radius: 14px; padding: .75rem 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: center; }
+    table.users { width: 100%; border-collapse: collapse; }
+    table.users th, table.users td { text-align: left; padding: .6rem .5rem; border-bottom: 1px solid var(--border); font-size: .9rem; }
+    table.users select { padding: .4rem .5rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); }
+    tr.disabled { opacity: .55; }
+    .badge { font-size: .75rem; padding: .2rem .55rem; border-radius: 999px; background: rgba(239,68,68,.12); border: 1px solid var(--danger); color: var(--danger); }
+    .badge.on { background: rgba(var(--primary-rgb),.12); border-color: var(--primary); color: var(--primary); }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .actions button { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 8px; padding: .35rem .6rem; cursor: pointer; font-size: .8rem; }
+    .actions button.danger { border-color: var(--danger); color: var(--danger); }
+    .text-muted { color: var(--muted); }
+  `],
 })
 export class UsersComponent implements OnInit {
   private readonly usersService = inject(UsersService);

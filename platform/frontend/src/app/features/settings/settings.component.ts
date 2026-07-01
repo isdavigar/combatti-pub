@@ -1,31 +1,31 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 
 import { Settings, SettingsService, UpdateSettingsRequest } from '../../core/settings.service';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
-    <header class="topbar">
-      <a routerLink="/" class="back">← Volver</a>
-      <span class="brand">Configuración</span>
-    </header>
+    <div class="section-header mb-3">
+      <div>
+        <h2 class="section-title"><i class="fa-solid fa-gear"></i> Configuración</h2>
+        <p class="section-subtitle">Datos del negocio y parámetros de venta.</p>
+      </div>
+    </div>
 
-    <main class="content">
-      @if (error()) { <div class="alert">{{ error() }}</div> }
-      @if (saved()) { <div class="ok">Cambios guardados correctamente.</div> }
+    @if (error()) { <div class="alert-banner mb-3"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div> }
+    @if (saved()) { <div class="success-banner mb-3"><i class="fa-solid fa-check-circle"></i> Cambios guardados correctamente.</div> }
 
       @if (loading()) {
-        <p class="muted">Cargando…</p>
+        <div class="glass-card" style="min-height:200px;display:grid;place-items:center"><span class="text-muted">Cargando…</span></div>
       } @else {
         <form (ngSubmit)="save()">
-          <section class="card">
-            <h3>Datos del negocio</h3>
-            <label for="name">Nombre del negocio *</label>
-            <input id="name" name="name" [(ngModel)]="form.restaurantName" required maxlength="160" />
+          <section class="glass-card mb-3">
+            <h3 class="section-title mb-2">Datos del negocio</h3>
+            <div class="form-group"><label class="form-label">Nombre del negocio *</label>
+            <input class="form-control" id="name" name="name" [(ngModel)]="form.restaurantName" required maxlength="160" /></div>
 
             <div class="grid">
               <div>
@@ -110,28 +110,20 @@ import { Settings, SettingsService, UpdateSettingsRequest } from '../../core/set
           }
         </form>
       }
-    </main>
   `,
-  styles: [
-    `
-      .topbar { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.5rem; background: var(--cf-surface); border-bottom: 1px solid rgba(0,0,0,0.3); }
-      .back { color: var(--cf-text); text-decoration: none; opacity: 0.85; }
-      .brand { color: var(--cf-accent); font-weight: 700; font-size: 1.1rem; }
-      .content { max-width: 680px; margin: 0 auto; padding: 1.5rem; }
-      .muted { opacity: 0.75; }
-      .small { font-size: 0.8rem; }
-      .card { background: var(--cf-surface); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.2rem; }
-      .card h3 { margin-top: 0; color: var(--cf-accent); }
-      label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.3rem; }
-      input, select { width: 100%; padding: 0.6rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.2); color: var(--cf-text); box-sizing: border-box; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
-      button[type='submit'] { width: 100%; border: none; border-radius: 8px; padding: 0.8rem; font-weight: 700; cursor: pointer; background: var(--cf-accent); color: #1a120b; }
-      button:disabled { opacity: 0.5; cursor: not-allowed; }
-      .alert { background: rgba(224,122,95,0.15); border: 1px solid var(--cf-error); color: var(--cf-error); padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
-      .ok { background: rgba(46,125,50,0.18); border: 1px solid #2e7d32; color: #7bd389; padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
-      @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
-    `,
-  ],
+  styles: [`
+    :host { display: block; }
+    .mb-2 { margin-bottom: .5rem; }
+    .mb-3 { margin-bottom: 1rem; }
+    .text-muted { color: var(--muted); }
+    .section-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .alert-banner { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3); color: #dc2626; border-radius: 14px; padding: .75rem 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .success-banner { background: rgba(25,195,125,.08); border: 1px solid rgba(25,195,125,.3); color: var(--primary); border-radius: 14px; padding: .75rem 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .form-group { margin-bottom: .75rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button[type='submit'] { width: 100%; margin-top: 1rem; }
+    @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+  `],
 })
 export class SettingsComponent implements OnInit {
   private readonly settingsService = inject(SettingsService);

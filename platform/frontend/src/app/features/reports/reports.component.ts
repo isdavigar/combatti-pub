@@ -1,131 +1,99 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 
 import { ReportingService, SalesReport, TopProduct, CategorySales } from '../../core/reporting.service';
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
-    <header class="topbar">
-      <a routerLink="/" class="back">← Volver</a>
-      <span class="brand">Reportes</span>
-    </header>
+    <div class="section-header mb-3">
+      <div>
+        <h2 class="section-title"><i class="fa-solid fa-chart-column"></i> Reportes</h2>
+        <p class="section-subtitle">Consulta de ventas, productos y métodos de pago.</p>
+      </div>
+    </div>
 
-    <main class="content">
-      @if (error()) { <div class="alert">{{ error() }}</div> }
+    @if (error()) { <div class="alert-banner mb-3"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div> }
 
-      <section class="card filters">
-        <div class="field">
-          <label for="from">Desde</label>
-          <input id="from" type="date" [ngModel]="from()" (ngModelChange)="from.set($event)" name="from" />
+    <!-- Filters -->
+    <div class="glass-card mb-3">
+      <div class="filter-row">
+        <div class="filter-field">
+          <label class="form-label">Desde</label>
+          <input type="date" class="form-control" [ngModel]="from()" (ngModelChange)="from.set($event)" />
         </div>
-        <div class="field">
-          <label for="to">Hasta</label>
-          <input id="to" type="date" [ngModel]="to()" (ngModelChange)="to.set($event)" name="to" />
+        <div class="filter-field">
+          <label class="form-label">Hasta</label>
+          <input type="date" class="form-control" [ngModel]="to()" (ngModelChange)="to.set($event)" />
         </div>
-        <button type="button" (click)="load()">Consultar</button>
-      </section>
+        <button class="btn btn-success btn-pill" (click)="load()"><i class="fa-solid fa-search"></i> Consultar</button>
+      </div>
+    </div>
 
-      @if (loading()) {
-        <p class="muted">Cargando…</p>
-      } @else {
-        @if (sales(); as s) {
-        <section class="cards">
-          <div class="kpi">
-            <span class="kpi-label">Ventas</span>
-            <span class="kpi-value">{{ money(s.total) }}</span>
+    @if (loading()) {
+      <div class="glass-card" style="min-height:200px;display:grid;place-items:center"><span class="text-muted">Cargando…</span></div>
+    } @else if (sales()) {
+      <!-- KPIs -->
+      <div class="kpi-grid mb-3">
+        <div class="kpi-card"><div><div class="stat-value">{{ money(sales()!.total) }}</div><div class="stat-label">Ventas totales</div></div><div class="stat-icon"><i class="fa-solid fa-sack-dollar"></i></div></div>
+        <div class="kpi-card"><div><div class="stat-value">{{ sales()!.transactions }}</div><div class="stat-label">Transacciones</div></div><div class="stat-icon"><i class="fa-solid fa-receipt"></i></div></div>
+        <div class="kpi-card"><div><div class="stat-value">{{ money(sales()!.averageTicket) }}</div><div class="stat-label">Ticket promedio</div></div><div class="stat-icon"><i class="fa-solid fa-ticket"></i></div></div>
+      </div>
+
+      <!-- By method -->
+      <div class="glass-card mb-3">
+        <h4 class="section-title mb-2">Por método de pago</h4>
+        @if (sales()!.byMethod.length === 0) { <p class="text-muted">Sin ventas en el periodo.</p> }
+        @else {
+          <div class="metric-list">
+            @for (m of sales()!.byMethod; track m.method) {
+              <div class="metric-row"><span>{{ methodLabel(m.method) }} <small class="text-muted">({{ m.count }})</small></span><strong>{{ money(m.total) }}</strong></div>
+            }
           </div>
-          <div class="kpi">
-            <span class="kpi-label">Transacciones</span>
-            <span class="kpi-value">{{ s.transactions }}</span>
-          </div>
-          <div class="kpi">
-            <span class="kpi-label">Ticket promedio</span>
-            <span class="kpi-value">{{ money(s.averageTicket) }}</span>
-          </div>
-        </section>
-
-        <section class="card">
-          <h3>Por método de pago</h3>
-          @if (s.byMethod.length === 0) {
-            <p class="muted">Sin ventas en el periodo.</p>
-          } @else {
-            <ul class="list">
-              @for (m of s.byMethod; track m.method) {
-                <li>
-                  <span>{{ methodLabel(m.method) }}</span>
-                  <span class="qty">{{ m.count }}</span>
-                  <strong>{{ money(m.total) }}</strong>
-                </li>
-              }
-            </ul>
-          }
-        </section>
-
-        <section class="card">
-          <h3>Productos más vendidos</h3>
-          @if (topProducts().length === 0) {
-            <p class="muted">Sin productos vendidos (pedidos cobrados) en el periodo.</p>
-          } @else {
-            <ul class="list">
-              @for (p of topProducts(); track p.productName) {
-                <li>
-                  <span>{{ p.productName }}</span>
-                  <span class="qty">{{ p.quantity }}</span>
-                  <strong>{{ money(p.revenue) }}</strong>
-                </li>
-              }
-            </ul>
-          }
-        </section>
-
-        <section class="card">
-          <h3>Ventas por categoría</h3>
-          @if (categories().length === 0) {
-            <p class="muted">Sin datos por categoría en el periodo.</p>
-          } @else {
-            <ul class="list">
-              @for (c of categories(); track c.category) {
-                <li>
-                  <span>{{ c.category }}</span>
-                  <span class="qty">{{ c.quantity }}</span>
-                  <strong>{{ money(c.revenue) }}</strong>
-                </li>
-              }
-            </ul>
-          }
-        </section>
         }
-      }
-    </main>
+      </div>
+
+      <!-- Top products -->
+      <div class="glass-card mb-3">
+        <h4 class="section-title mb-2">Productos más vendidos</h4>
+        @if (topProducts().length === 0) { <p class="text-muted">Sin productos vendidos en el periodo.</p> }
+        @else {
+          <div class="metric-list">
+            @for (p of topProducts(); track p.productName) {
+              <div class="metric-row"><span>{{ p.productName }} <small class="text-muted">×{{ p.quantity }}</small></span><strong>{{ money(p.revenue) }}</strong></div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- By category -->
+      <div class="glass-card mb-3">
+        <h4 class="section-title mb-2">Ventas por categoría</h4>
+        @if (categories().length === 0) { <p class="text-muted">Sin datos en el periodo.</p> }
+        @else {
+          <div class="metric-list">
+            @for (c of categories(); track c.category) {
+              <div class="metric-row"><span>{{ c.category }} <small class="text-muted">×{{ c.quantity }}</small></span><strong>{{ money(c.revenue) }}</strong></div>
+            }
+          </div>
+        }
+      </div>
+    }
   `,
-  styles: [
-    `
-      .topbar { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.5rem; background: var(--cf-surface); border-bottom: 1px solid rgba(0,0,0,0.3); }
-      .back { color: var(--cf-text); text-decoration: none; opacity: 0.85; }
-      .brand { color: var(--cf-accent); font-weight: 700; font-size: 1.1rem; }
-      .content { max-width: 820px; margin: 0 auto; padding: 1.5rem; }
-      .muted { opacity: 0.75; }
-      .card { background: var(--cf-surface); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.2rem; }
-      .card h3 { margin-top: 0; color: var(--cf-accent); }
-      .filters { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
-      .field { display: flex; flex-direction: column; }
-      label { font-size: 0.8rem; margin-bottom: 0.3rem; }
-      input { padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.2); color: var(--cf-text); }
-      .filters button { background: var(--cf-accent); color: #1a120b; border: none; border-radius: 8px; padding: 0.55rem 1.1rem; font-weight: 700; cursor: pointer; }
-      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
-      .kpi { background: var(--cf-surface); border-radius: 12px; padding: 1.1rem 1.3rem; display: flex; flex-direction: column; gap: 0.3rem; }
-      .kpi-label { font-size: 0.8rem; opacity: 0.7; text-transform: uppercase; }
-      .kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--cf-accent); }
-      .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
-      .list li { display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center; }
-      .list .qty { opacity: 0.65; }
-      .alert { background: rgba(224,122,95,0.15); border: 1px solid var(--cf-error); color: var(--cf-error); padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
-    `,
-  ],
+  styles: [`
+    :host { display: block; }
+    .mb-2 { margin-bottom: .5rem; }
+    .mb-3 { margin-bottom: 1rem; }
+    .text-muted { color: var(--muted); }
+    .section-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .alert-banner { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3); color: #dc2626; border-radius: 14px; padding: .75rem 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .filter-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+    .filter-field { display: flex; flex-direction: column; min-width: 160px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+    @media (max-width: 768px) { .kpi-grid { grid-template-columns: 1fr; } }
+  `],
 })
 export class ReportsComponent implements OnInit {
   private readonly reporting = inject(ReportingService);
@@ -140,59 +108,27 @@ export class ReportsComponent implements OnInit {
 
   ngOnInit(): void {
     const today = new Date().toISOString().slice(0, 10);
-    this.from.set(today);
-    this.to.set(today);
-    this.load();
+    this.from.set(today); this.to.set(today); this.load();
   }
 
   load(): void {
-    this.loading.set(true);
-    this.error.set(null);
+    this.loading.set(true); this.error.set(null);
     const from = this.from() || undefined;
     const to = this.to() || undefined;
-
     this.reporting.getSales(from, to).subscribe({
       next: (sales) => {
         this.sales.set(sales);
-        this.reporting.getByCategory(from, to).subscribe({
-          next: (categories) => this.categories.set(categories),
-          error: () => this.categories.set([]),
-        });
-        this.reporting.getTopProducts(from, to).subscribe({
-          next: (products) => {
-            this.topProducts.set(products);
-            this.loading.set(false);
-          },
-          error: () => {
-            this.topProducts.set([]);
-            this.loading.set(false);
-          },
-        });
+        this.reporting.getByCategory(from, to).subscribe({ next: (c) => this.categories.set(c), error: () => this.categories.set([]) });
+        this.reporting.getTopProducts(from, to).subscribe({ next: (p) => { this.topProducts.set(p); this.loading.set(false); }, error: () => { this.topProducts.set([]); this.loading.set(false); } });
       },
-      error: () => {
-        this.error.set('No se pudieron cargar los reportes.');
-        this.loading.set(false);
-      },
+      error: () => { this.error.set('No se pudieron cargar los reportes.'); this.loading.set(false); },
     });
   }
 
-  money(value: number): string {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(value);
-  }
+  money(value: number): string { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value); }
 
   methodLabel(method: string): string {
-    const labels: Record<string, string> = {
-      CASH: 'Efectivo',
-      NEQUI: 'Nequi',
-      BANCOLOMBIA: 'Bancolombia',
-      BOLD: 'Bold',
-      BREB: 'Bre-B',
-      MIXED: 'Mixto',
-    };
+    const labels: Record<string, string> = { CASH: 'Efectivo', NEQUI: 'Nequi', BANCOLOMBIA: 'Bancolombia', BOLD: 'Bold', BREB: 'Bre-B', MIXED: 'Mixto' };
     return labels[method] ?? method;
   }
 }

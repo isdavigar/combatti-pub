@@ -1,24 +1,24 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 
 import { ApiKey, CreatedApiKey, IntegrationService } from '../../core/integration.service';
 
 @Component({
   selector: 'app-integrations',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
-    <header class="topbar">
-      <a routerLink="/" class="back">← Volver</a>
-      <span class="brand">Integraciones (API)</span>
-    </header>
+    <div class="section-header mb-3">
+      <div>
+        <h2 class="section-title"><i class="fa-solid fa-plug"></i> Integraciones (API)</h2>
+        <p class="section-subtitle">API keys para integraciones externas.</p>
+      </div>
+    </div>
 
-    <main class="content">
-      @if (error()) { <div class="alert">{{ error() }}</div> }
+      @if (error()) { <div class="alert-banner mb-3"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div> }
 
       @if (createdKey(); as created) {
-        <div class="secret-box">
+        <div class="secret-box mb-3">
           <h3>🔑 API key creada</h3>
           <p class="warn">Cópiala ahora: por seguridad no se volverá a mostrar.</p>
           <div class="secret">
@@ -80,33 +80,24 @@ import { ApiKey, CreatedApiKey, IntegrationService } from '../../core/integratio
           </table>
         }
       </section>
-    </main>
   `,
-  styles: [
-    `
-      .topbar { display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1.5rem; background: var(--cf-surface); border-bottom: 1px solid rgba(0,0,0,0.3); }
-      .back { color: var(--cf-text); text-decoration: none; opacity: 0.85; }
-      .brand { color: var(--cf-accent); font-weight: 700; font-size: 1.1rem; }
-      .content { max-width: 860px; margin: 0 auto; padding: 1.5rem; }
-      .muted { opacity: 0.75; }
-      .small { font-size: 0.8rem; }
-      .card { background: var(--cf-surface); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.2rem; }
-      .card h3 { margin-top: 0; color: var(--cf-accent); }
-      label, .label { display: block; font-size: 0.85rem; margin: 0.6rem 0 0.3rem; }
-      input[type='text'], input#name { width: 100%; padding: 0.6rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.2); color: var(--cf-text); box-sizing: border-box; }
-      .scopes { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 0.8rem; }
-      .scope { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
-      button { border: none; border-radius: 8px; padding: 0.6rem 1rem; font-weight: 700; cursor: pointer; background: var(--cf-accent); color: #1a120b; }
-      button:disabled { opacity: 0.5; cursor: not-allowed; }
-      button.danger { background: var(--cf-error); color: #fff; padding: 0.4rem 0.7rem; font-size: 0.8rem; }
-      button.ghost { background: transparent; color: var(--cf-text); border: 1px solid rgba(255,255,255,0.25); }
-      table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-      th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
-      .scopes-cell { font-size: 0.8rem; opacity: 0.9; }
-      tr.revoked { opacity: 0.5; }
-      .alert { background: rgba(224,122,95,0.15); border: 1px solid var(--cf-error); color: var(--cf-error); padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
-      .secret-box { background: rgba(46,125,50,0.15); border: 1px solid #2e7d32; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
-      .secret-box h3 { margin-top: 0; }
+  styles: [`
+    :host { display: block; }
+    .mb-3 { margin-bottom: 1rem; }
+    .text-muted { color: var(--muted); }
+    .section-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .alert-banner { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3); color: #dc2626; border-radius: 14px; padding: .75rem 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .form-group { margin-bottom: .75rem; }
+    .scopes { display: flex; flex-wrap: wrap; gap: .8rem; margin-bottom: .8rem; }
+    .scope { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+    button.danger { background: var(--danger); color: #fff; padding: .4rem .7rem; font-size: .8rem; border-radius: 8px; border: 0; cursor: pointer; }
+    button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: .4rem .7rem; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+    .scopes-cell { font-size: .8rem; opacity: .9; }
+    tr.revoked { opacity: .5; }
+    .secret-box { background: rgba(25,195,125,.08); border: 1px solid rgba(25,195,125,.3); border-radius: 16px; padding: 1rem 1.2rem; }
+    .secret-box h3 { margin-top: 0; color: var(--primary); }
       .warn { color: #ffcf6b; font-weight: 600; }
       .secret { display: flex; gap: 0.6rem; align-items: center; background: rgba(0,0,0,0.3); padding: 0.6rem 0.8rem; border-radius: 8px; }
       .secret code { word-break: break-all; flex: 1; }

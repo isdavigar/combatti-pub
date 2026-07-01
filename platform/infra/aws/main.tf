@@ -21,6 +21,32 @@ data "aws_vpc" "default" {
   default = true
 }
 
+data "aws_caller_identity" "current" {}
+
+# --- Rol IAM para que la instancia pueda leer imágenes de ECR ---
+resource "aws_iam_role" "ec2" {
+  name_prefix = "${var.project_name}-ec2-"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+  tags = { Project = var.project_name }
+}
+
+resource "aws_iam_role_policy_attachment" "ecr_readonly" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+resource "aws_iam_instance_profile" "ec2" {
+  name_prefix = "${var.project_name}-ec2-"
+  role        = aws_iam_role.ec2.name
+}
+
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -88,6 +114,7 @@ resource "aws_instance" "backend" {
   vpc_security_group_ids      = [aws_security_group.backend.id]
   associate_public_ip_address = true
   key_name                    = local.enable_ssh ? var.ssh_key_name : null
+  iam_instance_profile        = aws_iam_instance_profile.ec2.name
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     repo_url             = var.repo_url
@@ -95,6 +122,8 @@ resource "aws_instance" "backend" {
     jwt_secret           = local.jwt_secret
     admin_password       = local.admin_password
     cors_allowed_origins = var.cors_allowed_origins
+    region               = var.region
+    registry             = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
   })
 
   # Recrear la instancia si cambia el script de arranque.

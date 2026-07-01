@@ -1,0 +1,47 @@
+# Override para usar imágenes pre-construidas desde un registro (Amazon ECR).
+#
+# En lugar de compilar en la instancia (lento e inviable en free tier), las
+# imágenes se construyen en GitHub Actions, se publican en ECR y la instancia
+# solo las descarga (docker compose pull) y ejecuta (up --no-build).
+#
+# Requiere la variable de entorno REGISTRY con el host del registro, p.ej.:
+#   REGISTRY=123456789012.dkr.ecr.us-east-1.amazonaws.com
+#
+# Uso en CI (build + push):
+#   REGISTRY=... docker compose -f docker-compose.yml -f docker-compose.images.yml build
+#   REGISTRY=... docker compose -f docker-compose.yml -f docker-compose.images.yml push
+#
+# Uso en la instancia (pull + run):
+#   REGISTRY=... docker compose -f docker-compose.yml -f docker-compose.freetier.yml -f docker-compose.images.yml pull
+#   REGISTRY=... docker compose -f ... up -d --no-build
+
+services:
+  auth-service:
+    image: ${REGISTRY}/combatti-auth:${TAG:-latest}
+
+  catalog-service:
+    image: ${REGISTRY}/combatti-catalog:${TAG:-latest}
+
+  orders-service:
+    image: ${REGISTRY}/combatti-orders:${TAG:-latest}
+
+  payments-service:
+    image: ${REGISTRY}/combatti-payments:${TAG:-latest}
+
+  cash-service:
+    image: ${REGISTRY}/combatti-cash:${TAG:-latest}
+
+  reporting-service:
+    image: ${REGISTRY}/combatti-reporting:${TAG:-latest}
+
+  settings-service:
+    image: ${REGISTRY}/combatti-settings:${TAG:-latest}
+
+  integration-service:
+    image: ${REGISTRY}/combatti-integration:${TAG:-latest}
+
+  pos-bridge:
+    image: ${REGISTRY}/combatti-pos-bridge:${TAG:-latest}
+
+  gateway:
+    image: ${REGISTRY}/combatti-gateway:${TAG:-latest}

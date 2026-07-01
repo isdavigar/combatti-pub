@@ -1,22 +1,20 @@
 name: Deploy Backend to AWS
 
-# Despliegue automatizado del backend (EC2 + Docker Compose) con Terraform.
+# Despliegue del backend en AWS.
+#
+# Estrategia: las imágenes Docker se COMPILAN en GitHub Actions (CPU/RAM
+# potentes) y se publican en Amazon ECR. La instancia EC2 solo las DESCARGA y
+# ejecuta (no compila), de modo que funciona incluso en free tier (t3.micro).
 #
 # Requisitos (GitHub → Settings → Secrets and variables → Actions → Secrets):
-#   - AWS_ACCESS_KEY_ID       Clave de acceso de un usuario IAM con permisos
-#   - AWS_SECRET_ACCESS_KEY   Clave secreta correspondiente
-#
-# Opcional (Secrets):
-#   - CF_PAGES_ORIGIN         Origen del frontend para CORS (por defecto la URL de Pages)
-#
-# El estado de Terraform se guarda en un bucket S3 creado automáticamente
-# (combatti-tfstate-<ACCOUNT_ID>-<REGION>), de forma idempotente.
+#   - AWS_ACCESS_KEY_ID
+#   - AWS_SECRET_ACCESS_KEY
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Acción de Terraform a ejecutar"
+        description: "Acción a ejecutar"
         required: true
         default: "apply"
         type: choice
@@ -38,9 +36,71 @@ on:
 permissions:
   contents: read
 
+env:
+  SERVICES: >-
+    auth-service catalog-service orders-service payments-service cash-service
+    reporting-service settings-service integration-service pos-bridge gateway
+  ECR_REPOS: >-
+    combatti-auth combatti-catalog combatti-orders combatti-payments
+    combatti-cash combatti-reporting combatti-settings combatti-integration
+    combatti-pos-bridge combatti-gateway
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Compila las imágenes y las publica en ECR (solo en 'apply').
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build & push images (ECR)
+    if: ${{ github.event.inputs.action == 'apply' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.region }}
+
+      - name: Crear repositorios ECR (idempotente)
+        run: |
+          for repo in $ECR_REPOS; do
+            aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1 \
+              || aws ecr create-repository --repository-name "$repo" >/dev/null
+          done
+
+      - name: Login en ECR
+        id: ecr
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.${{ github.event.inputs.region }}.amazonaws.com"
+          echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
+          aws ecr get-login-password --region "${{ github.event.inputs.region }}" \
+            | docker login --username AWS --password-stdin "${REGISTRY}"
+
+      - name: Compilar imágenes
+        working-directory: platform/infra
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.images.yml build $SERVICES
+
+      - name: Publicar imágenes en ECR
+        working-directory: platform/infra
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.images.yml push $SERVICES
+
+  # ---------------------------------------------------------------------------
+  # 2) Terraform: crea/actualiza la infraestructura (o destruye / muestra creds).
+  # ---------------------------------------------------------------------------
   terraform:
     name: Terraform (${{ github.event.inputs.action }})
+    needs: build
+    if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -62,15 +122,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ github.event.inputs.region }}
 
-      - name: Verificar credenciales
-        run: |
-          if [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ]; then
-            echo "::error::Faltan los secrets AWS_ACCESS_KEY_ID y/o AWS_SECRET_ACCESS_KEY."
-            echo "Configúralos en GitHub → Settings → Secrets and variables → Actions."
-            exit 1
-          fi
-          aws sts get-caller-identity
-
       - name: Determinar tipo de instancia (free tier)
         run: |
           REQUESTED="${{ github.event.inputs.instance_type }}"
@@ -79,29 +130,23 @@ jobs:
             echo "TF_VAR_instance_type=${REQUESTED}" >> "$GITHUB_ENV"
             exit 0
           fi
-
           echo "Detectando tipos de instancia free-tier de la cuenta..."
-          # Candidatos x86_64 (la AMI del módulo es x86_64). Orden = preferencia.
           CANDIDATES="t3.micro t2.micro t3a.micro t2.small t3.small"
           FREE_LIST=$(aws ec2 describe-instance-types \
             --filters "Name=free-tier-eligible,Values=true" \
                       "Name=processor-info.supported-architecture,Values=x86_64" \
             --query "InstanceTypes[].InstanceType" --output text 2>/dev/null || echo "")
-          echo "Free-tier x86_64 elegibles en la cuenta: ${FREE_LIST:-<ninguno detectado>}"
-
+          echo "Free-tier x86_64 elegibles: ${FREE_LIST:-<ninguno>}"
           CHOSEN=""
           for pref in $CANDIDATES; do
             for ft in $FREE_LIST; do
               if [ "$pref" = "$ft" ]; then CHOSEN="$pref"; break 2; fi
             done
           done
-          # Si la cuenta reporta free-tier x86 no listados arriba, toma el primero.
           if [ -z "$CHOSEN" ] && [ -n "$FREE_LIST" ]; then
             CHOSEN=$(echo "$FREE_LIST" | tr '\t' '\n' | head -n1)
           fi
-          # Último recurso: t3.micro (x86, ampliamente disponible).
           if [ -z "$CHOSEN" ]; then CHOSEN="t3.micro"; fi
-
           echo "::notice::Tipo de instancia elegido: ${CHOSEN}"
           echo "TF_VAR_instance_type=${CHOSEN}" >> "$GITHUB_ENV"
 
@@ -112,7 +157,6 @@ jobs:
           REGION="${{ github.event.inputs.region }}"
           BUCKET="combatti-tfstate-${ACCOUNT_ID}-${REGION}"
           echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
-
           if aws s3api head-bucket --bucket "${BUCKET}" 2>/dev/null; then
             echo "Bucket de estado ya existe: ${BUCKET}"
           else
@@ -170,7 +214,7 @@ jobs:
           echo "${ADMIN_PW}" >> "$GITHUB_STEP_SUMMARY"
           echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "> :warning: Trata esta contraseña como secreta. Cámbiala desde la pantalla de Usuarios tras el primer login." >> "$GITHUB_STEP_SUMMARY"
+          echo "> :warning: Trata esta contraseña como secreta. Cámbiala tras el primer login." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Mostrar URL del backend
         if: ${{ github.event.inputs.action == 'apply' }}
@@ -186,11 +230,10 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**IP pública:** ${PUBLIC_IP}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "La instancia tarda ~5-10 min en compilar y arrancar los 9 servicios." >> "$GITHUB_STEP_SUMMARY"
+          echo "La instancia descarga las imágenes de ECR y arranca en ~3-5 min." >> "$GITHUB_STEP_SUMMARY"
           echo "Verifica con: \`curl ${GATEWAY_URL}/api/auth/health\` (debe responder UP)." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "> La contraseña del admin se guardó en el estado de Terraform (S3). " >> "$GITHUB_STEP_SUMMARY"
-          echo "> Recupérala corriendo localmente: \`terraform output -raw admin_password\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Recupera la contraseña del admin corriendo este workflow con action=show-credentials." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Terraform Destroy
         if: ${{ github.event.inputs.action == 'destroy' }}

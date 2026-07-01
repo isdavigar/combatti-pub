@@ -1,22 +1,19 @@
 #!/bin/bash
 set -euxo pipefail
 
-# --- Memoria swap (clave para free tier de 1 GB) ---
-# Permite compilar y ejecutar los servicios Java en una t2.micro sin quedarse
-# sin memoria (a costa de velocidad).
+# --- Memoria swap (ayuda a correr los servicios en 1 GB) ---
 if [ ! -f /swapfile ]; then
-  fallocate -l 6G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=6144
+  fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
   chmod 600 /swapfile
   mkswap /swapfile
   swapon /swapfile
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
-  # Reduce la agresividad de swap para runtime.
   sysctl vm.swappiness=10
 fi
 
-# --- Docker + plugin compose (Amazon Linux 2023) ---
+# --- Docker + plugin compose + awscli (Amazon Linux 2023) ---
 dnf update -y
-dnf install -y docker git
+dnf install -y docker git awscli
 systemctl enable --now docker
 
 mkdir -p /usr/local/lib/docker/cli-plugins
@@ -24,7 +21,7 @@ curl -SL https://github.com/docker/compose/releases/download/v2.29.7/docker-comp
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-# --- Clonar el repositorio ---
+# --- Clonar el repositorio (solo para tener los compose files) ---
 install -d -o root -g root /opt/combatti
 git clone --branch ${repo_branch} --depth 1 ${repo_url} /opt/combatti
 
@@ -36,17 +33,24 @@ SEED_ADMIN_PASSWORD=${admin_password}
 CORS_ALLOWED_ORIGINS=${cors_allowed_origins}
 ENVEOF
 
-# --- Construir y levantar el stack (con overrides de free tier) ---
-# Compila los servicios de a uno (sin paralelismo) para no agotar la memoria
-# durante el build en una instancia de 1 GB.
+# --- Login en ECR usando el rol IAM de la instancia ---
+export REGISTRY="${registry}"
+aws ecr get-login-password --region ${region} \
+  | docker login --username AWS --password-stdin "${registry}"
+
+# --- Descargar imágenes pre-construidas y levantar el stack (sin compilar) ---
 cd /opt/combatti/platform/infra
-export COMPOSE_FILE=docker-compose.yml:docker-compose.freetier.yml
-for svc in auth-service catalog-service orders-service payments-service cash-service reporting-service settings-service integration-service pos-bridge gateway; do
-  docker compose build "$svc"
+COMPOSE="-f docker-compose.yml -f docker-compose.freetier.yml -f docker-compose.images.yml"
+
+# Reintenta el pull por si las imágenes aún se están publicando en ECR.
+for i in $(seq 1 30); do
+  if REGISTRY="${registry}" docker compose $COMPOSE pull; then
+    break
+  fi
+  echo "Imágenes aún no disponibles en ECR, reintento $i/30..."
+  sleep 20
 done
 
-# Levanta todo el stack.
-docker compose up -d
+REGISTRY="${registry}" docker compose $COMPOSE up -d --no-build
 
-# Marca de finalizacion (util para diagnostico).
 echo "combatti backend iniciado: $(date -u)" > /var/log/combatti-deploy.log

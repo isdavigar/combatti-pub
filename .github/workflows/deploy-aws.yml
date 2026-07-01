@@ -29,9 +29,9 @@ on:
         default: "us-east-1"
         type: string
       instance_type:
-        description: "Tipo de instancia EC2"
+        description: "Tipo de instancia EC2 (t2.micro = free tier en us-east-1)"
         required: true
-        default: "t3.large"
+        default: "t2.micro"
         type: string
 
 permissions:

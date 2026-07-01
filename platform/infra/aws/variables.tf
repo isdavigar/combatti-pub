@@ -11,9 +11,9 @@ variable "project_name" {
 }
 
 variable "instance_type" {
-  description = "Tipo de instancia EC2. Se recomienda >= t3.large por la compilación de 9 módulos Maven."
+  description = "Tipo de instancia EC2. t2.micro es free-tier en us-east-1 (1 GB, usa swap). Para producción usa >= t3.medium."
   type        = string
-  default     = "t3.large"
+  default     = "t2.micro"
 }
 
 variable "repo_url" {

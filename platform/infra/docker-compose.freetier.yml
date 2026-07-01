@@ -1,0 +1,80 @@
+# Override para AWS Free Tier (t3.micro / 1 GB RAM).
+#
+# Se usa junto al compose principal:
+#   docker compose -f docker-compose.yml -f docker-compose.freetier.yml up -d --build
+#
+# Limita el heap de cada JVM (SerialGC consume menos que G1 en heaps pequeños)
+# para que los 10 servicios + PostgreSQL quepan en 1 GB físico + swap.
+#
+# NOTA: pensado para pruebas/demo. Para producción usa >= t3.medium (4 GB) y
+# elimina estos límites.
+
+x-jvm-tiny: &jvm-tiny
+  JAVA_TOOL_OPTIONS: "-Xmx128m -Xss512k -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
+
+# Healthcheck relajado: en t2.micro con swap los servicios tardan más en
+# levantar; damos hasta ~10 min antes de marcarlos como no saludables.
+x-slow-healthcheck: &slow-healthcheck
+  test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/$${SERVER_PORT}' || exit 1"]
+  interval: 20s
+  timeout: 10s
+  retries: 30
+  start_period: 300s
+
+services:
+  postgres:
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c max_connections=50
+      -c work_mem=2MB
+
+  auth-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  catalog-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  orders-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  payments-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  cash-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  reporting-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  pos-bridge:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  settings-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  integration-service:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck
+
+  gateway:
+    environment:
+      <<: *jvm-tiny
+    healthcheck: *slow-healthcheck

@@ -110,8 +110,6 @@ import { Settings, SettingsService, UpdateSettingsRequest } from '../../core/set
           }
         </form>
       }
-    </form>
-      }
   `,
   styles: [`
     :host { display: block; }

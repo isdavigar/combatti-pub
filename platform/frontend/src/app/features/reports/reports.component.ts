@@ -34,21 +34,21 @@ import { ReportingService, SalesReport, TopProduct, CategorySales } from '../../
 
     @if (loading()) {
       <div class="glass-card" style="min-height:200px;display:grid;place-items:center"><span class="text-muted">Cargando…</span></div>
-    } @else if (sales(); as s) {
+    } @else if (sales()) {
       <!-- KPIs -->
       <div class="kpi-grid mb-3">
-        <div class="kpi-card"><div><div class="stat-value">{{ money(s.total) }}</div><div class="stat-label">Ventas totales</div></div><div class="stat-icon"><i class="fa-solid fa-sack-dollar"></i></div></div>
-        <div class="kpi-card"><div><div class="stat-value">{{ s.transactions }}</div><div class="stat-label">Transacciones</div></div><div class="stat-icon"><i class="fa-solid fa-receipt"></i></div></div>
-        <div class="kpi-card"><div><div class="stat-value">{{ money(s.averageTicket) }}</div><div class="stat-label">Ticket promedio</div></div><div class="stat-icon"><i class="fa-solid fa-ticket"></i></div></div>
+        <div class="kpi-card"><div><div class="stat-value">{{ money(sales()!.total) }}</div><div class="stat-label">Ventas totales</div></div><div class="stat-icon"><i class="fa-solid fa-sack-dollar"></i></div></div>
+        <div class="kpi-card"><div><div class="stat-value">{{ sales()!.transactions }}</div><div class="stat-label">Transacciones</div></div><div class="stat-icon"><i class="fa-solid fa-receipt"></i></div></div>
+        <div class="kpi-card"><div><div class="stat-value">{{ money(sales()!.averageTicket) }}</div><div class="stat-label">Ticket promedio</div></div><div class="stat-icon"><i class="fa-solid fa-ticket"></i></div></div>
       </div>
 
       <!-- By method -->
       <div class="glass-card mb-3">
         <h4 class="section-title mb-2">Por método de pago</h4>
-        @if (s.byMethod.length === 0) { <p class="text-muted">Sin ventas en el periodo.</p> }
+        @if (sales()!.byMethod.length === 0) { <p class="text-muted">Sin ventas en el periodo.</p> }
         @else {
           <div class="metric-list">
-            @for (m of s.byMethod; track m.method) {
+            @for (m of sales()!.byMethod; track m.method) {
               <div class="metric-row"><span>{{ methodLabel(m.method) }} <small class="text-muted">({{ m.count }})</small></span><strong>{{ money(m.total) }}</strong></div>
             }
           </div>

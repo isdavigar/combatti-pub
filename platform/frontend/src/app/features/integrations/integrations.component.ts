@@ -80,7 +80,6 @@ import { ApiKey, CreatedApiKey, IntegrationService } from '../../core/integratio
           </table>
         }
       </section>
-    </section>
   `,
   styles: [`
     :host { display: block; }

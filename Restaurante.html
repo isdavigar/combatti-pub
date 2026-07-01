@@ -9442,7 +9442,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // Push config to cloud IMMEDIATELY (all devices must see caja open)
       const openCfg = cloudConfigPayload();
       sendAWS({ action: 'sync', type: 'putConfig', payload: openCfg });
-      lastSentConfigSeq = Number(openCfg._seq || Date.now());
+      setLastSentConfigSeq(openCfg._seq || Date.now());
       pushIncremental().catch(() => {});
       saveStateToDatabase(appStateSnapshot());
       toast(`Caja abierta: ${money(amount)} · ${shiftLabel(state.shift)}`, 'success');
@@ -9582,7 +9582,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       // CRITICAL: Push caja closed to cloud IMMEDIATELY (before anything else can fail)
       const closeCfgPayload = cloudConfigPayload();
       sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfgPayload });
-      lastSentConfigSeq = Number(closeCfgPayload._seq || Date.now());
+      setLastSentConfigSeq(closeCfgPayload._seq || Date.now());
       saveStateToDatabase(appStateSnapshot());
       const lastHistory = currentCashRecord();
       const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
@@ -13313,7 +13313,14 @@ let cloudSyncEnabled = true;
 let cloudInitialSyncDone = false;
 let isApplyingRemoteState = false;
 // _isRemoteRender ya está declarado más arriba (junto a renderAll); reutilizamos esa misma variable
-let lastSentConfigSeq = 0;
+let lastSentConfigSeq = Number(localStorage.getItem('combatti_last_config_seq') || 0);
+// Persiste el _seq de la última config que ESTE dispositivo escribió, para que
+// sobreviva recargas. Así, si se cerró caja sin conexión, al reconectar el
+// dispositivo NO deja que la nube (más vieja) pise su cierre, y lo reenvía.
+function setLastSentConfigSeq(seq){
+  lastSentConfigSeq = Number(seq) || 0;
+  try { localStorage.setItem('combatti_last_config_seq', String(lastSentConfigSeq)); } catch(_){}
+}
 
 const CLOUD_DEVICE_ID = (() => {
   let id = localStorage.getItem('combatti_cloud_device_id_v1') || '';
@@ -13386,8 +13393,12 @@ function handleAWSMessage(msg) {
   // CONFIG (cash state, brand, shift, etc.)
   if (msg.type === 'config' && msg.payload) {
     const remoteSeq = Number(msg.payload._seq || 0);
-    // Ignore if older than what we last sent (prevents echo overwrite)
-    if (remoteSeq > 0 && lastSentConfigSeq > 0 && remoteSeq < lastSentConfigSeq) return;
+    // Si la nube tiene una config MÁS VIEJA que la nuestra (p.ej. se cerró caja
+    // sin conexión), no la aplicamos y REENVIAMOS la local para actualizar la nube.
+    if (remoteSeq > 0 && lastSentConfigSeq > 0 && remoteSeq < lastSentConfigSeq) {
+      if (cloudConnected && typeof pushConfigToCloud === 'function') pushConfigToCloud();
+      return;
+    }
     isApplyingRemoteState = true;
     applyConfigFromCloud(msg.payload);
     isApplyingRemoteState = false;
@@ -13401,7 +13412,11 @@ function handleAWSMessage(msg) {
   if (msg.type === 'configChange' && msg.payload) {
     if (msg.payload._device === CLOUD_DEVICE_ID) return; // Ignore own echo
     const remoteSeq = Number(msg.payload._seq || 0);
-    if (remoteSeq > 0 && lastSentConfigSeq > 0 && remoteSeq < lastSentConfigSeq) return;
+    // Config remota más vieja que la local: no aplicar y reenviar la nuestra.
+    if (remoteSeq > 0 && lastSentConfigSeq > 0 && remoteSeq < lastSentConfigSeq) {
+      if (cloudConnected && typeof pushConfigToCloud === 'function') pushConfigToCloud();
+      return;
+    }
     isApplyingRemoteState = true;
     applyConfigFromCloud(msg.payload);
     isApplyingRemoteState = false;
@@ -13564,7 +13579,7 @@ function pushItemToCloud(collection, item) {
 // ===== Push config to cloud (caja open/close, brand changes, etc.) =====
 function pushConfigToCloud() {
   const payload = cloudConfigPayload();
-  lastSentConfigSeq = Number(payload._seq);
+  setLastSentConfigSeq(payload._seq);
   sendAWS({ action: 'sync', type: 'putConfig', payload });
 }
 

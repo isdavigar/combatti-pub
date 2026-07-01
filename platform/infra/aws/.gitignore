@@ -8,3 +8,6 @@ crash.log
 # Variables con valores reales (nunca commitear)
 terraform.tfvars
 *.auto.tfvars
+
+# Backend generado dinámicamente por el workflow de CI
+backend.tf

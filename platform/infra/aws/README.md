@@ -17,6 +17,25 @@ de administrador segura.
 
 ## Uso
 
+### Opción 1 — Automático con GitHub Actions (recomendado)
+
+Despliega sin instalar nada en tu máquina. El estado de Terraform se guarda en
+un bucket S3 creado automáticamente.
+
+1. **Crea un usuario IAM** en AWS con permisos para EC2, VPC y S3 (o `AdministratorAccess`
+   para empezar). Genera un *Access Key*.
+2. En GitHub → **Settings → Secrets and variables → Actions → New repository secret**,
+   agrega:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+3. Ve a la pestaña **Actions → Deploy Backend to AWS → Run workflow**.
+   - `action`: `apply` (para desplegar) o `destroy` (para eliminar todo)
+   - `region`, `instance_type`: ajusta si quieres
+4. Al terminar, el resumen del workflow muestra la **Gateway URL**. Cópiala como
+   `BACKEND_URL` en Cloudflare Pages.
+
+### Opción 2 — Local con Terraform CLI
+
 ```bash
 cd platform/infra/aws
 cp terraform.tfvars.example terraform.tfvars   # ajusta region, CORS, etc.

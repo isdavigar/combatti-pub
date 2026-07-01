@@ -1,0 +1,145 @@
+name: Deploy Backend to AWS
+
+# Despliegue automatizado del backend (EC2 + Docker Compose) con Terraform.
+#
+# Requisitos (GitHub → Settings → Secrets and variables → Actions → Secrets):
+#   - AWS_ACCESS_KEY_ID       Clave de acceso de un usuario IAM con permisos
+#   - AWS_SECRET_ACCESS_KEY   Clave secreta correspondiente
+#
+# Opcional (Secrets):
+#   - CF_PAGES_ORIGIN         Origen del frontend para CORS (por defecto la URL de Pages)
+#
+# El estado de Terraform se guarda en un bucket S3 creado automáticamente
+# (combatti-tfstate-<ACCOUNT_ID>-<REGION>), de forma idempotente.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Acción de Terraform a ejecutar"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - apply
+          - destroy
+      region:
+        description: "Región de AWS"
+        required: true
+        default: "us-east-1"
+        type: string
+      instance_type:
+        description: "Tipo de instancia EC2"
+        required: true
+        default: "t3.large"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform (${{ github.event.inputs.action }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/infra/aws
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ github.event.inputs.region }}
+      TF_VAR_region: ${{ github.event.inputs.region }}
+      TF_VAR_instance_type: ${{ github.event.inputs.instance_type }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.region }}
+
+      - name: Verificar credenciales
+        run: |
+          if [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ]; then
+            echo "::error::Faltan los secrets AWS_ACCESS_KEY_ID y/o AWS_SECRET_ACCESS_KEY."
+            echo "Configúralos en GitHub → Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          aws sts get-caller-identity
+
+      - name: Preparar bucket de estado (S3)
+        id: state
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          REGION="${{ github.event.inputs.region }}"
+          BUCKET="combatti-tfstate-${ACCOUNT_ID}-${REGION}"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+
+          if aws s3api head-bucket --bucket "${BUCKET}" 2>/dev/null; then
+            echo "Bucket de estado ya existe: ${BUCKET}"
+          else
+            echo "Creando bucket de estado: ${BUCKET}"
+            if [ "${REGION}" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "${BUCKET}" --region "${REGION}"
+            else
+              aws s3api create-bucket --bucket "${BUCKET}" --region "${REGION}" \
+                --create-bucket-configuration LocationConstraint="${REGION}"
+            fi
+            aws s3api put-bucket-versioning --bucket "${BUCKET}" \
+              --versioning-configuration Status=Enabled
+            aws s3api put-public-access-block --bucket "${BUCKET}" \
+              --public-access-block-configuration \
+              BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+          fi
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.5"
+
+      - name: Configurar backend S3 (solo en CI)
+        run: |
+          cat > backend.tf <<'EOF'
+          terraform {
+            backend "s3" {}
+          }
+          EOF
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ steps.state.outputs.bucket }}" \
+            -backend-config="key=backend/terraform.tfstate" \
+            -backend-config="region=${{ github.event.inputs.region }}"
+
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: terraform apply -auto-approve -input=false
+
+      - name: Mostrar URL del backend
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: |
+          echo "### Backend desplegado en AWS :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          GATEWAY_URL=$(terraform output -raw gateway_url)
+          PUBLIC_IP=$(terraform output -raw public_ip)
+          echo "**Gateway URL (usar como \`BACKEND_URL\` en Cloudflare Pages):**" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "${GATEWAY_URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**IP pública:** ${PUBLIC_IP}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "La instancia tarda ~5-10 min en compilar y arrancar los 9 servicios." >> "$GITHUB_STEP_SUMMARY"
+          echo "Verifica con: \`curl ${GATEWAY_URL}/api/auth/health\` (debe responder UP)." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> La contraseña del admin se guardó en el estado de Terraform (S3). " >> "$GITHUB_STEP_SUMMARY"
+          echo "> Recupérala corriendo localmente: \`terraform output -raw admin_password\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Terraform Destroy
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        run: terraform destroy -auto-approve -input=false

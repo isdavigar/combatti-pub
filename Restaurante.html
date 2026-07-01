@@ -13684,11 +13684,20 @@ function updateCloudStatus() {
   else if (cloudSyncEnabled && cloudConnected) st = 'live';
   else if (cloudSyncEnabled && awsReconnecting) st = 'syncing';
   else st = 'off';
-  const el = document.getElementById('cloudStatusIndicator');
-  if(el) {
-    el.className = 'cloud-indicator ' + st;
-    el.title = st === 'live' ? 'Conectado a la nube' : st === 'syncing' ? 'Reconectando...' : st === 'offline' ? 'Sin internet' : 'Desconectado';
-  }
+
+  const labels = { live: 'En línea', syncing: 'Sincronizando', offline: 'Sin conexión', off: 'Local' };
+  const titles = { live: 'Conectado a la nube', syncing: 'Reconectando…', offline: 'Sin internet', off: 'Desconectado' };
+
+  // El indicador real está en la barra superior (cloudTopIndicator).
+  // Se mantiene compatibilidad con cloudStatusIndicator por si existe.
+  ['cloudTopIndicator', 'cloudStatusIndicator'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.className = 'cloud-indicator cloud-' + st;
+    el.title = titles[st];
+  });
+  const txt = document.getElementById('cloudTopIndicatorText');
+  if(txt) txt.textContent = labels[st];
 }
 
 // ===== Event listeners =====

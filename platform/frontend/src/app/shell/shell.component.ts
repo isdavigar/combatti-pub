@@ -27,6 +27,10 @@ import { AuthService } from '../core/auth.service';
           <span class="cloud-indicator-text">En línea</span>
         </div>
 
+        <button class="app-topbar-icon-btn" (click)="logout()" title="Salir" aria-label="Salir">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+
         <div class="user-menu" [class.open]="userMenuOpen()">
           <button class="user-menu-trigger" (click)="toggleUserMenu()">
             <span class="user-avatar">
@@ -37,16 +41,11 @@ import { AuthService } from '../core/auth.service';
             </span>
             <i class="fa-solid fa-chevron-down user-menu-caret"></i>
           </button>
-          @if (userMenuOpen()) {
-            <div class="user-menu-dropdown">
-              <button class="user-menu-item" (click)="toggleDarkMode()">
-                <i class="fa-solid fa-moon"></i> Modo oscuro
-              </button>
-              <button class="user-menu-item danger" (click)="logout()">
-                <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
-              </button>
-            </div>
-          }
+          <div class="user-menu-dropdown" [class.d-none]="!userMenuOpen()">
+            <button class="user-menu-item" (click)="toggleDarkMode()">
+              <i class="fa-solid fa-moon"></i> Modo oscuro
+            </button>
+          </div>
         </div>
       </div>
     </header>

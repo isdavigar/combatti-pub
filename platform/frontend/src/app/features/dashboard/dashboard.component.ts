@@ -15,7 +15,7 @@ import { ReportingService } from '../../core/reporting.service';
           <i class="fa-solid fa-bolt"></i>
           <span>Operación de hoy</span>
         </span>
-        <h2 class="dashboard-title">Panel operativo</h2>
+        <h2 class="dashboard-title">Bienvenido, {{ user()?.displayName }}</h2>
         <p class="dashboard-hero-lead">Resumen en vivo de tu restaurante: ventas, pedidos y estado de caja.</p>
         <div class="dashboard-hero-metrics">
           <div>
@@ -151,6 +151,18 @@ import { ReportingService } from '../../core/reporting.service';
         </div>
       </div>
     </div>
+
+    <!-- Session info / permissions -->
+    <div class="glass-card mb-4">
+      <h4 class="section-title mb-2">Permisos efectivos</h4>
+      <div class="chips">
+        @for (perm of user()?.permissions ?? []; track perm) {
+          <span class="badge-soft">{{ perm }}</span>
+        } @empty {
+          <span class="text-muted">Sin permisos asignados.</span>
+        }
+      </div>
+    </div>
   `,
   styles: [`
     :host { display: block; }
@@ -201,6 +213,8 @@ import { ReportingService } from '../../core/reporting.service';
 
     h5 { margin: 0 0 4px; }
     p { margin: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .text-muted { color: var(--muted); }
 
     @media (max-width: 992px) {
       .kpi-row { grid-template-columns: repeat(2, 1fr); }

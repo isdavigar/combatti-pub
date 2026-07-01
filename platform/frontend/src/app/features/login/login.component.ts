@@ -31,8 +31,9 @@ import { AuthService } from '../../core/auth.service';
               }
 
               <div class="form-group">
-                <label class="form-label">Usuario</label>
+                <label class="form-label" for="username">Usuario</label>
                 <input
+                  id="username"
                   type="text"
                   class="form-control"
                   placeholder="admin"
@@ -46,9 +47,10 @@ import { AuthService } from '../../core/auth.service';
               </div>
 
               <div class="form-group">
-                <label class="form-label">Contraseña</label>
+                <label class="form-label" for="password">Contraseña</label>
                 <div class="login-pass-wrap">
                   <input
+                    id="password"
                     [type]="showPassword() ? 'text' : 'password'"
                     class="form-control"
                     placeholder="••••••••"

@@ -1,6 +1,19 @@
 #!/bin/bash
 set -euxo pipefail
 
+# --- Memoria swap (clave para free tier de 1 GB) ---
+# Permite compilar y ejecutar los servicios Java en una t2.micro sin quedarse
+# sin memoria (a costa de velocidad).
+if [ ! -f /swapfile ]; then
+  fallocate -l 6G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=6144
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  # Reduce la agresividad de swap para runtime.
+  sysctl vm.swappiness=10
+fi
+
 # --- Docker + plugin compose (Amazon Linux 2023) ---
 dnf update -y
 dnf install -y docker git
@@ -23,9 +36,17 @@ SEED_ADMIN_PASSWORD=${admin_password}
 CORS_ALLOWED_ORIGINS=${cors_allowed_origins}
 ENVEOF
 
-# --- Construir y levantar el stack ---
+# --- Construir y levantar el stack (con overrides de free tier) ---
+# Compila los servicios de a uno (sin paralelismo) para no agotar la memoria
+# durante el build en una instancia de 1 GB.
 cd /opt/combatti/platform/infra
-docker compose up -d --build
+export COMPOSE_FILE=docker-compose.yml:docker-compose.freetier.yml
+for svc in auth-service catalog-service orders-service payments-service cash-service reporting-service settings-service integration-service pos-bridge gateway; do
+  docker compose build "$svc"
+done
+
+# Levanta todo el stack.
+docker compose up -d
 
 # Marca de finalizacion (util para diagnostico).
 echo "combatti backend iniciado: $(date -u)" > /var/log/combatti-deploy.log

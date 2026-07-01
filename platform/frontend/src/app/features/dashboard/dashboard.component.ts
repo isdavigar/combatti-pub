@@ -42,14 +42,14 @@ import { ReportingService } from '../../core/reporting.service';
             <a routerLink="/cash" class="btn quick-action-btn">
               <i class="fa-solid fa-cash-register"></i> Caja
             </a>
-            <a routerLink="/tables" class="btn quick-action-btn">
-              <i class="fa-solid fa-chair"></i> Mesas
+            <a routerLink="/orders/new" class="btn quick-action-btn">
+              <i class="fa-solid fa-receipt"></i> Nuevo pedido
             </a>
             <a routerLink="/menu" class="btn quick-action-btn">
-              <i class="fa-solid fa-burger"></i> Menú
+              <i class="fa-solid fa-burger"></i> Catálogo
             </a>
-            <a routerLink="/orders/new" class="btn quick-action-btn">
-              <i class="fa-solid fa-receipt"></i> Pedido
+            <a routerLink="/reports" class="btn quick-action-btn">
+              <i class="fa-solid fa-chart-column"></i> Ventas
             </a>
           </div>
         </div>

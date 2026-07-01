@@ -66,31 +66,55 @@ jobs:
           T="${{ steps.pick.outputs.table }}"
           echo "## Contenido de la tabla: \`$T\`" >> "$GITHUB_STEP_SUMMARY"
 
+          # Scan completo con paginación (la tabla puede tener >1MB).
           aws dynamodb scan --table-name "$T" --region "$REGION" --output json > scan.json 2>scan.err || {
             echo "Error al escanear:" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"; cat scan.err >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           }
+          # Continuar paginando si hay más.
+          while [ "$(jq -r '.LastEvaluatedKey // empty' scan.json)" != "" ]; do
+            LEK=$(jq -c '.LastEvaluatedKey' scan.json)
+            aws dynamodb scan --table-name "$T" --region "$REGION" --output json \
+              --starting-token "$(echo "$LEK" | base64 -w0)" > page.json 2>/dev/null || break
+            jq -s '{Items: (.[0].Items + .[1].Items), LastEvaluatedKey: .[1].LastEvaluatedKey, Count: ((.[0].Count // 0) + (.[1].Count // 0))}' scan.json page.json > merged.json && mv merged.json scan.json
+          done
 
-          COUNT=$(jq '.Count' scan.json)
-          echo "**Items totales:** $COUNT" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Items totales:** $(jq '.Items | length' scan.json)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          # Formas de atributos (para entender el esquema)
-          echo "### Atributos por item (muestra)" >> "$GITHUB_STEP_SUMMARY"
+          # --- Conteo por colección (PK) ---
+          echo "### Items por colección (PK)" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          jq -r '.Items[] | keys_unsorted | join(", ")' scan.json | sort | uniq -c | head -20 >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-
-          # Muestra los primeros 3 items crudos (para ver la estructura)
-          echo "### Muestra de items (primeros 3, crudo)" >> "$GITHUB_STEP_SUMMARY"
-          echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          jq '.Items[0:3]' scan.json >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.Items[] | .PK.S' scan.json | sort | uniq -c | sort -rn >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-          # Sube el scan completo como artefacto para análisis detallado.
+          # --- PEDIDOS ---
+          echo "### Pedidos (colección 'orders')" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Total pedidos: $(jq '[.Items[]|select(.PK.S=="orders")]|length' scan.json)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Estados:" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.Items[]|select(.PK.S=="orders")|.data.M.status.S // "sin-estado"' scan.json | sort | uniq -c >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "> El scan completo se subió como artefacto **dynamodb-scan**." >> "$GITHUB_STEP_SUMMARY"
+          echo "Suma total de PAGADOS: $(jq '[.Items[]|select(.PK.S=="orders")|select(.data.M.status.S=="Pagado")|(.data.M.total.N|tonumber)]|add // 0' scan.json)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          echo "#### Últimos 15 pedidos pagados" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '[.Items[]|select(.PK.S=="orders")|select(.data.M.status.S=="Pagado")|{id:.SK.S, total:(.data.M.total.N // "0"), seller:(.data.M.seller.S // "-"), paidAt:(.data.M.paidAt.S // "-")}] | sort_by(.paidAt) | reverse | .[0:15][] | "\(.paidAt) | \(.seller) | $\(.total) | \(.id)"' scan.json >> "$GITHUB_STEP_SUMMARY" 2>&1 || echo "(sin pedidos pagados)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # --- CAJA / CONFIG ---
+          echo "### Caja (config) e historial de cuadres" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.Items[] | select(.data.M.cash != null) | .data.M.cash.M | "¿Caja abierta?: \(.open.BOOL // .open.S // "?")  | abierta por: \(.openedByUser.S // .openedBy.S // "-")"' scan.json >> "$GITHUB_STEP_SUMMARY" 2>&1 || echo "(no se encontró config de caja)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cuadres (responsable | estado | ventas | cerrado):" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.Items[] | select(.data.M.cash != null) | .data.M.cash.M.history.L[]? | .M | "\(.responsible.S // "-") | \(.status.S // "-") | ventas=\(.sales.N // "0") | gastos=\(.cashExpense.N // "0") | \(.closedAt.S // "abierta")"' scan.json >> "$GITHUB_STEP_SUMMARY" 2>&1 || echo "(sin cuadres)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Scan completo subido como artefacto **dynamodb-scan**." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Subir scan completo
         if: ${{ steps.pick.outputs.table != '' && steps.pick.outputs.table != 'None' }}

@@ -23,6 +23,7 @@ on:
         options:
           - apply
           - destroy
+          - show-credentials
       region:
         description: "Región de AWS"
         required: true
@@ -152,6 +153,24 @@ jobs:
       - name: Terraform Apply
         if: ${{ github.event.inputs.action == 'apply' }}
         run: terraform apply -auto-approve -input=false
+
+      - name: Mostrar credenciales (admin + gateway)
+        if: ${{ github.event.inputs.action == 'show-credentials' }}
+        run: |
+          echo "### Credenciales del backend :key:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          GATEWAY_URL=$(terraform output -raw gateway_url 2>/dev/null || echo "N/D")
+          ADMIN_PW=$(terraform output -raw admin_password 2>/dev/null || echo "N/D")
+          echo "**Gateway URL:** \`${GATEWAY_URL}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Usuario admin:** \`admin\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Contraseña admin:**" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "${ADMIN_PW}" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> :warning: Trata esta contraseña como secreta. Cámbiala desde la pantalla de Usuarios tras el primer login." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Mostrar URL del backend
         if: ${{ github.event.inputs.action == 'apply' }}

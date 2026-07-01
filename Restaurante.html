@@ -9412,13 +9412,16 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const creditSales = credits.reduce((a,b)=>a + Number(b.total || 0), 0);
       const courtesyTotal = courtesy.reduce((a,b)=>a + Number(b.total || 0), 0);
       const income = movements.filter(m => m.type === 'Ingreso').reduce((a,b)=>a + Number(b.amount || 0), 0);
-      const expenses = movements.filter(m => m.type === 'Egreso');
+      // La NÓMINA (m.payroll) NO se resta del cuadre diario: se paga de otros
+      // ingresos propios, no del efectivo de las ventas del turno.
+      const expenses = movements.filter(m => m.type === 'Egreso' && !m.payroll);
+      const payrollExpense = movements.filter(m => m.type === 'Egreso' && m.payroll).reduce((a,b)=>a + Number(b.amount || 0), 0);
       const expense = expenses.reduce((a,b)=>a + Number(b.amount || 0), 0);
       const cashExpense = expenses.filter(m => (m.source || 'EFECTIVO') === 'EFECTIVO').reduce((a,b)=>a + Number(b.amount || 0), 0);
       const creditCardExpense = expenses.filter(m => m.source === 'TARJETA_CREDITO').reduce((a,b)=>a + Number(b.amount || 0), 0);
       const final = Number(state.cash.openingAmount || 0) + cashPayments + income - cashExpense;
       const finalAfterDelivery = final - deliveryFees;
-      return { orders, movements, sales, tips, deliveryFees, finalAfterDelivery, methodTotals, cashPayments, transferPayments, cardPayments, creditSales, courtesyTotal, income, expense, cashExpense, creditCardExpense, final };
+      return { orders, movements, sales, tips, deliveryFees, finalAfterDelivery, methodTotals, cashPayments, transferPayments, cardPayments, creditSales, courtesyTotal, income, expense, payrollExpense, cashExpense, creditCardExpense, final };
     }
     async function openCash(){
       const amount = clampNumber(byId('cashOpenAmount')?.value || 0);
@@ -9915,7 +9918,8 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         <table><tbody>
           <tr><td>Ventas pagadas</td><td class="right">${money(report.sales)}</td></tr>
           <tr><td>Ingresos manuales</td><td class="right">${money(report.income)}</td></tr>
-          <tr><td>Egresos totales (incluye nómina)</td><td class="right">${money(report.expense)}</td></tr>
+          <tr><td>Egresos del turno (sin nómina)</td><td class="right">${money(report.expense)}</td></tr>
+          <tr><td>Nómina pagada (no afecta el cuadre)</td><td class="right">${money(report.payrollExpense || 0)}</td></tr>
           <tr class="total-row"><td><b>Saldo efectivo en caja</b></td><td class="right"><b>${money(report.final)}</b></td></tr>
         </tbody></table>`;
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pago de nómina</title><style>${cashReportPrintStyle()}</style></head><body>${content}</body></html>`;
@@ -10398,18 +10402,20 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       return Number(record.sales || 0);
     }
 
-    // Gastos (egresos) del turno de un cuadre. Usa el valor guardado y, si es 0
-    // (cuadres viejos), lo recalcula desde expenseHistory / movementsHistory.
+    // Gastos (egresos) del turno de un cuadre, EXCLUYENDO la nómina (no se
+    // resta del cuadre diario). Recalcula desde el detalle cuando existe.
     function cashRecordExpense(record){
       if(!record) return 0;
-      if(Number(record.cashExpense || 0) > 0) return Number(record.cashExpense);
       const eh = Array.isArray(record.expenseHistory) ? record.expenseHistory : [];
-      let g = eh.filter(m => m && m.type === 'Egreso').reduce((a, b) => a + Number(b.amount || 0), 0);
-      if(!g){
-        const mh = Array.isArray(record.movementsHistory) ? record.movementsHistory : [];
-        g = mh.filter(m => m && m.type === 'Egreso').reduce((a, b) => a + Number(b.amount || 0), 0);
+      const mh = Array.isArray(record.movementsHistory) ? record.movementsHistory : [];
+      const src = eh.length ? eh : mh;
+      if(src.length){
+        return src
+          .filter(m => m && m.type === 'Egreso' && !m.payroll)
+          .reduce((a, b) => a + Number(b.amount || 0), 0);
       }
-      return g;
+      // Registros viejos sin detalle: usar el valor guardado como fallback.
+      return Number(record.cashExpense || 0);
     }
 
     // Backfill: rellena valores en cero de cuadres cerrados (una sola vez).

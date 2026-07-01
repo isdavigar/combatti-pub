@@ -10363,38 +10363,79 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       toast(`Cuadre del ${fecha} (${shift === 'Noche' ? 'Noche' : 'Día'}) agregado`, 'success');
     }
 
-    // Calcular ventas reales de un cuadre sumando los totales de los pedidos que le pertenecen.
-    // Si los pedidos aún existen en state.orders, se usa su total actual (puede haber sido editado).
-    // Si no existen, se usa el valor guardado en record.sales como fallback.
+    // Calcular ventas reales de un cuadre.
+    //  1) Si tiene IDs de pedidos y se encuentran todos -> suma sus totales.
+    //  2) Si no (cuadres viejos con orders vacío), recalcula por VENTANA DE TIEMPO
+    //     (pedidos pagados entre apertura y cierre).
+    //  3) Como último recurso usa el valor guardado record.sales.
     function cashRecordRealSales(record){
       if(!record) return 0;
-      // For open (current) cash register: compute from orders paid since opening
+      const openedAt = record.openedAt ? new Date(record.openedAt) : null;
+      const closedAt = record.closedAt ? new Date(record.closedAt) : new Date();
+      // Caja abierta (turno actual): ventas desde la apertura.
       if(record.status === 'Abierta' || !record.closedAt){
-        const openedAt = record.openedAt ? new Date(record.openedAt) : new Date();
+        if(!openedAt) return Number(record.sales || 0);
         return state.orders
           .filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= openedAt)
           .reduce((sum, o) => sum + Number(o.total || 0), 0);
       }
-      // For closed records with order IDs
-      if(!Array.isArray(record.orders) || !record.orders.length) return Number(record.sales || 0);
-      let total = 0;
-      let foundCount = 0;
-      record.orders.forEach(orderId => {
-        const order = state.orders.find(o => o.id === orderId);
-        if(order && order.status === 'Pagado'){
-          total += Number(order.total || 0);
-          foundCount++;
-        }
-      });
-      // Only use computed total if we found ALL orders; otherwise use record.sales
-      if(foundCount === record.orders.length) return total;
+      // Cerrada con IDs: sumar los pedidos que se encuentren.
+      if(Array.isArray(record.orders) && record.orders.length){
+        let total = 0, found = 0;
+        record.orders.forEach(orderId => {
+          const order = state.orders.find(o => o.id === orderId);
+          if(order && order.status === 'Pagado'){ total += Number(order.total || 0); found++; }
+        });
+        if(found === record.orders.length) return total;
+      }
+      // Recalcular por ventana de tiempo (cubre cuadres sin IDs de pedidos).
+      if(openedAt){
+        const windowed = state.orders
+          .filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= openedAt && new Date(o.paidAt) <= closedAt)
+          .reduce((sum, o) => sum + Number(o.total || 0), 0);
+        if(windowed > 0) return windowed;
+      }
       return Number(record.sales || 0);
+    }
+
+    // Gastos (egresos) del turno de un cuadre. Usa el valor guardado y, si es 0
+    // (cuadres viejos), lo recalcula desde expenseHistory / movementsHistory.
+    function cashRecordExpense(record){
+      if(!record) return 0;
+      if(Number(record.cashExpense || 0) > 0) return Number(record.cashExpense);
+      const eh = Array.isArray(record.expenseHistory) ? record.expenseHistory : [];
+      let g = eh.filter(m => m && m.type === 'Egreso').reduce((a, b) => a + Number(b.amount || 0), 0);
+      if(!g){
+        const mh = Array.isArray(record.movementsHistory) ? record.movementsHistory : [];
+        g = mh.filter(m => m && m.type === 'Egreso').reduce((a, b) => a + Number(b.amount || 0), 0);
+      }
+      return g;
+    }
+
+    // Backfill: rellena valores en cero de cuadres cerrados (una sola vez).
+    let cashHistoryBackfilled = false;
+    function backfillCashHistoryValues(){
+      if(cashHistoryBackfilled) return;
+      if(!Array.isArray(state.cash?.history)) return;
+      let changed = false;
+      state.cash.history.forEach(r => {
+        if(!r || r.status === 'Abierta' || !r.closedAt) return;
+        const s = cashRecordRealSales(r);
+        const g = cashRecordExpense(r);
+        if((!r.sales || r.sales === 0) && s > 0){ r.sales = s; changed = true; }
+        if((!r.cashExpense || r.cashExpense === 0) && g > 0){ r.cashExpense = g; changed = true; }
+        if((r.expense == null || r.expense === 0) && g > 0){ r.expense = g; changed = true; }
+      });
+      cashHistoryBackfilled = true;
+      if(changed) persistAll(false);
     }
 
     function renderCashHistory(){
       const wrap = byId('cashHistoryList');
       if(!wrap) return;
       ensureCashHistory();
+      // Rellenar valores en cero de cuadres viejos (ventas/gastos) una sola vez.
+      backfillCashHistoryValues();
       // Vincular retroactivamente movimientos (nómina, gastos) al registro de caja correspondiente
       linkOrphanMovementsToRecords();
       const filter = byId('cashHistoryDateFilter')?.value || '';
@@ -10413,7 +10454,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             <div class="col-md-2"><div class="small text-secondary">Turno</div><span class="badge text-bg-light text-dark"><i class="fa-solid ${normalizeShift(record.shift) === 'Noche' ? 'fa-moon' : 'fa-sun'} me-1"></i>${shiftLabel(record.shift)}</span></div>
             <div class="col-md-2"><span class="badge text-bg-${record.status === 'Abierta' ? 'success' : 'secondary'}">${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</span></div>
             <div class="col-12 small text-secondary">Egresos guardados: ${Array.isArray(record.expenseHistory) ? record.expenseHistory.length : 0} · Movimientos del periodo: ${Array.isArray(record.movementsHistory) ? record.movementsHistory.length : 0}</div>
-            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(cashRecordRealSales(record))}</span><span class="text-danger fw-bold">Gastos turno: ${money(record.cashExpense || 0)}</span><span class="text-success fw-bold">Neto: ${money(cashRecordRealSales(record) - Number(record.cashExpense || 0))}</span></div></div>
+            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(cashRecordRealSales(record))}</span><span class="text-danger fw-bold">Gastos turno: ${money(cashRecordExpense(record))}</span><span class="text-success fw-bold">Neto: ${money(cashRecordRealSales(record) - cashRecordExpense(record))}</span></div></div>
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               <button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>

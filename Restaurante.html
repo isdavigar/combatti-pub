@@ -13760,6 +13760,15 @@ function updateCloudStatus() {
   });
   const txt = document.getElementById('cloudTopIndicatorText');
   if(txt) txt.textContent = labels[st];
+
+  // Badge del panel de Configuración ("Conexión en la nube").
+  const badge = document.getElementById('cloudStatusBadge');
+  if(badge){
+    const badgeClass = { live:'text-bg-success', syncing:'text-bg-warning', offline:'text-bg-danger', off:'text-bg-secondary' };
+    const badgeText = { live:'Conectado', syncing:'Sincronizando…', offline:'Sin conexión', off:'Local' };
+    badge.className = 'badge ' + (badgeClass[st] || 'text-bg-secondary');
+    badge.textContent = badgeText[st] || 'Local';
+  }
 }
 
 // ===== Event listeners =====

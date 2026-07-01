@@ -1,12 +1,11 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { ReportingService } from '../../core/reporting.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink],
+  imports: [],
   template: `
     <!-- Hero section -->
     <div class="dashboard-hero mb-4">
@@ -35,22 +34,22 @@ import { ReportingService } from '../../core/reporting.service';
       <div class="dashboard-side-panel">
         <div class="dashboard-quick-panel">
           <div class="dashboard-filter-title">
-            <i class="fa-solid fa-bolt"></i>
-            <span>Accesos rápidos</span>
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Resumen</span>
           </div>
-          <div class="quick-action-grid">
-            <a routerLink="/cash" class="btn quick-action-btn">
-              <i class="fa-solid fa-cash-register"></i> Caja
-            </a>
-            <a routerLink="/orders/new" class="btn quick-action-btn">
-              <i class="fa-solid fa-receipt"></i> Nuevo pedido
-            </a>
-            <a routerLink="/menu" class="btn quick-action-btn">
-              <i class="fa-solid fa-burger"></i> Catálogo
-            </a>
-            <a routerLink="/reports" class="btn quick-action-btn">
-              <i class="fa-solid fa-chart-column"></i> Ventas
-            </a>
+          <div class="quick-info">
+            <div class="quick-info-row">
+              <span><i class="fa-solid fa-clock"></i> Hora</span>
+              <strong>{{ now() }}</strong>
+            </div>
+            <div class="quick-info-row">
+              <span><i class="fa-solid fa-calendar"></i> Fecha</span>
+              <strong>{{ today() }}</strong>
+            </div>
+            <div class="quick-info-row">
+              <span><i class="fa-solid fa-user"></i> Usuario</span>
+              <strong>{{ user()?.displayName }}</strong>
+            </div>
           </div>
         </div>
       </div>
@@ -215,6 +214,14 @@ import { ReportingService } from '../../core/reporting.service';
     p { margin: 0; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .text-muted { color: var(--muted); }
+    .quick-info { display: flex; flex-direction: column; gap: 8px; }
+    .quick-info-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      border: 1px solid rgba(255,255,255,.16); border-radius: 14px;
+      padding: 10px 12px; background: rgba(255,255,255,.08);
+    }
+    .quick-info-row span { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.8); font-size: .8rem; font-weight: 700; }
+    .quick-info-row strong { color: #fff; font-size: .9rem; }
 
     @media (max-width: 992px) {
       .kpi-row { grid-template-columns: repeat(2, 1fr); }
@@ -234,9 +241,21 @@ export class DashboardComponent implements OnInit {
   readonly activeOrders = signal('0');
   readonly cashValue = signal('$0');
   readonly goalTodayPct = signal('0%');
+  readonly now = signal('--:--');
+  readonly today = signal('');
+
+  private timer: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.loadSalesData();
+    this.updateClock();
+    this.timer = setInterval(() => this.updateClock(), 1000);
+  }
+
+  private updateClock(): void {
+    const d = new Date();
+    this.now.set(d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }));
+    this.today.set(d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }));
   }
 
   private loadSalesData(): void {

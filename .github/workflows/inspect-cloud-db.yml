@@ -1,0 +1,101 @@
+name: Inspect Cloud DB (DynamoDB)
+
+# Lee la base de datos en la nube (DynamoDB del backend serverless del POS)
+# usando las credenciales AWS ya configuradas como secrets, y muestra los
+# valores reales (cuadres de caja, pedidos, ventas) en el resumen del run.
+#
+# Requiere los secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Región de AWS de la tabla"
+        required: true
+        default: "us-east-1"
+        type: string
+      table_name:
+        description: "Nombre de la tabla (vacío = detectar automáticamente)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.region }}
+
+      - name: Listar tablas DynamoDB
+        run: |
+          echo "## Tablas DynamoDB en ${{ github.event.inputs.region }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          aws dynamodb list-tables --region "${{ github.event.inputs.region }}" \
+            --query "TableNames" --output table >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Detectar tabla del POS
+        id: pick
+        run: |
+          REGION="${{ github.event.inputs.region }}"
+          T="${{ github.event.inputs.table_name }}"
+          if [ -z "$T" ]; then
+            # Buscar una tabla cuyo nombre sugiera el POS.
+            T=$(aws dynamodb list-tables --region "$REGION" --query "TableNames" --output text \
+              | tr '\t' '\n' | grep -iE 'combatti|pos|restaurant|production|prod' | head -n1 || true)
+          fi
+          if [ -z "$T" ]; then
+            # Si no hay match, tomar la primera tabla.
+            T=$(aws dynamodb list-tables --region "$REGION" --query "TableNames[0]" --output text || true)
+          fi
+          echo "table=$T" >> "$GITHUB_OUTPUT"
+          echo "Tabla elegida: $T"
+
+      - name: Escanear tabla y resumir
+        if: ${{ steps.pick.outputs.table != '' && steps.pick.outputs.table != 'None' }}
+        run: |
+          REGION="${{ github.event.inputs.region }}"
+          T="${{ steps.pick.outputs.table }}"
+          echo "## Contenido de la tabla: \`$T\`" >> "$GITHUB_STEP_SUMMARY"
+
+          aws dynamodb scan --table-name "$T" --region "$REGION" --output json > scan.json 2>scan.err || {
+            echo "Error al escanear:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"; cat scan.err >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          COUNT=$(jq '.Count' scan.json)
+          echo "**Items totales:** $COUNT" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Formas de atributos (para entender el esquema)
+          echo "### Atributos por item (muestra)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.Items[] | keys_unsorted | join(", ")' scan.json | sort | uniq -c | head -20 >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # Muestra los primeros 3 items crudos (para ver la estructura)
+          echo "### Muestra de items (primeros 3, crudo)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          jq '.Items[0:3]' scan.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # Sube el scan completo como artefacto para análisis detallado.
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> El scan completo se subió como artefacto **dynamodb-scan**." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir scan completo
+        if: ${{ steps.pick.outputs.table != '' && steps.pick.outputs.table != 'None' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamodb-scan
+          path: scan.json
+          retention-days: 3

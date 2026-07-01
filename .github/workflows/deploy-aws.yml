@@ -29,9 +29,9 @@ on:
         default: "us-east-1"
         type: string
       instance_type:
-        description: "Tipo de instancia EC2 (t2.micro = free tier en us-east-1)"
+        description: "Tipo de instancia (auto = detecta la free-tier de tu cuenta)"
         required: true
-        default: "t2.micro"
+        default: "auto"
         type: string
 
 permissions:
@@ -49,7 +49,6 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ github.event.inputs.region }}
       TF_VAR_region: ${{ github.event.inputs.region }}
-      TF_VAR_instance_type: ${{ github.event.inputs.instance_type }}
 
     steps:
       - name: Checkout
@@ -70,6 +69,40 @@ jobs:
             exit 1
           fi
           aws sts get-caller-identity
+
+      - name: Determinar tipo de instancia (free tier)
+        run: |
+          REQUESTED="${{ github.event.inputs.instance_type }}"
+          if [ "${REQUESTED}" != "auto" ]; then
+            echo "Tipo de instancia solicitado explícitamente: ${REQUESTED}"
+            echo "TF_VAR_instance_type=${REQUESTED}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "Detectando tipos de instancia free-tier de la cuenta..."
+          # Candidatos x86_64 (la AMI del módulo es x86_64). Orden = preferencia.
+          CANDIDATES="t3.micro t2.micro t3a.micro t2.small t3.small"
+          FREE_LIST=$(aws ec2 describe-instance-types \
+            --filters "Name=free-tier-eligible,Values=true" \
+                      "Name=processor-info.supported-architecture,Values=x86_64" \
+            --query "InstanceTypes[].InstanceType" --output text 2>/dev/null || echo "")
+          echo "Free-tier x86_64 elegibles en la cuenta: ${FREE_LIST:-<ninguno detectado>}"
+
+          CHOSEN=""
+          for pref in $CANDIDATES; do
+            for ft in $FREE_LIST; do
+              if [ "$pref" = "$ft" ]; then CHOSEN="$pref"; break 2; fi
+            done
+          done
+          # Si la cuenta reporta free-tier x86 no listados arriba, toma el primero.
+          if [ -z "$CHOSEN" ] && [ -n "$FREE_LIST" ]; then
+            CHOSEN=$(echo "$FREE_LIST" | tr '\t' '\n' | head -n1)
+          fi
+          # Último recurso: t3.micro (x86, ampliamente disponible).
+          if [ -z "$CHOSEN" ]; then CHOSEN="t3.micro"; fi
+
+          echo "::notice::Tipo de instancia elegido: ${CHOSEN}"
+          echo "TF_VAR_instance_type=${CHOSEN}" >> "$GITHUB_ENV"
 
       - name: Preparar bucket de estado (S3)
         id: state

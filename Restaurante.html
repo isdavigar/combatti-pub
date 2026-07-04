@@ -3117,11 +3117,11 @@
                 <div id="cashActionArea"><button class="btn btn-success btn-pill w-100" onclick="showOpenCashModal()">Abrir caja</button></div>
                 <button class="btn btn-outline-danger btn-pill" onclick="showCloseCashModal()">Cerrar caja</button>
                 <button class="btn btn-outline-warning btn-pill" onclick="transferOrdersToNextShift()"><i class="fa-solid fa-arrow-right-arrow-left me-2"></i>Pasar pedidos al siguiente turno</button>
-                <button class="btn btn-primary-soft btn-pill" onclick="exportDailyCloseExcel(false)"><i class="fa-solid fa-file-excel me-2"></i>Exportar cierre diario</button>
-                <button class="btn btn-outline-success btn-pill" onclick="exportMonthlyCloseExcel()"><i class="fa-solid fa-calendar-days me-2"></i>Exportar cierre de mes</button>
+                <button class="btn btn-primary-soft btn-pill" data-system-admin-only onclick="exportDailyCloseExcel(false)"><i class="fa-solid fa-file-excel me-2"></i>Exportar cierre diario</button>
+                <button class="btn btn-outline-success btn-pill" data-system-admin-only onclick="exportMonthlyCloseExcel()"><i class="fa-solid fa-calendar-days me-2"></i>Exportar cierre de mes</button>
                 <input id="historicalSalesImportInput" type="file" accept=".xlsx,.xls,.csv" class="d-none" onchange="importHistoricalSalesExcel(event)">
-                <button class="btn btn-outline-success btn-pill" onclick="document.getElementById('historicalSalesImportInput').click()"><i class="fa-solid fa-file-import me-2"></i>Importar ventas anteriores</button>
-                <button class="btn btn-outline-primary btn-pill" onclick="exportAnnualCloseExcel()"><i class="fa-solid fa-calendar-check me-2"></i>Guardar cierre anual</button>
+                <button class="btn btn-outline-success btn-pill" data-system-admin-only onclick="document.getElementById('historicalSalesImportInput').click()"><i class="fa-solid fa-file-import me-2"></i>Importar ventas anteriores</button>
+                <button class="btn btn-outline-primary btn-pill" data-system-admin-only onclick="exportAnnualCloseExcel()"><i class="fa-solid fa-calendar-check me-2"></i>Guardar cierre anual</button>
               </div>
             </div>
             <div class="glass-card p-4 mb-4 ">
@@ -3195,12 +3195,12 @@
                   <p class="section-subtitle mb-0">Ventas, aperturas y cierres de caja.</p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                  <button class="btn btn-outline-success btn-pill" onclick="exportCashHistoryExcel()"><i class="fa-solid fa-file-excel me-2"></i>Exportar todo</button>
+                  <button class="btn btn-outline-success btn-pill" data-system-admin-only onclick="exportCashHistoryExcel()"><i class="fa-solid fa-file-excel me-2"></i>Exportar todo</button>
                   <input id="importCashHistoryInput" type="file" accept=".xlsx,.xls" class="d-none" onchange="importCashHistoryExcel(event)">
-                  <button class="btn btn-outline-primary btn-pill" onclick="document.getElementById('importCashHistoryInput').click()"><i class="fa-solid fa-file-import me-2"></i>Importar todo</button>
-                  <button class="btn btn-outline-info btn-pill" onclick="showAddManualCashRecord()"><i class="fa-solid fa-plus me-2"></i>Agregar cuadre</button>
+                  <button class="btn btn-outline-primary btn-pill" data-system-admin-only onclick="document.getElementById('importCashHistoryInput').click()"><i class="fa-solid fa-file-import me-2"></i>Importar todo</button>
+                  <button class="btn btn-outline-info btn-pill" data-system-admin-only onclick="showAddManualCashRecord()"><i class="fa-solid fa-plus me-2"></i>Agregar cuadre</button>
                   <button class="btn btn-warning btn-pill" id="payrollButton" onclick="openPayrollModal()"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pagar nómina</button>
-                  <button class="btn btn-outline-secondary btn-pill" onclick="printInventoryReport()"><i class="fa-solid fa-print me-2"></i>Inventario</button>
+                  <button class="btn btn-outline-secondary btn-pill" data-system-admin-only onclick="printInventoryReport()"><i class="fa-solid fa-print me-2"></i>Inventario</button>
                 </div>
               </div>
               
@@ -3271,7 +3271,6 @@
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-outline-danger btn-pill" onclick="openMovementModal('Egreso')">Nuevo gasto</button>
-              <button class="btn btn-primary-soft btn-pill" data-admin-only onclick="openMovementModal('Ingreso')">Nuevo ingreso</button>
             </div>
           </div>
           <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
@@ -5740,7 +5739,9 @@
             table.orderId = order.id;
             table.customer = order.customer || '';
             table.orderTotal = Number(order.total || 0);
-            table.orderStartedAt = order.createdAt || table.orderStartedAt || new Date().toISOString();
+            // Usar updatedAt (momento de última edición) como inicio del timer
+            // para que no muestre horas absurdas por un createdAt viejo.
+            table.orderStartedAt = order.updatedAt || order.createdAt || table.orderStartedAt || new Date().toISOString();
             if(table.status !== 'En proceso de pago') table.status = 'Ocupada';
           } else {
             // Pedido vacío ($0): la mesa queda libre.
@@ -14076,7 +14077,9 @@ let liveResyncTimer = null;
 function refreshLiveCollections() {
   if (!cloudConnected || isApplyingRemoteState) return;
   if (currentOrder) return; // no pisar una edición de pedido en curso
-  ['tables', 'orders', 'kitchenTickets'].forEach(coll => {
+  // Solo pide datos frescos; el renderAll se dispara al recibir el snapshot,
+  // pero sin animaciones (ya quitamos uxRise/uxFadeIn de las vistas que se refrescan).
+  ['orders'].forEach(coll => {
     sendAWS({ action: 'sync', type: 'getAll', collection: coll });
   });
 }
@@ -14084,7 +14087,7 @@ function startLiveResync() {
   if (liveResyncTimer) return;
   liveResyncTimer = setInterval(() => {
     if (!document.hidden) refreshLiveCollections();
-  }, 45000);
+  }, 90000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshLiveCollections();
   });
@@ -14225,13 +14228,8 @@ function uxInitBottomNav(){
   });
 }
 
-// Refresca el badge de tiempo de ocupación de las mesas cada 30s (si la vista está activa).
-setInterval(() => {
-  const mesas = document.getElementById('view-mesas');
-  if(mesas && mesas.classList.contains('active') && typeof renderTables === 'function'){
-    try { renderTables(); } catch(_){}
-  }
-}, 30000);
+// Timer de ocupación de mesas desactivado para evitar refrescos innecesarios.
+// El timer se actualiza solo al navegar a la vista de mesas o al recibir cambios.
 
 document.addEventListener('DOMContentLoaded', () => { setTimeout(uxInitBottomNav, 800); });
 if(document.readyState !== 'loading'){ setTimeout(uxInitBottomNav, 800); }

@@ -2145,6 +2145,54 @@
     .table-node.dragging{
       cursor:grabbing;
     }
+    /* ===== Vista de mesas en flujo (un solo scroll vertical) ===== */
+    #tablesGrid.tables-flow,
+    .tables-floor.tables-flow{
+      display:flex;
+      flex-wrap:wrap;
+      align-content:flex-start;
+      gap:24px 40px;
+      padding:38px 30px 30px;
+      height:auto;
+      min-height:auto;
+      max-height:calc(100vh - 235px);
+      overflow-x:hidden;
+      overflow-y:auto;
+      touch-action:pan-y;
+      cursor:default;
+      scroll-behavior:smooth;
+    }
+    .tables-flow .table-flow-cell{
+      width:118px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    .tables-flow .table-node{
+      position:relative;
+      left:auto !important;
+      top:auto !important;
+      width:118px;
+      height:118px;
+      margin:0 auto;
+      touch-action:pan-y;
+    }
+    .tables-flow .table-node .table-card{ cursor:pointer; }
+    .tables-flow .table-flow-actions{
+      margin-top:36px;
+      text-align:center;
+      font-size:.8rem;
+      line-height:1;
+      white-space:nowrap;
+    }
+    .tables-flow .table-flow-actions a{
+      color:#2b7fba;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .tables-flow .table-flow-actions a.danger{ color:#dc0041; }
+    .tables-flow .table-flow-actions a:hover{ text-decoration:underline; }
+    .tables-flow .table-flow-actions .sep{ color:#94a3b8; margin:0 5px; }
     .product-image-placeholder{
       width:100%;
       height:150px;
@@ -2984,12 +3032,10 @@
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div>
               <h5 class="section-title mb-1">Gestión de mesas</h5>
-              <p class="section-subtitle mb-0">Crea y organiza tus mesas. Acerca con <strong>Ctrl + rueda</strong> del mouse o <strong>pellizcando</strong> en el celular.</p>
+              <p class="section-subtitle mb-0">Toca una mesa para tomar el pedido. Con el rol admin puedes <strong>Editar</strong> o <strong>Eliminar</strong> cada mesa.</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-success btn-pill" data-admin-only onclick="openTableModal('Mesa')"><i class="fa-solid fa-plus me-2"></i>Nueva mesa</button>
-              <button id="tableModeButton" class="btn btn-primary-soft btn-pill" data-admin-only onclick="toggleTableEditMode()"><i class="fa-solid fa-pen-ruler me-2"></i>Editar posiciones</button>
-              <button class="btn btn-outline-secondary btn-pill" data-admin-only onclick="autoArrangeTables()"><i class="fa-solid fa-table-cells me-2"></i>Ordenar</button>
             </div>
           </div>
           
@@ -7007,24 +7053,45 @@
     function renderTables(){
       const grid = document.getElementById('tablesGrid');
       if(!grid) return;
-      bindTablesWheelScroll(grid);
-      bindTablesPanHandlers(grid);
-      bindTablesPinchZoom(grid);
-      const keepLeft = grid.scrollLeft;
+      // Vista en flujo: un solo scroll vertical, respetando el orden de las mesas.
       const keepTop = grid.scrollTop;
       state.tables.forEach((table, index) => normalizeTable(table, index));
-      updateTableModeUI();
       const filtered = state.tables.filter(t => tableFilter === 'all' ? true : t.kind === tableFilter);
-      const canvasWidth = Math.max(TABLE_CANVAS_MIN_WIDTH, filtered.reduce((max, table) => Math.max(max, Number(table.x || 24) + tableSize(table) + 120), 0));
-      const canvasHeight = Math.max(TABLE_CANVAS_MIN_HEIGHT, filtered.reduce((max, table) => Math.max(max, Number(table.y || 24) + tableSize(table) + 120), 0));
-      tableCanvasBaseW = canvasWidth;
-      tableCanvasBaseH = canvasHeight;
-      const nodes = filtered.map(t => tableNodeHtml(t)).join('') || '<div class="p-3 text-secondary">No hay mesas en este filtro.</div>';
-      grid.innerHTML = `<div id="tablesViewport" class="tables-viewport" style="width:${Math.round(canvasWidth * tableZoom)}px;height:${Math.round(canvasHeight * tableZoom)}px;"><div id="tablesCanvas" class="tables-canvas" style="margin:0;width:${canvasWidth}px;height:${canvasHeight}px;min-width:${canvasWidth}px;min-height:${canvasHeight}px;overflow:visible;transform:scale(${tableZoom});transform-origin:0 0;">${nodes}</div></div>`;
-      grid.style.cursor = (isAdmin() && tableEditMode) ? 'grab' : 'default';
-      grid.scrollLeft = keepLeft;
+      const cells = filtered.map(t => tableFlowCellHtml(t)).join('') || '<div class="p-3 text-secondary">No hay mesas en este filtro.</div>';
+      grid.className = 'tables-floor tables-flow';
+      grid.classList.remove('is-panning');
+      grid.innerHTML = cells;
+      grid.style.cursor = 'default';
       grid.scrollTop = keepTop;
-      bindTableDragHandlers();
+    }
+    // Tarjeta de mesa para la vista en flujo: mismo estilo (sillas + barra + nombre)
+    // con enlaces Editar/Eliminar para el admin bajo cada mesa.
+    function tableFlowCellHtml(t){
+      const openCount = isMultiOrderTable(t) ? openOrdersForTable(t.id).length : 0;
+      const statusText = tableStatusLabel(t, openCount);
+      const activeTotal = t.kind === 'Mesa' ? tableActiveTotal(t, openCount) : 0;
+      const cls = statusClass(t.status);
+      const adminLinks = isAdmin() ? `
+        <div class="table-flow-actions">
+          <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openTableModal('${t.kind}','${t.id}')">Editar</a>
+          <span class="sep">-</span>
+          <a href="#" class="danger" onclick="event.preventDefault(); event.stopPropagation(); deleteTable('${t.id}')">Eliminar</a>
+        </div>` : '';
+      return `
+        <div class="table-flow-cell">
+          <div class="table-node is-locked" data-table-id="${t.id}">
+            <div class="table-card status-${cls}" onclick="if(shouldIgnoreTableClick()) return; openTableOrder('${t.id}')">
+              <div class="table-card-body">
+                <h5 class="fw-bold mb-1">${escapeHtml(t.name)}</h5>
+                <div class="mb-2"><span class="status-dot status-${cls}"></span>${escapeHtml(statusText)}</div>
+                ${tableElapsedHtml(t)}
+                ${activeTotal ? `<div class="table-order-total">${money(activeTotal)}</div>` : ''}
+              </div>
+            </div>
+          </div>
+          ${adminLinks}
+        </div>
+      `;
     }
     function tableNodeHtml(t){
       const size = tableSize(t);

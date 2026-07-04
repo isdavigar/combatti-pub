@@ -7084,7 +7084,7 @@
       const size = tableSize(t);
       // Si este dispositivo aún no recibió los pedidos, usa el conteo sincronizado
       // en la mesa (t.openCount) para no mostrar "Libre" una mesa ocupada.
-      const openCount = isMultiOrderTable(t) ? (openOrdersForTable(t.id).length || Number(t.openCount || 0)) : 0;
+      const openCount = isMultiOrderTable(t) ? (openOrdersForTable(t.id).filter(orderIsActiveOccupying).length || Number(t.openCount || 0)) : 0;
       const statusText = tableStatusLabel(t, openCount);
 
       const activeTotal = t.kind === 'Mesa' ? tableActiveTotal(t, openCount) : 0;
@@ -7940,6 +7940,14 @@ const colors = [
     function updateMultiOrderTableStatus(tableId){
       const table = state.tables.find(t => t.id === tableId);
       if(!isMultiOrderTable(table)) return;
+      // La caja es un registro de venta rápida: nunca se marca "ocupada".
+      if(table.kind === 'Caja'){
+        table.status = 'Disponible';
+        table.orderId = null;
+        table.openCount = 0;
+        table.orderTotal = 0;
+        return;
+      }
       // Solo cuentan los pedidos con valor (> $0); los vacíos no ocupan.
       const openOrders = openOrdersForTable(tableId).filter(orderIsActiveOccupying);
       if(openOrders.length){

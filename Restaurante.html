@@ -10823,7 +10823,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
             <div class="col-md-2"><div class="small text-secondary">Turno</div><span class="badge text-bg-light text-dark"><i class="fa-solid ${normalizeShift(record.shift) === 'Noche' ? 'fa-moon' : 'fa-sun'} me-1"></i>${shiftLabel(record.shift)}</span></div>
             <div class="col-md-2"><span class="badge text-bg-${record.status === 'Abierta' ? 'success' : 'secondary'}">${record.status || (record.closedAt ? 'Cerrada' : 'Abierta')}</span></div>
             <div class="col-12 small text-secondary">Egresos guardados: ${Array.isArray(record.expenseHistory) ? record.expenseHistory.length : 0} · Movimientos del periodo: ${Array.isArray(record.movementsHistory) ? record.movementsHistory.length : 0}</div>
-            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(cashRecordRealSales(record))}</span><span class="text-danger fw-bold">Gastos turno: ${money(cashRecordExpense(record))}</span><span class="text-success fw-bold">Neto: ${money(cashRecordRealSales(record) - cashRecordExpense(record))}</span></div></div>
+            <div class="col-12"><div class="d-flex flex-wrap gap-2 align-items-center"><span class="fw-bold">Ventas: ${money(cashRecordRealSales(record))}</span>${Number(record.deliveryFees || 0) > 0 ? `<span class="text-primary fw-bold">Domicilios: ${money(record.deliveryFees)}</span>` : ''}<span class="text-danger fw-bold">Gastos: ${money(cashRecordExpense(record))}</span><span class="text-success fw-bold">Neto efectivo: ${money(cashRecordRealSales(record) - cashRecordExpense(record) - Number(record.deliveryFees || 0))}</span></div></div>
             <div class="col-12 cash-history-actions">
               <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewCashRecord('${record.id}')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
               ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="addExpenseToRecord('${record.id}')"><i class="fa-solid fa-arrow-down me-1"></i>Agregar gasto</button>` : ''}
@@ -10948,19 +10948,22 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const source = byId('expModalSource')?.value || 'EFECTIVO';
       if(!concept){ toast('Escribe el concepto del gasto', 'warning'); return; }
       if(amount <= 0){ toast('Ingresa un valor mayor a cero', 'warning'); return; }
-      // Usar la fecha del cierre (o apertura si no se cerró) como fecha del gasto
       const expenseDate = record.closedAt || record.openedAt || new Date().toISOString();
-      // Agregar al array de movimientos generales
       const movement = { id:uid(), type:'Egreso', concept, amount, source, date:expenseDate, linkedCashRecord:recordId };
-      state.movements.push(movement);
-      // También agregar al historial de egresos del registro de caja
+      // Guardar SOLO en el registro del cuadre (permanente, viaja en la config).
+      // NO agregar a state.movements (es temporal y se borra al cerrar/recargar).
       if(!Array.isArray(record.expenseHistory)) record.expenseHistory = [];
       record.expenseHistory.push(movement);
       if(!Array.isArray(record.movementsHistory)) record.movementsHistory = [];
       record.movementsHistory.push(movement);
-      // NO descontar del saldo final — los gastos post-cierre son informativos
-      persistAll();
-      pushIncremental(true); // Sync immediately — don't lose on reload
+      // Actualizar el gasto total del cuadre para que el Neto se recalcule correctamente.
+      record.expense = cashRecordExpense(record);
+      record.cashExpense = record.expenseHistory
+        .filter(m => m.type === 'Egreso' && !m.payroll && (m.source || 'EFECTIVO') === 'EFECTIVO')
+        .reduce((a, b) => a + Number(b.amount || 0), 0);
+      // Enviar la config actualizada a la nube INMEDIATAMENTE (para que no se pierda al recargar).
+      pushConfigToCloud();
+      saveStateToDatabase(appStateSnapshot());
       modalFor(document.getElementById('addExpenseModal')).hide();
       renderCashHistory();
       renderCashView();

@@ -11394,17 +11394,28 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
     }
     async function doResetSystemToZero(){
       if(!requireSystemAdmin('resetear el sistema')) return;
+      if(!cloudConnected){ toast('Debes estar conectado a la nube para resetear (el badge debe decir "Conectado")', 'warning'); return; }
       // Tombstones de cuadres para que no resuciten desde otros equipos.
       const histIds = (state.cash?.history || []).map(r => r.id).filter(Boolean);
-      // Borrar EXPLÍCITAMENTE cada item de la nube (ventas e historiales).
+      // 1) Enviar TODOS los deletes EXPLÍCITOS a DynamoDB (uno por item).
+      const deletesToSend = [];
       ['orders','kitchenTickets','deletedOrders','historicalSales','movements'].forEach(coll => {
         (state[coll] || []).forEach(item => {
           const docId = String(item?.id || item?._id || '');
-          if(docId){
-            if(cloudConnected) sendAWS({ action:'sync', type:'delete', collection: coll, docId });
-            if(typeof cloudItemShadow === 'object') delete cloudItemShadow[coll + ':' + docId];
-          }
+          if(docId) deletesToSend.push({ collection: coll, docId });
         });
+      });
+      // Enviar en lotes de 10 con pausa para no saturar el WebSocket.
+      for(let i = 0; i < deletesToSend.length; i++){
+        const d = deletesToSend[i];
+        sendAWS({ action:'sync', type:'delete', collection: d.collection, docId: d.docId });
+        if(typeof cloudItemShadow === 'object') delete cloudItemShadow[d.collection + ':' + d.docId];
+        if(i > 0 && i % 10 === 0) await new Promise(r => setTimeout(r, 50));
+      }
+      // Pausa para que los deletes lleguen al backend.
+      await new Promise(r => setTimeout(r, 500));
+      // 2) Limpiar el state local.
+      ['orders','kitchenTickets','deletedOrders','historicalSales','movements'].forEach(coll => {
         state[coll] = [];
       });
       seenKitchenTicketIds = new Set();
@@ -11425,14 +11436,13 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       (state.tables || []).forEach(t => {
         t.status = 'Disponible'; t.orderId = null; t.customer = ''; t.orderTotal = 0; t.orderStartedAt = null;
       });
-      persistAll();                 // guarda local + envía config (historial vacío + tombstones)
-      await forceCloudSyncNow();    // propaga borrados y cambios a la nube
+      // 3) Enviar la config limpia a la nube (caja cerrada + tombstones).
+      pushConfigToCloud();
+      persistAll(false);
+      // 4) Push final para propagar cualquier cambio restante.
+      await forceCloudSyncNow();
       renderAll();
-      if(!cloudConnected){
-        toast('Sistema reseteado localmente. Se sincronizará al reconectar.', 'warning');
-      } else {
-        toast('Sistema reseteado: ventas e historiales en cero (productos intactos)', 'success');
-      }
+      toast(`Sistema reseteado: ${deletesToSend.length} registros borrados de la nube (productos intactos)`, 'success');
     }
     function printInventoryReport(){
       const rows = state.products.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(normalizeCategory(p.category))}</td><td class="right">${isStockManaged(p) ? Number(p.stock || 0) : 'Sin conteo'}</td><td class="right">${Number(p.minStock || 0)}</td><td>${escapeHtml(stockStatusText(p))}</td></tr>`).join('');

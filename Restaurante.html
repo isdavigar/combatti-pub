@@ -2356,6 +2356,76 @@
       .app-topbar-right > #topCashActionArea{ top:100%; left:0; right:0; }
       .app-topbar{ margin-bottom:44px; }
     }
+
+    /* ===================================================================
+       CAPA UX: animaciones y micro-interacciones sutiles (sin cambiar el
+       diseño ni los colores). Todo usa las variables existentes.
+       =================================================================== */
+    .view.active { animation: uxFadeIn .28s ease both; }
+    @keyframes uxFadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+    .product-card, .table-node, .cash-history-row, .kitchen-order-card,
+    .order-history-item, .user-row, .movement-card { animation: uxRise .25s ease both; }
+    @keyframes uxRise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+    .modal.show .modal-content { animation: uxModalIn .22s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes uxModalIn { from { opacity:0; transform:translateY(14px) scale(.985); } to { opacity:1; transform:none; } }
+
+    .btn:active, .quick-action-btn:active, .nav-pill:active,
+    .category-chip:active, .type-chip:active, .qty-btn:active { transform:scale(.96); }
+    .btn, .quick-action-btn, .nav-pill, .category-chip, .type-chip, .qty-btn {
+      transition: transform .08s ease, background .16s ease, color .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+
+    .skeleton { position:relative; overflow:hidden; background:rgba(148,163,184,.18); border-radius:10px; min-height:14px; }
+    .skeleton::after { content:''; position:absolute; inset:0; transform:translateX(-100%);
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation:uxShimmer 1.2s infinite; }
+    @keyframes uxShimmer { 100% { transform:translateX(100%); } }
+
+    .kitchen-order-card.is-new { animation: uxKitchenFlash 1s ease-in-out 3; }
+    @keyframes uxKitchenFlash {
+      0%,100% { box-shadow:0 18px 44px rgba(0,0,0,.22); }
+      50% { box-shadow:0 0 0 3px var(--primary), 0 18px 44px rgba(0,0,0,.22); }
+    }
+
+    .kitchen-timer.is-late strong { animation: uxLatePulse 1.1s ease-in-out infinite; }
+    @keyframes uxLatePulse { 0%,100% { opacity:1; } 50% { opacity:.45; } }
+
+    .table-elapsed { display:inline-flex; align-items:center; gap:4px; font-size:.62rem; font-weight:800;
+      padding:1px 6px; border-radius:999px; margin-top:2px; }
+    .table-elapsed.t-ok { background:rgba(var(--primary-rgb),.12); color:var(--primary); }
+    .table-elapsed.t-warn { background:rgba(245,158,11,.16); color:#b45309; }
+    .table-elapsed.t-late { background:rgba(239,68,68,.16); color:#dc2626; }
+    body.dark-mode .table-elapsed.t-warn { color:#fbbf24; }
+
+    .ux-pay-ok { position:fixed; inset:0; z-index:4000; display:grid; place-items:center;
+      background:rgba(15,23,42,.35); animation:uxFadeIn .18s ease both; }
+    .ux-pay-ok .ring { width:120px; height:120px; border-radius:50%; background:var(--card);
+      display:grid; place-items:center; box-shadow:0 20px 60px rgba(0,0,0,.35); animation:uxPop .35s cubic-bezier(.2,.9,.3,1.3) both; }
+    .ux-pay-ok i { font-size:56px; color:var(--primary); animation:uxCheck .4s .12s ease both; }
+    @keyframes uxPop { from { transform:scale(.6); opacity:0; } to { transform:none; opacity:1; } }
+    @keyframes uxCheck { from { transform:scale(.2); opacity:0; } to { transform:none; opacity:1; } }
+
+    .ux-bottom-nav { display:none; }
+    @media (max-width: 768px) {
+      .ux-bottom-nav {
+        display:flex; position:fixed; left:0; right:0; bottom:0; z-index:1200;
+        background:var(--card); border-top:1px solid var(--border);
+        box-shadow:0 -6px 20px rgba(15,23,42,.10); padding:6px 4px; justify-content:space-around;
+      }
+      .ux-bottom-nav button {
+        flex:1; border:0; background:transparent; color:var(--muted);
+        display:flex; flex-direction:column; align-items:center; gap:2px;
+        font-size:.62rem; font-weight:700; padding:4px 2px; border-radius:12px; cursor:pointer;
+      }
+      .ux-bottom-nav button i { font-size:1.1rem; }
+      .ux-bottom-nav button.active { color:var(--primary); }
+      .main-content { padding-bottom:72px !important; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+    }
     </style>
 </head>
 <body>
@@ -6949,12 +7019,25 @@
             <div class="table-card-body">
               <h5 class="fw-bold mb-1">${escapeHtml(t.name)}</h5>
               <div class="mb-2"><span class="status-dot status-${cls}"></span>${escapeHtml(statusText)}</div>
+              ${tableElapsedHtml(t)}
               ${activeTotal ? `<div class="table-order-total">${money(activeTotal)}</div>` : ''}
             </div>
           </div>
           ${resizeHandle}
         </div>
       `;
+    }
+    // Badge con el tiempo que lleva ocupada la mesa (color escala con el tiempo).
+    function tableElapsedHtml(t){
+      if(!t || !t.orderStartedAt) return '';
+      if(t.status !== 'Ocupada' && t.status !== 'En proceso de pago') return '';
+      const start = new Date(t.orderStartedAt).getTime();
+      if(!start || isNaN(start)) return '';
+      const mins = Math.floor((Date.now() - start) / 60000);
+      if(mins < 0) return '';
+      const cls = mins >= 60 ? 't-late' : (mins >= 30 ? 't-warn' : 't-ok');
+      const label = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins} min`;
+      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i>${label}</span>`;
     }
     function tableActiveTotal(table, openCount = 0){
       const orderComputedTotal = order => {
@@ -8610,6 +8693,7 @@ const colors = [
       pushIncremental(); // Sincroniza de inmediato (solo cambios)
       const paidOrderId = currentOrder.id;
       paymentReviewState = { orderId:null, snapshot:'' };
+      if(typeof uxShowPaySuccess === 'function') uxShowPaySuccess();
       toast('Pedido pagado y guardado en historial', 'success');
       modals.order.hide(); currentOrder = null; currentOrderTableId = null;
       showTicketOptions(paidOrderId);
@@ -9260,6 +9344,21 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         .filter(ticket => openOrderIds.has(ticket.orderId) && ticket.kitchenStatus !== 'Pagado')
         .sort((a,b) => new Date(a.sentToKitchenAt || a.createdAt || 0) - new Date(b.sentToKitchenAt || b.createdAt || 0));
     }
+    // Envía un BEEP (pitido) a la impresora térmica de COCINA vía QZ Tray.
+    // ESC/POS: 1B 42 n t  -> n pitidos de t*100ms. Suena en la impresora, no en el PC.
+    async function beepKitchenPrinter(times = 2){
+      try {
+        if(typeof qzConnected === 'undefined' || !qzConnected) return;
+        const printer = printerNameForRole('cocina');
+        if(!printer) return;
+        await ensureQz();
+        const n = Math.min(9, Math.max(1, Number(times) || 1));
+        const hex = '1B42' + n.toString(16).padStart(2, '0') + '05';
+        const cfg = qz.configs.create(printer);
+        await qz.print(cfg, [{ type:'raw', format:'hex', data: hex }]);
+      } catch (e) { console.warn('beep cocina fail', e); }
+    }
+    let freshKitchenIds = new Set();
     function notifyNewKitchenTickets(orders){
       if(!isKitchenDisplayMode()) return;
       const ids = new Set(orders.map(order => order.id));
@@ -9267,7 +9366,10 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const fresh = orders.filter(order => !seenKitchenTicketIds.has(order.id));
       seenKitchenTicketIds = ids;
       if(fresh.length){
-        // Ya no suena en el navegador — el beep lo emite la impresora de cocina
+        // ALERTA EN LA IMPRESORA DE COCINA (no en el PC) + destello visual en la tarjeta.
+        freshKitchenIds = new Set(fresh.map(o => o.id));
+        beepKitchenPrinter(fresh.length > 1 ? 3 : 2);
+        setTimeout(() => { freshKitchenIds = new Set(); }, 4000);
       }
       fresh.forEach(order => {
         const qty = (order.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
@@ -9314,7 +9416,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
         const timer = kitchenTimerState(order);
         const qty = (order.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
         return `
-          <article class="kitchen-order-card ${timer.className}">
+          <article class="kitchen-order-card ${timer.className} ${freshKitchenIds.has(order.id) ? 'is-new' : ''}">
             <div class="kitchen-order-head">
               <div>
                 <span class="badge text-bg-success">#${String(index + 1).padStart(2,'0')} · ${escapeHtml(order.type || 'Pedido')}</span>
@@ -13866,6 +13968,87 @@ setInterval(() => {
     connectAWS();
   }
 }, 25000);
+
+// ===================================================================
+// CAPA UX (adiciones no invasivas): check de cobro, atajos de teclado,
+// barra inferior móvil y refresco del timer de ocupación de mesas.
+// ===================================================================
+
+// Overlay con check animado al completar un cobro.
+function uxShowPaySuccess(){
+  try {
+    const ov = document.createElement('div');
+    ov.className = 'ux-pay-ok';
+    ov.innerHTML = '<div class="ring"><i class="fa-solid fa-circle-check"></i></div>';
+    document.body.appendChild(ov);
+    setTimeout(() => { ov.style.transition = 'opacity .2s'; ov.style.opacity = '0'; }, 700);
+    setTimeout(() => { ov.remove(); }, 950);
+  } catch(_){}
+}
+
+// Atajos de teclado (no interfieren al escribir en inputs).
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target && e.target.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable);
+  // Esc: cierra el modal visible superior.
+  if(e.key === 'Escape'){
+    const openModal = [...document.querySelectorAll('.modal.show')].pop();
+    if(openModal){
+      const closeBtn = openModal.querySelector('[data-bs-dismiss="modal"], .btn-close');
+      if(closeBtn){ closeBtn.click(); }
+      else { openModal.classList.remove('show'); }
+    }
+    return;
+  }
+  if(typing) return;
+  // F2: enfocar el primer buscador visible.
+  if(e.key === 'F2'){
+    const search = document.querySelector('.modal.show input[type="search"], .modal.show .search-input, .search-input');
+    if(search){ e.preventDefault(); search.focus(); }
+  }
+});
+
+// Barra inferior de navegación (solo móvil). Se inyecta sin tocar el HTML base.
+function uxInitBottomNav(){
+  if(document.querySelector('.ux-bottom-nav')) return;
+  const app = document.getElementById('appScreen');
+  if(!app) return;
+  const nav = document.createElement('nav');
+  nav.className = 'ux-bottom-nav';
+  const items = [
+    { view:'dashboard', icon:'fa-gauge-high', label:'Inicio' },
+    { view:'mesas', icon:'fa-table-cells-large', label:'Mesas' },
+    { kitchen:true, icon:'fa-utensils', label:'Cocina' },
+    { view:'caja', icon:'fa-cash-register', label:'Caja' },
+    { view:'productos', icon:'fa-burger', label:'Productos' },
+  ];
+  nav.innerHTML = items.map((it, i) =>
+    `<button data-ux-view="${it.view || ''}" data-ux-kitchen="${it.kitchen ? '1' : ''}">
+       <i class="fa-solid ${it.icon}"></i><span>${it.label}</span>
+     </button>`).join('');
+  document.body.appendChild(nav);
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('button'); if(!btn) return;
+    if(btn.dataset.uxKitchen === '1'){ if(typeof openKitchenDisplay === 'function') openKitchenDisplay(true); return; }
+    const v = btn.dataset.uxView;
+    if(v && typeof openView === 'function'){
+      openView(v);
+      nav.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+  });
+}
+
+// Refresca el badge de tiempo de ocupación de las mesas cada 30s (si la vista está activa).
+setInterval(() => {
+  const mesas = document.getElementById('view-mesas');
+  if(mesas && mesas.classList.contains('active') && typeof renderTables === 'function'){
+    try { renderTables(); } catch(_){}
+  }
+}, 30000);
+
+document.addEventListener('DOMContentLoaded', () => { setTimeout(uxInitBottomNav, 800); });
+if(document.readyState !== 'loading'){ setTimeout(uxInitBottomNav, 800); }
 
   </script>
 </body>

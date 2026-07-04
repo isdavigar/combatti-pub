@@ -5721,13 +5721,36 @@
           updateMultiOrderTableStatus(table.id);
           return;
         }
-        // Regular tables: just update display fields, never touch status
-        if(!table.orderId) return;
-        const order = state.orders.find(o => o.id === table.orderId);
-        if(order && !isClosedOrder(order) && order.items && order.items.length > 0){
-          table.customer = order.customer || '';
-          table.orderTotal = Number(order.total || 0);
-          table.orderStartedAt = order.createdAt || '';
+        // Respetar reservas manuales del admin.
+        if(table.status === 'Reservada') return;
+        // Mesa normal: ocupada SOLO si su pedido tiene valor (> $0).
+        const order = state.orders.find(o => o.id === table.orderId && !isClosedOrder(o))
+                   || state.orders.find(o => o.tableId === table.id && !isClosedOrder(o));
+        if(order){
+          // Este dispositivo tiene el pedido: la ocupación depende de su valor.
+          if(orderIsActiveOccupying(order)){
+            table.orderId = order.id;
+            table.customer = order.customer || '';
+            table.orderTotal = Number(order.total || 0);
+            table.orderStartedAt = order.createdAt || table.orderStartedAt || new Date().toISOString();
+            if(table.status !== 'En proceso de pago') table.status = 'Ocupada';
+          } else {
+            // Pedido vacío ($0): la mesa queda libre.
+            table.status = 'Disponible';
+            table.orderId = null;
+            table.orderTotal = 0;
+            table.customer = '';
+            table.orderStartedAt = null;
+          }
+        } else {
+          // Sin pedido local: usar el total sincronizado (colección tables) para
+          // decidir. Si es $0, la mesa está libre.
+          if(Number(table.orderTotal || 0) > 0){
+            if(table.status === 'Disponible') table.status = 'Ocupada';
+          } else {
+            table.status = 'Disponible';
+            table.orderId = null;
+          }
         }
       });
     }
@@ -6653,6 +6676,13 @@
       return state.movements.filter(m => m.type === type && m.date && new Date(m.date) >= fromDate && new Date(m.date) <= toDate).reduce((a,b)=>a + Number(b.amount || 0), 0);
     }
     function isClosedOrder(order){ return CLOSED_ORDER_STATUSES.includes(order?.status); }
+    // Un pedido "ocupa" la mesa solo si tiene productos o un valor > 0. Un pedido
+    // recién abierto y vacío ($0) NO debe mostrar la mesa como ocupada.
+    function orderIsActiveOccupying(order){
+      if(!order || isClosedOrder(order)) return false;
+      const hasItems = Array.isArray(order.items) && order.items.some(it => Number(it.qty || 0) > 0);
+      return hasItems || Number(order.total || 0) > 0;
+    }
     function paidOrders(){ return state.orders.filter(o => o.status === 'Pagado'); }
     function paidOrdersRange(fromDate, toDate){ return state.orders.filter(o => o.status === 'Pagado' && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate); }
     function closedOrdersRange(fromDate, toDate){ return state.orders.filter(o => isClosedOrder(o) && o.paidAt && new Date(o.paidAt) >= fromDate && new Date(o.paidAt) <= toDate); }
@@ -7910,7 +7940,8 @@ const colors = [
     function updateMultiOrderTableStatus(tableId){
       const table = state.tables.find(t => t.id === tableId);
       if(!isMultiOrderTable(table)) return;
-      const openOrders = openOrdersForTable(tableId);
+      // Solo cuentan los pedidos con valor (> $0); los vacíos no ocupan.
+      const openOrders = openOrdersForTable(tableId).filter(orderIsActiveOccupying);
       if(openOrders.length){
         table.status = 'En proceso de pago';
         table.orderId = openOrders[0].id;

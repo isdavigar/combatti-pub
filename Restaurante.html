@@ -8078,7 +8078,7 @@ const colors = [
               <div class="d-flex gap-2 flex-wrap justify-content-end">
                 <button class="btn btn-sm btn-primary-soft btn-pill" onclick="viewOrderTicket('${order.id}', 'RESUMEN')"><i class="fa-solid fa-eye me-1"></i>Ver</button>
                 <button class="btn btn-sm btn-outline-success btn-pill" onclick="printOrderTicket('${order.id}', 'TICKET')"><i class="fa-solid fa-print me-1"></i>Imprimir</button>
-                ${isAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deletePaidCajaOrder('${order.id}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
+                ${isSystemAdmin() ? `<button class="btn btn-sm btn-outline-danger btn-pill" onclick="deletePaidCajaOrder('${order.id}')"><i class="fa-solid fa-trash me-1"></i>Eliminar</button>` : ''}
               </div>
             </div>
           `).join('');
@@ -8924,19 +8924,25 @@ const colors = [
       currentOrder.status = status;
       currentOrder.kitchenStatus = status;
       currentOrder.paymentMethod = method;
+      // Cortesía/Crédito: NO tiene método de pago real, todos los montos en 0.
+      currentOrder.payments = emptyPaymentMap();
       currentOrder.cashAmount = 0;
       currentOrder.transferAmount = 0;
       currentOrder.cardAmount = 0;
+      currentOrder.cashReceived = 0;
+      currentOrder.cashChange = 0;
       currentOrder.seller = currentUser?.username || 'Sin usuario';
       currentOrder.paidAt = new Date().toISOString();
       currentOrder.updatedAt = currentOrder.paidAt;
+      currentOrder._seq = Date.now();
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
       persistAll();
-      pushIncremental(); // Sincroniza de inmediato (solo cambios)
+      pushIncremental();
       printKitchenTicket(currentOrder, printType);
-      toast(status === 'Credito' ? 'Credito registrado' : 'Cortesía registrada', 'success');
+      toast(status === 'Credito' ? 'Crédito registrado' : 'Cortesía registrada — no suma a ventas', 'success');
       modals.order.hide(); currentOrder = null; currentOrderTableId = null;
+      renderTables();
     }
     function markCourtesyOrder(){ closeSpecialOrder('Cortesía', 'Cortesía', 'CORTESIA'); }
     function markCreditOrder(){ closeSpecialOrder('Credito', 'Credito', 'CREDITO'); }

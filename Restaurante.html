@@ -13984,30 +13984,58 @@ function handleAWSMessage(msg) {
 // ===== Apply config (cash, brand, etc.) from cloud =====
 function applyConfigFromCloud(data) {
   if (!data) return;
-  if (data.cash != null) {
-    // Merge de historial con TOMBSTONES para que un cuadre borrado en un
-    // dispositivo NO resucite desde otro (bug reportado).
-    const localHistory = Array.isArray(state.cash?.history) ? state.cash.history : [];
-    const remoteHistory = Array.isArray(data.cash.history) ? data.cash.history : [];
-    // Ids de cuadres eliminados en cualquier dispositivo (se propagan por config).
-    const tombstones = new Set([
-      ...((state.cash && state.cash.deletedHistoryIds) || []),
-      ...((data.cash && data.cash.deletedHistoryIds) || [])
-    ]);
-    const byId = new Map();
-    remoteHistory.forEach(r => { if(r && r.id && !tombstones.has(r.id)) byId.set(r.id, r); });
-    localHistory.forEach(r => {
-      if(!r || !r.id || tombstones.has(r.id)) return; // excluir borrados
-      if(!byId.has(r.id)) byId.set(r.id, r);
-      else {
-        // Keep the one with closedAt (more complete)
-        const existing = byId.get(r.id);
-        if(r.closedAt && !existing.closedAt) byId.set(r.id, r);
-        if(r.sales > 0 && !(existing.sales > 0)) byId.set(r.id, r);
-      }
+  const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
+  // Si la config remota trae un reset más reciente que el nuestro, aplicarlo
+  // automáticamente en ESTE dispositivo (así todos se limpian sin intervención manual).
+  if(data.lastResetTs && Number(data.lastResetTs) > lastResetTs){
+    localStorage.setItem('combatti_last_reset_ts', String(data.lastResetTs));
+    // Limpiar colecciones locales que el reset borró.
+    ['orders','kitchenTickets','deletedOrders','historicalSales','movements'].forEach(coll => {
+      if(Array.isArray(state[coll])) state[coll] = [];
     });
-    const mergedHistory = [...byId.values()].sort((a,b) => new Date(a.openedAt||0) - new Date(b.openedAt||0));
-    state.cash = { ...data.cash, history: mergedHistory, deletedHistoryIds: Array.from(tombstones) };
+    state.cash = { open:false, openedAt:null, openedBy:'', openedByUser:'', openingAmount:0, closures:0, history:[], deletedHistoryIds:[] };
+    (state.tables || []).forEach(t => {
+      t.status = 'Disponible'; t.orderId = null; t.customer = ''; t.orderTotal = 0; t.orderStartedAt = null; t.openCount = 0;
+    });
+    if(typeof saveStateToDatabase === 'function') saveStateToDatabase(appStateSnapshot());
+    return; // No aplicar la config vieja encima del limpio.
+  }
+  if (data.cash != null) {
+    // Si hubo un reset reciente y la config remota es más vieja, forzar cash limpio.
+    const remoteConfigSeq = Number(data._seq || 0);
+    if(lastResetTs > 0 && remoteConfigSeq < lastResetTs){
+      // Config más vieja que el reset: no aplicar el cash (mantener local limpio).
+      // Reenviar nuestra config limpia para que la nube se actualice.
+      if(typeof pushConfigToCloud === 'function') pushConfigToCloud();
+    } else {
+      // Merge de historial con TOMBSTONES para que un cuadre borrado en un
+      // dispositivo NO resucite desde otro (bug reportado).
+      const localHistory = Array.isArray(state.cash?.history) ? state.cash.history : [];
+      const remoteHistory = Array.isArray(data.cash.history) ? data.cash.history : [];
+      // Ids de cuadres eliminados en cualquier dispositivo (se propagan por config).
+      const tombstones = new Set([
+        ...((state.cash && state.cash.deletedHistoryIds) || []),
+        ...((data.cash && data.cash.deletedHistoryIds) || [])
+      ]);
+      // Si hay un reset reciente, tratar TODOS los cuadres viejos como tombstones.
+      if(lastResetTs > 0){
+        remoteHistory.forEach(r => { if(r && r.id) tombstones.add(r.id); });
+        localHistory.forEach(r => { if(r && r.id) tombstones.add(r.id); });
+      }
+      const byId = new Map();
+      remoteHistory.forEach(r => { if(r && r.id && !tombstones.has(r.id)) byId.set(r.id, r); });
+      localHistory.forEach(r => {
+        if(!r || !r.id || tombstones.has(r.id)) return;
+        if(!byId.has(r.id)) byId.set(r.id, r);
+        else {
+          const existing = byId.get(r.id);
+          if(r.closedAt && !existing.closedAt) byId.set(r.id, r);
+          if(r.sales > 0 && !(existing.sales > 0)) byId.set(r.id, r);
+        }
+      });
+      const mergedHistory = [...byId.values()].sort((a,b) => new Date(a.openedAt||0) - new Date(b.openedAt||0));
+      state.cash = { ...data.cash, history: mergedHistory, deletedHistoryIds: Array.from(tombstones) };
+    }
   }
   if (data.brand != null) state.brand = data.brand;
   if (data.shift != null) state.shift = typeof normalizeShift === 'function' ? normalizeShift(data.shift) : data.shift;
@@ -14032,6 +14060,8 @@ function cloudConfigPayload() {
     activeSessions: state.activeSessions || {},
     customWidgets: state.customWidgets || [],
     license: typeof licenseConfigForSync === 'function' ? licenseConfigForSync() : {},
+    // Timestamp del último reset: los otros dispositivos lo leen y limpian sus datos locales.
+    lastResetTs: Number(localStorage.getItem('combatti_last_reset_ts') || 0),
     _device: CLOUD_DEVICE_ID,
     _seq: Date.now()
   };

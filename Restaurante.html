@@ -11777,8 +11777,11 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       saveStateToDatabase(appStateSnapshot());
       // 5) Push final para propagar los borrados y el estado limpio.
       await forceCloudSyncNow();
+      // 6) Guardar timestamp del reset. Si la nube devuelve datos más viejos, ignorarlos.
+      const resetTs = Date.now();
+      try { localStorage.setItem('combatti_last_reset_ts', String(resetTs)); } catch(_){}
       renderAll();
-      toast(`Sistema reseteado: ${deletesToSend.length} registros borrados de la nube. Todo en cero.`, 'success');
+      toast(`Sistema reseteado: ${deletesToSend.length} registros borrados de la nube. Todo en cero. Recarga todos los dispositivos (Ctrl+Shift+R).`, 'success');
     }
     function printInventoryReport(){
       const rows = state.products.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(normalizeCategory(p.category))}</td><td class="right">${isStockManaged(p) ? Number(p.stock || 0) : 'Sin conteo'}</td><td class="right">${Number(p.minStock || 0)}</td><td>${escapeHtml(stockStatusText(p))}</td></tr>`).join('');
@@ -13814,6 +13817,14 @@ function handleAWSMessage(msg) {
   // CONFIG (cash state, brand, shift, etc.)
   if (msg.type === 'config' && msg.payload) {
     const remoteSeq = Number(msg.payload._seq || 0);
+    const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
+    // Si la nube tiene una config MÁS VIEJA que nuestro reset, no aplicarla.
+    if (lastResetTs > 0 && remoteSeq < lastResetTs) {
+      if (cloudConnected && typeof pushConfigToCloud === 'function') pushConfigToCloud();
+      if(!cloudInitialSyncDone) cloudInitialSyncDone = true;
+      updateCloudStatus();
+      return;
+    }
     // Si la nube tiene una config MÁS VIEJA que la nuestra (p.ej. se cerró caja
     // sin conexión), no la aplicamos y REENVIAMOS la local para actualizar la nube.
     if (remoteSeq > 0 && lastSentConfigSeq > 0 && remoteSeq < lastSentConfigSeq) {
@@ -13882,6 +13893,14 @@ function handleAWSMessage(msg) {
     // Apply cloud data (cloud ALWAYS wins en la carga inicial)
     if(items.length > 0 && state[coll] !== undefined) {
       isApplyingRemoteState = true;
+      // Si hubo un reset reciente, ignorar items más viejos que el reset.
+      const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
+      if(lastResetTs > 0){
+        items = items.filter(it => {
+          const itemTs = Number(it?._seq || it?.updatedAt || 0);
+          return itemTs > lastResetTs;
+        });
+      }
       state[coll] = items;
       // Recuerda lo recibido para no reenviarlo luego (evita eco/churn).
       items.forEach(it => rememberCloudShadow(coll, it));
@@ -13908,6 +13927,12 @@ function handleAWSMessage(msg) {
     if(Array.isArray(state[coll])) {
       isApplyingRemoteState = true;
       const docId = String(payload.id || payload._id || '');
+      // Si hubo un reset reciente, ignorar items más viejos que el reset.
+      const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
+      if(lastResetTs > 0 && Number(payload._seq || 0) < lastResetTs){
+        isApplyingRemoteState = false;
+        return;
+      }
       const idx = state[coll].findIndex(it => String(it.id || it._id || '') === docId);
       if(idx >= 0) {
         // Resolución de conflicto: ignora updates más viejos que lo local.
@@ -14083,6 +14108,18 @@ function queueCloudPush() {
 }
 
 // ===== Manual full sync button =====
+function forceFullCloudSync(){ autoSyncLocalToCloud(); }
+function forceDownloadFromCloud(){ downloadFromCloud(); }
+function resetLocalCache(){
+  if(!confirm('¿Borrar todo el caché local y recargar?\n\nEsto no afecta la nube. Al recargar se descargarán los datos de la nube.')) return;
+  // Borrar IndexedDB
+  if(typeof indexedDB !== 'undefined'){
+    try { indexedDB.deleteDatabase(DB_NAME); } catch(_){}
+  }
+  // Borrar localStorage
+  Object.values(STORAGE).forEach(key => { try { localStorage.removeItem(key); } catch(_){} });
+  location.reload();
+}
 async function autoSyncLocalToCloud() {
   if(!cloudConnected) { toast('Sin conexión a la nube', 'warning'); return; }
   if(!confirm('¿Subir TODOS los datos de este dispositivo a la nube?\n\nEsto sobreescribirá los datos en la nube con los de este dispositivo.\nSolo hazlo desde el dispositivo que tiene los datos correctos.')) return;

@@ -6828,7 +6828,15 @@
       const openTables = state.tables.filter(t => t.kind !== 'Caja' && t.status !== 'Disponible').length;
       const freeTables = state.tables.filter(t => t.kind !== 'Caja' && t.status === 'Disponible').length;
       const activeOrders = state.orders.filter(o => o.status === 'Abierto' && o.items && o.items.length > 0);
-      const pendingOrders = activeOrders.length;
+      // Respaldo: si este dispositivo aún no recibió los pedidos, contamos las
+      // mesas ocupadas (dato que sí viaja en la colección `tables`) para que el
+      // indicador no muestre 0 cuando en realidad hay pedidos en curso.
+      const tableActiveCount = state.tables.reduce((n, t) => {
+        if(t.kind === 'Caja') return n;
+        if(isMultiOrderTable(t)) return n + Number(t.openCount || 0);
+        return n + (t.status && t.status !== 'Disponible' ? 1 : 0);
+      }, 0);
+      const pendingOrders = Math.max(activeOrders.length, tableActiveCount);
       const closedToday = closedOrdersRange(startOfDay(today), endOfDay(today)).length;
       const tableBase = Math.max(0, openTables + freeTables);
       const occupancyPercent = tableBase ? Math.round((openTables / tableBase) * 100) : 0;
@@ -7044,7 +7052,9 @@
     }
     function tableNodeHtml(t){
       const size = tableSize(t);
-      const openCount = isMultiOrderTable(t) ? openOrdersForTable(t.id).length : 0;
+      // Si este dispositivo aún no recibió los pedidos, usa el conteo sincronizado
+      // en la mesa (t.openCount) para no mostrar "Libre" una mesa ocupada.
+      const openCount = isMultiOrderTable(t) ? (openOrdersForTable(t.id).length || Number(t.openCount || 0)) : 0;
       const statusText = tableStatusLabel(t, openCount);
 
       const activeTotal = t.kind === 'Mesa' ? tableActiveTotal(t, openCount) : 0;
@@ -7901,8 +7911,27 @@ const colors = [
       const table = state.tables.find(t => t.id === tableId);
       if(!isMultiOrderTable(table)) return;
       const openOrders = openOrdersForTable(tableId);
-      table.status = openOrders.length ? 'En proceso de pago' : 'Disponible';
-      table.orderId = openOrders[0]?.id || null;
+      if(openOrders.length){
+        table.status = 'En proceso de pago';
+        table.orderId = openOrders[0].id;
+        // Resumen que viaja en la colección `tables` (pequeña y confiable) para
+        // que otros dispositivos vean la ocupación aunque no tengan los pedidos.
+        table.openCount = openOrders.length;
+        table.orderTotal = openOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+        return;
+      }
+      // No hay pedidos ABIERTOS localmente. Si NO tenemos ningún pedido de esta
+      // mesa (aún no sincronizaron) pero la nube dice que está ocupada, mantenemos
+      // ese estado en vez de mostrar "Libre" por error.
+      const hasAnyLocal = state.orders.some(o => o.tableId === tableId);
+      if(!hasAnyLocal && Number(table.openCount || 0) > 0){
+        table.status = 'En proceso de pago';
+        return;
+      }
+      table.status = 'Disponible';
+      table.orderId = null;
+      table.openCount = 0;
+      table.orderTotal = 0;
     }
     function openMultiOrderHub(tableId){
       const table = state.tables.find(t => t.id === tableId);
@@ -14163,7 +14192,15 @@ function updateActiveOrdersBadge(){
     const badge = document.getElementById('activeOrdersBadge');
     const countEl = document.getElementById('activeOrdersCount');
     if(!badge || !countEl || typeof state === 'undefined') return;
-    const open = (state.orders || []).filter(o => o && typeof isClosedOrder === 'function' ? !isClosedOrder(o) : (o && o.status && o.status !== 'Pagado')).length;
+    const openOrdersCount = (state.orders || []).filter(o => o && typeof isClosedOrder === 'function' ? !isClosedOrder(o) : (o && o.status && o.status !== 'Pagado')).length;
+    // Respaldo desde las mesas (colección que sí sincroniza) por si aún no llegan los pedidos.
+    const tableActiveCount = (state.tables || []).reduce((n, t) => {
+      if(!t || t.kind === 'Caja') return n;
+      const multi = (typeof isMultiOrderTable === 'function') ? isMultiOrderTable(t) : false;
+      if(multi) return n + Number(t.openCount || 0);
+      return n + (t.status && t.status !== 'Disponible' ? 1 : 0);
+    }, 0);
+    const open = Math.max(openOrdersCount, tableActiveCount);
     const prev = Number(countEl.textContent || '0');
     countEl.textContent = String(open);
     badge.classList.toggle('d-none', open === 0);

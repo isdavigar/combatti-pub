@@ -8815,9 +8815,9 @@ const colors = [
         table.orderId = currentOrder.id;
       }
       syncTableOrderSnapshot(table, currentOrder);
-      // Imprimir PRIMERO (respuesta inmediata), persistir DESPUÉS.
+      // Imprimir PRIMERO (respuesta inmediata), persistir en background.
       printKitchenTicket(currentOrder, 'CLIENTE');
-      persistAll(false);
+      setTimeout(() => persistAll(false), 50);
     }
     function paymentReviewSnapshot(method, splitPayments = null){
       if(!currentOrder) return '';
@@ -9223,7 +9223,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const w = window.open('', '_blank', `width=${width},height=760`);
       if(!w){ toast('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.', 'warning'); return false; }
       w.document.open(); w.document.write(html); w.document.close();
-      setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 450);
+      setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 150);
       return true;
     }
     function loadQzLibrary(){

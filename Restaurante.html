@@ -8005,14 +8005,6 @@ const colors = [
     function updateMultiOrderTableStatus(tableId){
       const table = state.tables.find(t => t.id === tableId);
       if(!isMultiOrderTable(table)) return;
-      // La caja es un registro de venta rápida: nunca se marca "ocupada".
-      if(table.kind === 'Caja'){
-        table.status = 'Disponible';
-        table.orderId = null;
-        table.openCount = 0;
-        table.orderTotal = 0;
-        return;
-      }
       // Solo cuentan los pedidos con valor (> $0); los vacíos no ocupan.
       const openOrders = openOrdersForTable(tableId).filter(orderIsActiveOccupying);
       if(openOrders.length){

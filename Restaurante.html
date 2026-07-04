@@ -585,7 +585,7 @@
     .table-card:hover{ transform:translateY(-3px); box-shadow:0 20px 44px rgba(15,23,42,.16); }
     .table-card h5{ font-size:1rem; }
     .tables-floor{
-      position:relative; width:100%; min-height:820px; overflow:auto; scroll-behavior:smooth;
+      position:relative; width:100%; min-height:820px; overflow-x:hidden; overflow-y:auto; scroll-behavior:smooth;
       border:1px solid rgba(var(--primary-rgb),.22); border-radius:24px;
       background:
         radial-gradient(circle at 24px 24px, rgba(var(--primary-rgb),.16) 0 2px, transparent 3px),
@@ -597,7 +597,7 @@
       padding:0;
       overscroll-behavior:contain;
     }
-    .tables-canvas{ position:relative; min-width:1180px; min-height:980px; margin:0 auto; }
+    .tables-canvas{ position:relative; min-width:0; min-height:0; margin:0 auto; }
     .tables-viewport{ position:relative; transform-origin:0 0; }
     .table-mode-toolbar{
       display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
@@ -2106,7 +2106,8 @@
 .tables-floor,
 #tablesCanvas{
   touch-action:none;
-  overflow:auto;
+  overflow-x:hidden;
+  overflow-y:auto;
   cursor:grab;
 }
 
@@ -2118,17 +2119,14 @@
   position:relative;
   width:100%;
   height:86vh;
-  overflow:auto;
+  overflow-x:hidden;
+  overflow-y:auto;
 }
 
 .tables-canvas{
   position:relative;
-
-  width:2000px;
-  height:1080px;
-
-  min-width:2000px;
-  min-height:1080px;
+  width:100%;
+  min-width:0;
 }
     .tables-floor .table-node,
     .tables-floor .table-card,
@@ -4590,6 +4588,8 @@
     const TABLE_ZOOM_MIN = 0.4;
     const TABLE_ZOOM_MAX = 2.6;
     let tableZoom = 1;
+    let tableZoomUserSet = false; // true cuando el usuario ajusta el zoom manualmente
+    let tableFitZoom = 1;         // zoom que hace caber todo el salon a lo ancho
     let tableCanvasBaseW = TABLE_CANVAS_MIN_WIDTH;
     let tableCanvasBaseH = TABLE_CANVAS_MIN_HEIGHT;
     let tablePinchActive = false;
@@ -7022,14 +7022,23 @@
       state.tables.forEach((table, index) => normalizeTable(table, index));
       updateTableModeUI();
       const filtered = state.tables.filter(t => tableFilter === 'all' ? true : t.kind === tableFilter);
-      const canvasWidth = Math.max(TABLE_CANVAS_MIN_WIDTH, filtered.reduce((max, table) => Math.max(max, Number(table.x || 24) + tableSize(table) + 120), 0));
-      const canvasHeight = Math.max(TABLE_CANVAS_MIN_HEIGHT, filtered.reduce((max, table) => Math.max(max, Number(table.y || 24) + tableSize(table) + 120), 0));
+      // Tamano natural del contenido segun las posiciones reales de las mesas.
+      const canvasWidth = Math.max(600, filtered.reduce((max, table) => Math.max(max, Number(table.x || 24) + tableSize(table) + 60), 0));
+      const canvasHeight = Math.max(400, filtered.reduce((max, table) => Math.max(max, Number(table.y || 24) + tableSize(table) + 90), 0));
       tableCanvasBaseW = canvasWidth;
       tableCanvasBaseH = canvasHeight;
+      // Ajuste automatico: el salon completo cabe a lo ancho -> solo queda scroll vertical.
+      // Se permite reducir bastante (hasta 0.2) para que en celulares quepan todas las
+      // mesas sin scroll horizontal, y se limita arriba para que no se vean gigantes.
+      const available = grid.clientWidth - 6;
+      if(available > 40){
+        tableFitZoom = Math.min(1.6, Math.max(0.2, available / canvasWidth));
+        if(!tableZoomUserSet) tableZoom = tableFitZoom;
+      }
       const nodes = filtered.map(t => tableNodeHtml(t)).join('') || '<div class="p-3 text-secondary">No hay mesas en este filtro.</div>';
       grid.innerHTML = `<div id="tablesViewport" class="tables-viewport" style="width:${Math.round(canvasWidth * tableZoom)}px;height:${Math.round(canvasHeight * tableZoom)}px;"><div id="tablesCanvas" class="tables-canvas" style="margin:0;width:${canvasWidth}px;height:${canvasHeight}px;min-width:${canvasWidth}px;min-height:${canvasHeight}px;overflow:visible;transform:scale(${tableZoom});transform-origin:0 0;">${nodes}</div></div>`;
       grid.style.cursor = (isAdmin() && tableEditMode) ? 'grab' : 'default';
-      grid.scrollLeft = keepLeft;
+      grid.scrollLeft = 0;
       grid.scrollTop = keepTop;
       bindTableDragHandlers();
     }
@@ -7193,6 +7202,7 @@
       const grid = byId('tablesGrid');
       if(!grid) return;
       const clamped = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, nextZoom));
+      tableZoomUserSet = true; // el usuario tomo el control del zoom
       if(Math.abs(clamped - tableZoom) < 0.0005) return;
       const rect = grid.getBoundingClientRect();
       const fx = (focalClientX == null ? rect.left + grid.clientWidth / 2 : focalClientX) - rect.left;
@@ -7204,7 +7214,8 @@
       grid.scrollLeft = contentX * tableZoom - fx;
       grid.scrollTop = contentY * tableZoom - fy;
     }
-    function resetTableZoom(){ applyTableZoom(1); }
+    // Restablecer = volver al ajuste automatico que hace caber todo a lo ancho.
+    function resetTableZoom(){ tableZoomUserSet = false; renderTables(); }
     function bindTableDragHandlers(){
       const board = byId('tablesGrid');
       const canvas = byId('tablesCanvas');
@@ -7230,11 +7241,12 @@
             expandTableCanvas(canvas, table.x, table.y, tableSize(table));
             raf = 0;
           };
+          const maxX = Math.max(16, (board.clientWidth - 6) / tableZoom - tableSize(table) - 8);
           node.onpointermove = moveEv => {
             const dx = (moveEv.clientX - startX) / tableZoom;
             const dy = (moveEv.clientY - startY) / tableZoom;
             if(Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-            nextX = Math.max(16, originX + dx);
+            nextX = Math.min(maxX, Math.max(16, originX + dx));
             nextY = Math.max(16, originY + dy);
             if(!raf) raf = requestAnimationFrame(paint);
           };

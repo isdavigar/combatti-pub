@@ -8937,12 +8937,20 @@ const colors = [
       currentOrder._seq = Date.now();
       closeOrderTable(table, currentOrder);
       applyInventoryForOrder(currentOrder);
-      persistAll();
-      pushIncremental();
-      printKitchenTicket(currentOrder, printType);
+      // Generar HTML del ticket SINCRÓNICAMENTE e imprimir INMEDIATO (sin awaits).
+      normalizeOrderContact(currentOrder);
+      normalizeOrderPayments(currentOrder);
+      const ticketHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${printType}</title><style>${customerTicketPrintStyle()}</style></head><body>${customerTicketBodyHtml(currentOrder, printType)}</body></html>`;
+      if(qzConnected && printerNameForRole('caja')){
+        qzPrintHtml(printerNameForRole('caja'), ticketHtml).catch(() => openBrowserPrint(ticketHtml, 420));
+      } else {
+        openBrowserPrint(ticketHtml, 420);
+      }
       toast(status === 'Credito' ? 'Crédito registrado' : 'Cortesía registrada — no suma a ventas', 'success');
       modals.order.hide(); currentOrder = null; currentOrderTableId = null;
       renderTables();
+      // Persistir y sincronizar en background (no bloquea la impresión).
+      setTimeout(() => { persistAll(false); pushIncremental(); }, 80);
     }
     function markCourtesyOrder(){ closeSpecialOrder('Cortesía', 'Cortesía', 'CORTESIA'); }
     function markCreditOrder(){ closeSpecialOrder('Credito', 'Credito', 'CREDITO'); }

@@ -14046,10 +14046,10 @@ function applyConfigFromCloud(data) {
         ...((state.cash && state.cash.deletedHistoryIds) || []),
         ...((data.cash && data.cash.deletedHistoryIds) || [])
       ]);
-      // Si hay un reset reciente, tratar TODOS los cuadres viejos como tombstones.
+      // Si hay un reset reciente, tratar solo los cuadres ANTERIORES al reset como tombstones.
       if(lastResetTs > 0){
-        remoteHistory.forEach(r => { if(r && r.id) tombstones.add(r.id); });
-        localHistory.forEach(r => { if(r && r.id) tombstones.add(r.id); });
+        remoteHistory.forEach(r => { if(r && r.id && Number(new Date(r.openedAt || 0).getTime()) < lastResetTs) tombstones.add(r.id); });
+        localHistory.forEach(r => { if(r && r.id && Number(new Date(r.openedAt || 0).getTime()) < lastResetTs) tombstones.add(r.id); });
       }
       const byId = new Map();
       remoteHistory.forEach(r => { if(r && r.id && !tombstones.has(r.id)) byId.set(r.id, r); });

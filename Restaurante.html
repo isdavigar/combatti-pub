@@ -5464,6 +5464,18 @@
       replaceRequestedDeliveryZones();
       refreshCategories();
       ensureCashHistory();
+      // Reconstruir movements del turno actual desde el cuadre abierto
+      // (para que no se pierdan al recargar si la nube los devuelve vacíos).
+      const openRecord = state.cash.history.find(r => r.status === 'Abierta' && !r.closedAt);
+      if(openRecord && Array.isArray(openRecord.movementsHistory) && openRecord.movementsHistory.length > 0){
+        const existingIds = new Set((state.movements || []).map(m => m.id));
+        openRecord.movementsHistory.forEach(m => {
+          if(m && m.id && !existingIds.has(m.id)){
+            state.movements.push(m);
+            existingIds.add(m.id);
+          }
+        });
+      }
       state.kitchenTickets = Array.isArray(state.kitchenTickets) ? state.kitchenTickets : [];
       state.deletedOrders = Array.isArray(state.deletedOrders) ? state.deletedOrders : [];
       dedupeStateCollections();
@@ -11915,7 +11927,36 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       setValue('movementExpenseSourceInput', 'EFECTIVO');
       modals.movement.show();
     }
-    function saveMovement(){ const type = document.getElementById('movementTypeInput').value; const concept = document.getElementById('movementConceptInput').value.trim(); const amount = clampNumber(document.getElementById('movementAmountInput').value || 0); if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; } const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : ''; const customDate = byId('movementDateInput')?.value; const date = customDate ? new Date(customDate + 'T12:00:00').toISOString() : new Date().toISOString(); state.movements.push({ id:uid(), type, concept, amount, source, date }); persistAll(); pushIncremental(true); modals.movement.hide(); toast(`${type} guardado`, 'success'); renderCashView(); renderMovements(); }
+    function saveMovement(){
+      const type = document.getElementById('movementTypeInput').value;
+      const concept = document.getElementById('movementConceptInput').value.trim();
+      const amount = clampNumber(document.getElementById('movementAmountInput').value || 0);
+      if(!concept || amount <= 0){ toast('Completa concepto y valor mayor a cero', 'warning'); return; }
+      const source = type === 'Egreso' ? (byId('movementExpenseSourceInput')?.value || 'EFECTIVO') : '';
+      const customDate = byId('movementDateInput')?.value;
+      const date = customDate ? new Date(customDate + 'T12:00:00').toISOString() : new Date().toISOString();
+      const movement = { id:uid(), type, concept, amount, source, date };
+      state.movements.push(movement);
+      // También guardar en el cuadre abierto actual para que sobreviva recargas
+      // (viaja en la config que se envía a la nube).
+      const openRecord = currentCashRecord();
+      if(openRecord && openRecord.status === 'Abierta'){
+        if(!Array.isArray(openRecord.movementsHistory)) openRecord.movementsHistory = [];
+        openRecord.movementsHistory.push(movement);
+        if(type === 'Egreso'){
+          if(!Array.isArray(openRecord.expenseHistory)) openRecord.expenseHistory = [];
+          openRecord.expenseHistory.push(movement);
+        }
+      }
+      // Enviar config con el cuadre actualizado a la nube inmediatamente.
+      pushConfigToCloud();
+      saveStateToDatabase(appStateSnapshot());
+      pushIncremental(true);
+      modals.movement.hide();
+      toast(`${type} guardado`, 'success');
+      renderCashView();
+      renderMovements();
+    }
     function editMovement(id){
       if(!requireAdmin('editar movimientos')) return;
       const m = state.movements.find(x => x.id === id);

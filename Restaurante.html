@@ -5298,6 +5298,7 @@
         persistAll();
       }
       currentOrder = null; currentOrderTableId = null;
+      renderTables(); // Actualizar vista de mesas al cerrar modal
     }
 
     function initialProducts(){
@@ -8793,9 +8794,11 @@ const colors = [
         modals.order.hide();
         currentOrder = null;
         currentOrderTableId = null;
+        renderTables(); // Actualizar vista de mesas inmediatamente (mesa ocupada)
         setTimeout(() => previewOrderDocument(savedOrderId, 'COMANDA'), 120);
         toast(sentToKitchen ? 'Pedido guardado, enviado a cocina y listo para previsualizar' : 'Pedido guardado. No hay productos nuevos para enviar a cocina.', sentToKitchen ? 'success' : 'info');
       } else {
+        renderTables(); // Actualizar vista de mesas (mesa ocupada)
         toast('Pedido guardado correctamente', 'success');
       }
     }
@@ -8877,6 +8880,7 @@ const colors = [
       if(typeof uxShowPaySuccess === 'function') uxShowPaySuccess();
       toast('Pedido pagado y guardado en historial', 'success');
       modals.order.hide(); currentOrder = null; currentOrderTableId = null;
+      renderTables(); // Actualizar vista de mesas inmediatamente (mesa liberada)
       showTicketOptions(paidOrderId);
     }
     function closeOrderTable(table, order){

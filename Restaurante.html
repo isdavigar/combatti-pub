@@ -9887,11 +9887,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const report = buildCashReport(cashPeriodStart(), new Date(closedAt));
       state.cash.open = false; state.cash.closedAt = closedAt; state.cash.closures = (state.cash.closures || 0) + 1;
       state.cash.openedBy = null; state.cash.openedByUser = null;
-      // CRITICAL: Push caja closed to cloud IMMEDIATELY (before anything else can fail)
-      const closeCfgPayload = cloudConfigPayload();
-      sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfgPayload });
-      setLastSentConfigSeq(closeCfgPayload._seq || Date.now());
-      saveStateToDatabase(appStateSnapshot());
+      // Marcar el registro de historial como CERRADO ANTES de enviar a la nube.
       const lastHistory = currentCashRecord();
       const countedProvided = String(byId('closeCountedInput')?.value || '').trim() !== '';
       const countedCash = clampNumber(byId('closeCountedInput')?.value || 0);
@@ -9901,9 +9897,13 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(lastHistory){
         Object.assign(lastHistory, { closedAt, status:'Cerrada', shift:state.shift, final:report.final, finalAfterDelivery:report.finalAfterDelivery, sales:report.sales, tips:report.tips, deliveryFees:report.deliveryFees, methodTotals:report.methodTotals, cashPayments:report.cashPayments, transferPayments:report.transferPayments, cardPayments:report.cardPayments, creditSales:report.creditSales, courtesyTotal:report.courtesyTotal, income:report.income, expense:report.expense, cashExpense:report.cashExpense, creditCardExpense:report.creditCardExpense, expectedCash:report.final, countedCash:countedProvided ? countedCash : null, discrepancy, orders:report.orders.map(o => o.id), movements:report.movements.map(m => m.id), movementsHistory, expenseHistory });
       }
+      // CRITICAL: Push caja cerrada + historial cerrado a la nube INMEDIATAMENTE.
+      const closeCfgPayload = cloudConfigPayload();
+      sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfgPayload });
+      setLastSentConfigSeq(closeCfgPayload._seq || Date.now());
+      saveStateToDatabase(appStateSnapshot());
       // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
       // los movimientos, para que el informe incluya ingresos/egresos del turno.
-      persistAll(false);
       // Cerrar modal y actualizar UI inmediatamente (no esperar push a la nube)
       modals.cashClose.hide();
       renderAll();

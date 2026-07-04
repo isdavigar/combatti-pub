@@ -6861,7 +6861,13 @@
       const todayReport = buildCashReport(turnoStart, endOfDay(today));
       const openTables = state.tables.filter(t => t.kind !== 'Caja' && t.status !== 'Disponible').length;
       const freeTables = state.tables.filter(t => t.kind !== 'Caja' && t.status === 'Disponible').length;
-      const activeOrders = state.orders.filter(o => o.status === 'Abierto' && orderIsActiveOccupying(o));
+      const activeOrders = state.orders.filter(o => {
+        if(o.status !== 'Abierto' || !orderIsActiveOccupying(o)) return false;
+        // Ignorar pedidos cuya mesa ya está libre: son datos huérfanos.
+        const table = state.tables.find(t => t.id === o.tableId);
+        if(table && table.status === 'Disponible') return false;
+        return true;
+      });
       // Respaldo: si este dispositivo aún no recibió los pedidos, contamos las
       // mesas ocupadas (dato que sí viaja en la colección `tables`) para que el
       // indicador no muestre 0 cuando en realidad hay pedidos en curso.
@@ -14238,13 +14244,18 @@ function updateActiveOrdersBadge(){
     if(!badge || !countEl || typeof state === 'undefined') return;
     // Cuenta solo pedidos abiertos con productos (valor > $0). Los pedidos
     // vacíos recién abiertos NO deben inflar este número.
+    // Además ignora pedidos cuya mesa ya está libre (datos huérfanos).
     const openOrdersCount = (state.orders || []).filter(o => {
       if(!o) return false;
       if(typeof isClosedOrder === 'function' && isClosedOrder(o)) return false;
       if(o.status === 'Pagado' || o.status === 'Cortesía' || o.status === 'Credito') return false;
       // Tiene productos con cantidad?
       const hasItems = Array.isArray(o.items) && o.items.some(it => Number(it.qty || 0) > 0);
-      return hasItems || Number(o.total || 0) > 0;
+      if(!hasItems && Number(o.total || 0) <= 0) return false;
+      // Su mesa ya está libre? Entonces es un pedido huérfano, no contar.
+      const table = (typeof state !== 'undefined' && Array.isArray(state.tables)) ? state.tables.find(t => t.id === o.tableId) : null;
+      if(table && table.status === 'Disponible') return false;
+      return true;
     }).length;
     // Respaldo desde las mesas: solo mesas realmente ocupadas con valor.
     const tableActiveCount = (state.tables || []).reduce((n, t) => {

@@ -11336,12 +11336,15 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         ...record,
         orders:Array.isArray(record.orders) ? record.orders.filter(id => id !== orderId) : record.orders
       }));
+      // Borrar de la nube EXPLÍCITAMENTE (permanente en DynamoDB).
+      if(cloudConnected) sendAWS({ action:'sync', type:'delete', collection:'orders', docId: String(orderId) });
+      if(typeof cloudItemShadow === 'object') delete cloudItemShadow['orders:' + String(orderId)];
       state.orders = state.orders.filter(item => item.id !== orderId);
       persistAll();
       forceCloudSyncNow();
       renderOrderHistory();
       renderDeletedOrders();
-      toast('Venta eliminada del historial y stock devuelto', 'info');
+      toast('Venta eliminada permanentemente de la nube', 'info');
     }
 
     // Restablece las VENTAS a estado de fabrica (solo administrador, con confirmacion).
@@ -11801,9 +11804,12 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       if(user.role === SYSTEM_ADMIN_ROLE && !isSystemAdmin()){ toast('Solo el administrador del sistema puede eliminar este usuario', 'warning'); return; }
       if(user.role === SYSTEM_ADMIN_ROLE && activeSystemAdminsCount() <= 1){ toast('Debe quedar al menos un administrador del sistema activo', 'warning'); return; }
       if(!confirm(`¿Eliminar el usuario ${user.username}?`)) return;
+      // Borrar de la nube EXPLÍCITAMENTE (permanente en DynamoDB).
+      if(cloudConnected) sendAWS({ action:'sync', type:'delete', collection:'users', docId: String(id) });
+      if(typeof cloudItemShadow === 'object') delete cloudItemShadow['users:' + String(id)];
       state.users = state.users.filter(u => u.id !== id);
       persistAll();
-      toast('Usuario eliminado', 'info');
+      toast('Usuario eliminado permanentemente', 'info');
     }
     function renderUsers(){
       const list = byId('usersList');
@@ -12580,11 +12586,13 @@ function parseMoneyValue(value){
     function removeHistoricalSale(id){
       if(!isSystemAdmin()){ toast('Solo el administrador del sistema puede eliminar ventas históricas', 'warning'); return; }
       if(!Array.isArray(state.historicalSales)) return;
+      // Borrar de la nube EXPLÍCITAMENTE (permanente en DynamoDB).
+      if(cloudConnected) sendAWS({ action:'sync', type:'delete', collection:'historicalSales', docId: String(id) });
+      if(typeof cloudItemShadow === 'object') delete cloudItemShadow['historicalSales:' + String(id)];
       state.historicalSales = state.historicalSales.filter(h => h.id !== id);
       persistAll(false);
-      forceCloudSyncNow();
       renderDashboard();
-      toast('Registro eliminado de todos los dispositivos', 'info');
+      toast('Registro eliminado permanentemente de la nube', 'info');
     }
     function formatHistoricalRange(from, to){
       const f = parseLocalDate(from);

@@ -13901,9 +13901,9 @@ function handleAWSMessage(msg) {
     if(items.length > 0 && state[coll] !== undefined) {
       isApplyingRemoteState = true;
       // Si hubo un reset reciente, ignorar items más viejos que el reset.
-      // EXCEPTO la colección 'tables' (las mesas y su organización se preservan siempre).
+      // EXCEPTO 'tables' y 'users' que se preservan siempre (mesas y usuarios no se borran).
       const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
-      if(lastResetTs > 0 && coll !== 'tables'){
+      if(lastResetTs > 0 && coll !== 'tables' && coll !== 'users'){
         items = items.filter(it => {
           const itemTs = Number(it?._seq || it?.updatedAt || 0);
           return itemTs > lastResetTs;
@@ -13936,9 +13936,9 @@ function handleAWSMessage(msg) {
       isApplyingRemoteState = true;
       const docId = String(payload.id || payload._id || '');
       // Si hubo un reset reciente, ignorar items más viejos que el reset.
-      // EXCEPTO 'tables' (las mesas y su organización se preservan siempre).
+      // EXCEPTO 'tables' y 'users' que se preservan siempre.
       const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
-      if(lastResetTs > 0 && coll !== 'tables' && Number(payload._seq || 0) < lastResetTs){
+      if(lastResetTs > 0 && coll !== 'tables' && coll !== 'users' && Number(payload._seq || 0) < lastResetTs){
         isApplyingRemoteState = false;
         return;
       }

@@ -3022,6 +3022,7 @@
                 <div class="d-flex gap-2 flex-wrap">
                   <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
                   <button class="btn btn-outline-danger btn-pill" data-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
+                  <button class="btn btn-danger btn-pill" data-admin-only onclick="resetSystemToZero()" title="Deja ventas e historiales en cero en la nube (mantiene productos)"><i class="fa-solid fa-database me-2"></i>Resetear sistema (nube)</button>
                 </div>
               </div>
               
@@ -11373,6 +11374,62 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       forceCloudSyncNow();
       renderAll();
       toast('Ventas restablecidas de fábrica', 'success');
+    }
+
+    // Reset COMPLETO en la nube: deja ventas e historiales en CERO en todos los
+    // dispositivos (solo admin del sistema). NO borra productos, categorías,
+    // usuarios ni el layout de mesas.
+    function resetSystemToZero(){
+      if(!requireSystemAdmin('resetear el sistema')) return;
+      confirmAction({
+        title:'Resetear sistema (nube)',
+        message:'Esto pondrá en <strong>CERO en la base de datos</strong> (todos los dispositivos):<br>• Pedidos y su historial<br>• Historial de cuadres de caja<br>• Ventas históricas<br>• Movimientos (ingresos/egresos)<br>• Comandas de cocina y auditoría de eliminados<br><br><strong>NO se borran productos, categorías, usuarios ni las mesas.</strong><br><br>Esta acción no se puede deshacer.',
+        confirmLabel:'Sí, resetear todo',
+        confirmClass:'btn-danger',
+        onConfirm: doResetSystemToZero
+      });
+    }
+    async function doResetSystemToZero(){
+      if(!requireSystemAdmin('resetear el sistema')) return;
+      // Tombstones de cuadres para que no resuciten desde otros equipos.
+      const histIds = (state.cash?.history || []).map(r => r.id).filter(Boolean);
+      // Borrar EXPLÍCITAMENTE cada item de la nube (ventas e historiales).
+      ['orders','kitchenTickets','deletedOrders','historicalSales','movements'].forEach(coll => {
+        (state[coll] || []).forEach(item => {
+          const docId = String(item?.id || item?._id || '');
+          if(docId){
+            if(cloudConnected) sendAWS({ action:'sync', type:'delete', collection: coll, docId });
+            if(typeof cloudItemShadow === 'object') delete cloudItemShadow[coll + ':' + docId];
+          }
+        });
+        state[coll] = [];
+      });
+      seenKitchenTicketIds = new Set();
+      currentOrder = null;
+      currentOrderTableId = null;
+      // Caja cerrada, sin cuadres + tombstones (para que el historial no vuelva).
+      state.cash = {
+        ...(state.cash || {}),
+        open: false,
+        openedAt: null,
+        openedBy: '',
+        openedByUser: '',
+        openingAmount: 0,
+        history: [],
+        deletedHistoryIds: Array.from(new Set([...(state.cash?.deletedHistoryIds || []), ...histIds]))
+      };
+      // Liberar mesas (sin borrarlas).
+      (state.tables || []).forEach(t => {
+        t.status = 'Disponible'; t.orderId = null; t.customer = ''; t.orderTotal = 0; t.orderStartedAt = null;
+      });
+      persistAll();                 // guarda local + envía config (historial vacío + tombstones)
+      await forceCloudSyncNow();    // propaga borrados y cambios a la nube
+      renderAll();
+      if(!cloudConnected){
+        toast('Sistema reseteado localmente. Se sincronizará al reconectar.', 'warning');
+      } else {
+        toast('Sistema reseteado: ventas e historiales en cero (productos intactos)', 'success');
+      }
     }
     function printInventoryReport(){
       const rows = state.products.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(normalizeCategory(p.category))}</td><td class="right">${isStockManaged(p) ? Number(p.stock || 0) : 'Sin conteo'}</td><td class="right">${Number(p.minStock || 0)}</td><td>${escapeHtml(stockStatusText(p))}</td></tr>`).join('');

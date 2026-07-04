@@ -2360,15 +2360,19 @@
        CAPA UX: animaciones y micro-interacciones sutiles (sin cambiar el
        diseño ni los colores). Todo usa las variables existentes.
        =================================================================== */
-    .view.active { animation: uxFadeIn .28s ease both; }
+    /* La animación de vista activa solo se aplica al navegar manualmente.
+       Se desactiva durante sincronización para evitar parpadeo en dashboard. */
+    .view.active.ux-navigate { animation: uxFadeIn .28s ease both; }
     @keyframes uxFadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 
     /* Nota: .table-node y .kitchen-order-card se EXCLUYEN a propósito de esta
        animación de entrada. Esas vistas (mesas y pantalla de cocina) se
        refrescan seguido con la sincronización en la nube, y reproducir la
-       animación en cada refresco causaba un parpadeo molesto. */
-    .product-card, .cash-history-row,
-    .order-history-item, .user-row, .movement-card { animation: uxRise .25s ease both; }
+       animación en cada refresco causaba un parpadeo molesto.
+       También se excluyen .cash-history-row y .order-history-item (historial de
+       cuadres, pedidos y eliminados) y .movement-card (gastos) para evitar
+       parpadeo al sincronizar. */
+    .product-card, .user-row { animation: uxRise .25s ease both; }
     @keyframes uxRise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
     .modal.show .modal-content { animation: uxModalIn .22s cubic-bezier(.2,.8,.2,1) both; }
@@ -3127,7 +3131,7 @@
                   <p class="section-subtitle mb-0">Tickets pagados y resúmenes para consultar o imprimir.</p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                  <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
+                  <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" data-admin-only onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
                   <button class="btn btn-outline-danger btn-pill" data-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
                   <button class="btn btn-danger btn-pill" data-admin-only onclick="resetSystemToZero()" title="Deja ventas e historiales en cero en la nube (mantiene productos)"><i class="fa-solid fa-database me-2"></i>Resetear sistema (nube)</button>
                 </div>
@@ -3416,8 +3420,8 @@
               <div id="cloudSyncNote" class="d-none" style="border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:.86rem;font-weight:600;"></div>
               <p class="section-subtitle mb-2"><i class="fa-solid fa-store me-2"></i>Restaurante: <strong id="cloudRestaurantLabel">restaurante-combatti</strong></p>
               <div class="d-flex flex-wrap gap-2 mt-3">
-                <button class="btn btn-outline-primary btn-pill" type="button" onclick="forceFullCloudSync()"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Forzar sincronizacion completa</button>
-                <button class="btn btn-outline-secondary btn-pill" type="button" onclick="forceDownloadFromCloud()"><i class="fa-solid fa-cloud-arrow-down me-2"></i>Descargar datos de la nube</button>
+                <button class="btn btn-outline-primary btn-pill" type="button" onclick="forceFullCloudSync()" data-admin-only><i class="fa-solid fa-cloud-arrow-up me-2"></i>Forzar sincronizacion completa</button>
+                <button class="btn btn-outline-secondary btn-pill" type="button" onclick="forceDownloadFromCloud()" data-admin-only><i class="fa-solid fa-cloud-arrow-down me-2"></i>Descargar datos de la nube</button>
                 <button class="btn btn-outline-danger btn-pill" type="button" onclick="resetLocalCache()" data-admin-only><i class="fa-solid fa-broom me-2"></i>Borrar cache y resetear</button>
               </div>
             </div>
@@ -6594,8 +6598,9 @@
       }
       currentView = view;
       document.body.classList.toggle('view-mesas-mode', view === 'mesas');
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      document.getElementById(`view-${view}`)?.classList.add('active');
+      document.querySelectorAll('.view').forEach(v => { v.classList.remove('active'); v.classList.remove('ux-navigate'); });
+      const viewEl = document.getElementById(`view-${view}`);
+      if(viewEl){ viewEl.classList.add('active', 'ux-navigate'); }
       document.querySelectorAll('.nav-pill').forEach(n => n.classList.remove('active'));
       document.querySelector(`.nav-pill[data-view="${view}"]`)?.classList.add('active');
       setText('topTitle', currentViewTitle(view));

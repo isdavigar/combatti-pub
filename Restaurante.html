@@ -9641,7 +9641,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       return state.cash.history.find(r => r.status === 'Abierta' && !r.closedAt) || state.cash.history[state.cash.history.length - 1];
     }
     function activeOrders(){
-      return (state.orders || []).filter(order => !isClosedOrder(order));
+      return (state.orders || []).filter(order => !isClosedOrder(order) && orderIsActiveOccupying(order));
     }
     function activeOrdersText(orders = activeOrders()){
       return orders.slice(0, 5).map(order => order.tableName || order.type || 'Pedido').join(', ') + (orders.length > 5 ? ` y ${orders.length - 5} más` : '');
@@ -13905,7 +13905,8 @@ function handleAWSMessage(msg) {
       const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
       if(lastResetTs > 0 && coll !== 'tables' && coll !== 'users'){
         items = items.filter(it => {
-          const itemTs = Number(it?._seq || it?.updatedAt || 0);
+          const itemTs = Number(it?._seq || it?.updatedAt || it?.createdAt || 0);
+          // Si el item no tiene timestamp o es más viejo que el reset, descartarlo.
           return itemTs > lastResetTs;
         });
       }
@@ -13938,7 +13939,7 @@ function handleAWSMessage(msg) {
       // Si hubo un reset reciente, ignorar items más viejos que el reset.
       // EXCEPTO 'tables' y 'users' que se preservan siempre.
       const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
-      if(lastResetTs > 0 && coll !== 'tables' && coll !== 'users' && Number(payload._seq || 0) < lastResetTs){
+      if(lastResetTs > 0 && coll !== 'tables' && coll !== 'users' && Number(payload._seq || payload.updatedAt || payload.createdAt || 0) <= lastResetTs){
         isApplyingRemoteState = false;
         return;
       }

@@ -2363,7 +2363,11 @@
     .view.active { animation: uxFadeIn .28s ease both; }
     @keyframes uxFadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 
-    .product-card, .table-node, .cash-history-row, .kitchen-order-card,
+    /* Nota: .table-node y .kitchen-order-card se EXCLUYEN a propósito de esta
+       animación de entrada. Esas vistas (mesas y pantalla de cocina) se
+       refrescan seguido con la sincronización en la nube, y reproducir la
+       animación en cada refresco causaba un parpadeo molesto. */
+    .product-card, .cash-history-row,
     .order-history-item, .user-row, .movement-card { animation: uxRise .25s ease both; }
     @keyframes uxRise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 

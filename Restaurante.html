@@ -7143,6 +7143,9 @@
       const start = new Date(t.orderStartedAt).getTime();
       if(!start || isNaN(start)) return '';
       const mins = Math.floor((Date.now() - start) / 60000);
+      // Si la fecha de inicio es mayor a 24h, probablemente es un dato viejo
+      // de un pedido que quedó huérfano. Mostrar desde updatedAt en su lugar.
+      if(mins > 1440) return '';
       if(mins < 0) return '';
       const cls = mins >= 60 ? 't-late' : (mins >= 30 ? 't-warn' : 't-ok');
       const label = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins} min`;
@@ -8741,7 +8744,7 @@ const colors = [
       currentOrder.updatedAt = new Date().toISOString();
       currentOrder._seq = Date.now();
       currentOrder.status = 'Abierto';
-      if(table){ table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago'; table.orderId = currentOrder.id; }
+      if(table){ table.status = table.kind === 'Mesa' ? 'Ocupada' : 'En proceso de pago'; table.orderId = currentOrder.id; table.orderStartedAt = new Date().toISOString(); }
       syncTableOrderSnapshot(table, currentOrder);
       if(isMultiOrderTable(table)) updateMultiOrderTableStatus(table.id);
       const sentToKitchen = printComanda ? sendOrderToKitchen(currentOrder) : false;

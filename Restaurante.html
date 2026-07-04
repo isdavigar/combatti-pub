@@ -9910,13 +9910,18 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(lastHistory){
         Object.assign(lastHistory, { closedAt, status:'Cerrada', shift:state.shift, final:report.final, finalAfterDelivery:report.finalAfterDelivery, sales:report.sales, tips:report.tips, deliveryFees:report.deliveryFees, methodTotals:report.methodTotals, cashPayments:report.cashPayments, transferPayments:report.transferPayments, cardPayments:report.cardPayments, creditSales:report.creditSales, courtesyTotal:report.courtesyTotal, income:report.income, expense:report.expense, cashExpense:report.cashExpense, creditCardExpense:report.creditCardExpense, expectedCash:report.final, countedCash:countedProvided ? countedCash : null, discrepancy, orders:report.orders.map(o => o.id), movements:report.movements.map(m => m.id), movementsHistory, expenseHistory });
       }
+      // IMPRIMIR EL CIERRE INMEDIATAMENTE (antes de cualquier otra operación pesada).
+      const closeReportHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de caja</title><style>${cashReportPrintStyle()}</style></head><body>${cashRecordDetailHtml(lastHistory)}</body></html>`;
+      if(qzConnected && printerNameForRole('caja')){
+        qzPrintHtml(printerNameForRole('caja'), closeReportHtml).catch(() => openBrowserPrint(closeReportHtml, 720));
+      } else {
+        openBrowserPrint(closeReportHtml, 720);
+      }
       // CRITICAL: Push caja cerrada + historial cerrado a la nube INMEDIATAMENTE.
       const closeCfgPayload = cloudConfigPayload();
       sendAWS({ action: 'sync', type: 'putConfig', payload: closeCfgPayload });
       setLastSentConfigSeq(closeCfgPayload._seq || Date.now());
       saveStateToDatabase(appStateSnapshot());
-      // Importante: generar el Excel, el comprobante y el correo ANTES de limpiar
-      // los movimientos, para que el informe incluya ingresos/egresos del turno.
       // Cerrar modal y actualizar UI inmediatamente (no esperar push a la nube)
       modals.cashClose.hide();
       renderAll();
@@ -9924,7 +9929,6 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       if(normalizeShift(state.shift) === 'Noche'){
         exportDailyCloseExcelDualShift(lastHistory);
       }
-      printCloseReport(lastHistory);
       sendCashCloseEmail(lastHistory);
       // Guardar el turno en los movimientos del historial antes de limpiar
       if(lastHistory){

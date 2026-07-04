@@ -13565,6 +13565,10 @@ const CLOUD_DEVICE_ID = (() => {
 // colecciones enteras y pise con datos viejos lo que otro equipo actualizó
 // (causa raíz de "las mesas se reubican/desaparecen solas").
 let cloudItemShadow = {};
+// Buffer para reensamblar snapshots que llegan en varios trozos (colecciones
+// grandes como orders/kitchenTickets, partidas por el backend para no superar
+// el límite de 128 KB por mensaje del WebSocket).
+let snapshotChunkBuffers = {};
 function cloudItemHash(item){
   try {
     const clone = { ...item };
@@ -13666,6 +13670,21 @@ function handleAWSMessage(msg) {
       if(typeof item === 'string') try { return JSON.parse(item); } catch(_){ return null; }
       return item;
     }).filter(Boolean);
+
+    // Snapshots grandes llegan partidos en trozos (chunkIndex/chunkCount) para
+    // no superar el límite de 128 KB del WebSocket. Los acumulamos hasta tener
+    // todos y recién ahí aplicamos. Compatible con backend antiguo (sin estos
+    // campos => chunkCount = 1 y se aplica de inmediato).
+    const chunkCount = Number(msg.chunkCount || 1);
+    if (chunkCount > 1) {
+      const idx = Number(msg.chunkIndex || 0);
+      const buf = (snapshotChunkBuffers[coll] = snapshotChunkBuffers[coll] || []);
+      buf[idx] = items;
+      const received = buf.filter(part => part !== undefined).length;
+      if (received < chunkCount) return; // faltan trozos: esperar
+      items = buf.reduce((all, part) => all.concat(part || []), []);
+      delete snapshotChunkBuffers[coll];
+    }
 
     // Products are FIXED (147) — NEVER overwrite from cloud
     if(coll === 'products') {
@@ -13954,10 +13973,34 @@ async function downloadFromCloud() {
   setTimeout(finish, 8000);
 }
 
+// ===== Re-sincronización periódica (auto-recuperación) =====
+// Vuelve a pedir las colecciones "vivas" cada cierto tiempo y al volver a la
+// app, para recuperar datos que un dispositivo se haya perdido (un mensaje que
+// no llegó, una reconexión, etc.). Así los pedidos activos y los valores por
+// mesa se ponen al día solos en todos los dispositivos.
+let liveResyncTimer = null;
+function refreshLiveCollections() {
+  if (!cloudConnected || isApplyingRemoteState) return;
+  if (currentOrder) return; // no pisar una edición de pedido en curso
+  ['tables', 'orders', 'kitchenTickets'].forEach(coll => {
+    sendAWS({ action: 'sync', type: 'getAll', collection: coll });
+  });
+}
+function startLiveResync() {
+  if (liveResyncTimer) return;
+  liveResyncTimer = setInterval(() => {
+    if (!document.hidden) refreshLiveCollections();
+  }, 45000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshLiveCollections();
+  });
+}
+
 // ===== Auto-start =====
 async function autoStartCloudSync() {
   cloudSyncEnabled = true;
   connectAWS();
+  startLiveResync();
 }
 
 function getRestaurantId() { return 'restaurante-combatti'; }

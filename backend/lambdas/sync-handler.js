@@ -44,6 +44,44 @@ async function send(api, connectionId, payload) {
   }
 }
 
+// API Gateway WebSocket descarta cualquier mensaje mayor a 128 KB. Colecciones
+// grandes (p.ej. `orders`, `kitchenTickets`) superaban ese límite y el snapshot
+// se perdía en silencio -> los pedidos NO aparecían en otros dispositivos.
+// Aquí partimos el snapshot en varios trozos por debajo del límite y los
+// enviamos con chunkIndex/chunkCount para que el cliente los reensamble.
+const MAX_SNAPSHOT_BYTES = 110 * 1024; // margen de seguridad bajo el límite de 128 KB
+
+async function sendSnapshot(api, connectionId, coll, items) {
+  const list = Array.isArray(items) ? items : [];
+  // Agrupa items en lotes que no superen el tamaño máximo por mensaje.
+  const chunks = [];
+  let current = [];
+  let currentBytes = 2; // los corchetes del array JSON
+  for (const it of list) {
+    const size = Buffer.byteLength(JSON.stringify(it)) + 1; // + coma
+    if (current.length && currentBytes + size > MAX_SNAPSHOT_BYTES) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 2;
+    }
+    current.push(it);
+    currentBytes += size;
+  }
+  // Siempre enviamos al menos un trozo (aunque la colección esté vacía).
+  if (current.length || chunks.length === 0) chunks.push(current);
+
+  const chunkCount = chunks.length;
+  for (let i = 0; i < chunkCount; i++) {
+    await send(api, connectionId, {
+      type: 'snapshot',
+      collection: coll,
+      items: chunks[i],
+      chunkIndex: i,
+      chunkCount,
+    });
+  }
+}
+
 async function broadcast(event, tenant, payload, exceptConnId) {
   const api = mgmt(event);
   const conns = await ddb.send(new QueryCommand({
@@ -100,7 +138,8 @@ exports.handler = async (event) => {
       ExpressionAttributeValues: { ':pk': pk(tenant, coll) },
     }));
     const items = (res.Items || []).map((it) => it.data).filter(Boolean);
-    await send(api, connectionId, { type: 'snapshot', collection: coll, items });
+    // Enviar en trozos < 128 KB (ver sendSnapshot) para que no se pierda.
+    await sendSnapshot(api, connectionId, coll, items);
     return { statusCode: 200 };
   }
 

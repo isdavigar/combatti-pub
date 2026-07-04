@@ -3124,13 +3124,14 @@
                 <button class="btn btn-outline-primary btn-pill" data-system-admin-only onclick="exportAnnualCloseExcel()"><i class="fa-solid fa-calendar-check me-2"></i>Guardar cierre anual</button>
               </div>
             </div>
-            <div class="glass-card p-4 mb-4 ">
+            <div class="glass-card p-4 mb-4 d-none" id="orderHistoryCard">
               <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                 <div>
-                  <h5 class="section-title mb-1">Historial de pedidos</h5>
-                  <p class="section-subtitle mb-0">Tickets pagados y resúmenes para consultar o imprimir.</p>
+                  <h5 class="section-title mb-1" id="orderHistoryTitle">Historial de pedidos</h5>
+                  <p class="section-subtitle mb-0" id="orderHistorySubtitle">Tickets pagados y resúmenes para consultar o imprimir.</p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
+                  <button class="btn btn-outline-secondary btn-pill" onclick="hideOrderHistory()"><i class="fa-solid fa-xmark me-2"></i>Cerrar</button>
                   <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" data-system-admin-only onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
                   <button class="btn btn-outline-danger btn-pill" data-system-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
                   <button class="btn btn-danger btn-pill" data-system-admin-only onclick="resetSystemToZero()" title="Deja ventas e historiales en cero en la nube (mantiene productos)"><i class="fa-solid fa-database me-2"></i>Resetear sistema (nube)</button>
@@ -10826,7 +10827,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const pager = paginateHistory(rows, historyPages.cash);
       historyPages.cash = pager.page;
       wrap.innerHTML = pager.items.length ? pager.items.map(record => `
-        <div class="cash-history-row">
+        <div class="cash-history-row" onclick="showOrderHistoryForRecord('${record.id}')" style="cursor:pointer;">
           <div class="row g-2 align-items-center">
             <div class="col-md-3"><div class="small text-secondary">Fecha inicio</div><strong>${formatDate(record.openedAt)}</strong></div>
             <div class="col-md-3"><div class="small text-secondary">Fecha cierre</div><strong>${record.closedAt ? formatDate(record.closedAt) : '-'}</strong></div>
@@ -11430,14 +11431,53 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       ` : '<div class="p-3 text-secondary">No hay productos vendidos en ese rango.</div>';
       setIndependentScroll(soldCategoryList, rows.length, 58);
     }
+    let orderHistoryRecordFilter = null; // ID del cuadre seleccionado para filtrar pedidos
+    function showOrderHistoryForRecord(recordId){
+      const record = (state.cash.history || []).find(r => r.id === recordId);
+      if(!record) return;
+      orderHistoryRecordFilter = recordId;
+      const card = byId('orderHistoryCard');
+      if(card) card.classList.remove('d-none');
+      const responsible = record.responsible || record.user || 'Sin usuario';
+      const dateLabel = record.closedAt ? `${formatDate(record.openedAt)} → ${formatDate(record.closedAt)}` : formatDate(record.openedAt);
+      setText('orderHistoryTitle', `Pedidos del turno de ${responsible}`);
+      setText('orderHistorySubtitle', dateLabel);
+      renderOrderHistory();
+      // Scroll al historial de pedidos
+      card?.scrollIntoView({ behavior:'smooth', block:'start' });
+    }
+    function hideOrderHistory(){
+      orderHistoryRecordFilter = null;
+      const card = byId('orderHistoryCard');
+      if(card) card.classList.add('d-none');
+    }
     function renderOrderHistory(){
       const list = byId('orderHistoryList');
       if(!list) return;
+      // Si no hay un cuadre seleccionado, no mostrar nada.
+      if(!orderHistoryRecordFilter){
+        const card = byId('orderHistoryCard');
+        if(card) card.classList.add('d-none');
+        return;
+      }
+      const card = byId('orderHistoryCard');
+      if(card) card.classList.remove('d-none');
+      // Filtrar pedidos que pertenecen al cuadre seleccionado.
+      const record = (state.cash.history || []).find(r => r.id === orderHistoryRecordFilter);
+      const recordOrderIds = new Set(Array.isArray(record?.orders) ? record.orders : []);
+      const fromDate = record?.openedAt ? new Date(record.openedAt) : new Date(0);
+      const toDate = record?.closedAt ? new Date(record.closedAt) : new Date();
       const filter = byId('orderHistoryDateFilter')?.value || '';
       const methodFilter = byId('orderHistoryMethodFilter')?.value || '';
       const shiftFilter = byId('orderHistoryShiftFilter')?.value || '';
       const orders = [...state.orders]
         .filter(isClosedOrder)
+        .filter(order => {
+          // Filtrar por el cuadre seleccionado: usar los IDs guardados o las fechas del turno.
+          if(recordOrderIds.size > 0) return recordOrderIds.has(order.id);
+          const paidAt = order.paidAt ? new Date(order.paidAt) : null;
+          return paidAt && paidAt >= fromDate && paidAt <= toDate;
+        })
         .filter(order => !filter || matchesSelectedDate(order.paidAt, filter) || matchesSelectedDate(order.updatedAt, filter) || matchesSelectedDate(order.createdAt, filter))
         .filter(order => {
           if(!methodFilter) return true;

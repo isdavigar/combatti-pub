@@ -3131,9 +3131,9 @@
                   <p class="section-subtitle mb-0">Tickets pagados y resúmenes para consultar o imprimir.</p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                  <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" data-admin-only onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
-                  <button class="btn btn-outline-danger btn-pill" data-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
-                  <button class="btn btn-danger btn-pill" data-admin-only onclick="resetSystemToZero()" title="Deja ventas e historiales en cero en la nube (mantiene productos)"><i class="fa-solid fa-database me-2"></i>Resetear sistema (nube)</button>
+                  <button class="btn btn-outline-danger btn-pill" id="clearOrderHistoryBtn" data-system-admin-only onclick="clearAllOrderHistory()"><i class="fa-solid fa-trash-can me-2"></i>Vaciar historial</button>
+                  <button class="btn btn-outline-danger btn-pill" data-system-admin-only onclick="resetSalesToFactory()"><i class="fa-solid fa-rotate-left me-2"></i>Restablecer ventas</button>
+                  <button class="btn btn-danger btn-pill" data-system-admin-only onclick="resetSystemToZero()" title="Deja ventas e historiales en cero en la nube (mantiene productos)"><i class="fa-solid fa-database me-2"></i>Resetear sistema (nube)</button>
                 </div>
               </div>
               
@@ -3420,9 +3420,9 @@
               <div id="cloudSyncNote" class="d-none" style="border-radius:14px;padding:10px 12px;margin-bottom:12px;font-size:.86rem;font-weight:600;"></div>
               <p class="section-subtitle mb-2"><i class="fa-solid fa-store me-2"></i>Restaurante: <strong id="cloudRestaurantLabel">restaurante-combatti</strong></p>
               <div class="d-flex flex-wrap gap-2 mt-3">
-                <button class="btn btn-outline-primary btn-pill" type="button" onclick="forceFullCloudSync()" data-admin-only><i class="fa-solid fa-cloud-arrow-up me-2"></i>Forzar sincronizacion completa</button>
-                <button class="btn btn-outline-secondary btn-pill" type="button" onclick="forceDownloadFromCloud()" data-admin-only><i class="fa-solid fa-cloud-arrow-down me-2"></i>Descargar datos de la nube</button>
-                <button class="btn btn-outline-danger btn-pill" type="button" onclick="resetLocalCache()" data-admin-only><i class="fa-solid fa-broom me-2"></i>Borrar cache y resetear</button>
+                <button class="btn btn-outline-primary btn-pill" type="button" onclick="forceFullCloudSync()" data-system-admin-only><i class="fa-solid fa-cloud-arrow-up me-2"></i>Forzar sincronizacion completa</button>
+                <button class="btn btn-outline-secondary btn-pill" type="button" onclick="forceDownloadFromCloud()" data-system-admin-only><i class="fa-solid fa-cloud-arrow-down me-2"></i>Descargar datos de la nube</button>
+                <button class="btn btn-outline-danger btn-pill" type="button" onclick="resetLocalCache()" data-system-admin-only><i class="fa-solid fa-broom me-2"></i>Borrar cache y resetear</button>
               </div>
             </div>
           </div>
@@ -6582,6 +6582,13 @@
         el.disabled = !allowed;
         el.classList.toggle('d-none', !allowed);
         el.title = allowed ? '' : 'Solo administrador o cajero';
+      });
+      // Elementos exclusivos del Administrador del sistema (botones peligrosos).
+      document.querySelectorAll('[data-system-admin-only]').forEach(el => {
+        const allowed = isSystemAdmin();
+        el.disabled = !allowed;
+        el.classList.toggle('d-none', !allowed);
+        el.title = allowed ? '' : 'Solo el administrador del sistema';
       });
       renderLicenseUi();
     }

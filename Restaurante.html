@@ -11767,9 +11767,16 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
         history: [],
         deletedHistoryIds: Array.from(new Set([...(state.cash?.deletedHistoryIds || []), ...histIds]))
       };
-      // Liberar mesas (sin borrarlas) y limpiar conteos.
+      // Liberar mesas (sin borrarlas) y limpiar conteos. Preservar posiciones/tamaño.
       (state.tables || []).forEach(t => {
         t.status = 'Disponible'; t.orderId = null; t.customer = ''; t.orderTotal = 0; t.orderStartedAt = null; t.openCount = 0;
+      });
+      // Re-sincronizar las mesas a la nube (con posiciones intactas pero estado libre).
+      (state.tables || []).forEach(t => {
+        t._seq = Date.now();
+        t._device = CLOUD_DEVICE_ID;
+        const docId = String(t.id || '');
+        if(docId) sendAWS({ action:'sync', type:'put', collection:'tables', docId, payload:t });
       });
       // 3) Enviar la config limpia a la nube (caja cerrada + tombstones + sin historial).
       pushConfigToCloud();
@@ -13894,8 +13901,9 @@ function handleAWSMessage(msg) {
     if(items.length > 0 && state[coll] !== undefined) {
       isApplyingRemoteState = true;
       // Si hubo un reset reciente, ignorar items más viejos que el reset.
+      // EXCEPTO la colección 'tables' (las mesas y su organización se preservan siempre).
       const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
-      if(lastResetTs > 0){
+      if(lastResetTs > 0 && coll !== 'tables'){
         items = items.filter(it => {
           const itemTs = Number(it?._seq || it?.updatedAt || 0);
           return itemTs > lastResetTs;
@@ -13928,8 +13936,9 @@ function handleAWSMessage(msg) {
       isApplyingRemoteState = true;
       const docId = String(payload.id || payload._id || '');
       // Si hubo un reset reciente, ignorar items más viejos que el reset.
+      // EXCEPTO 'tables' (las mesas y su organización se preservan siempre).
       const lastResetTs = Number(localStorage.getItem('combatti_last_reset_ts') || 0);
-      if(lastResetTs > 0 && Number(payload._seq || 0) < lastResetTs){
+      if(lastResetTs > 0 && coll !== 'tables' && Number(payload._seq || 0) < lastResetTs){
         isApplyingRemoteState = false;
         return;
       }

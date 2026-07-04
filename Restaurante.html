@@ -8807,9 +8807,19 @@ const colors = [
         table.orderId = currentOrder.id;
       }
       syncTableOrderSnapshot(table, currentOrder);
-      // Imprimir PRIMERO (respuesta inmediata), persistir en background.
-      printKitchenTicket(currentOrder, 'CLIENTE');
-      setTimeout(() => persistAll(false), 50);
+      // Generar HTML del ticket SINCRÓNICAMENTE (sin awaits).
+      normalizeOrderContact(currentOrder);
+      normalizeOrderPayments(currentOrder);
+      const ticketHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>CLIENTE</title><style>${customerTicketPrintStyle()}</style></head><body>${customerTicketBodyHtml(currentOrder, 'CLIENTE')}</body></html>`;
+      // Imprimir INMEDIATO: abrir ventana del navegador sin delays innecesarios.
+      // Si QZ está conectado, se usa en background sin bloquear.
+      if(qzConnected && printerNameForRole('caja')){
+        qzPrintHtml(printerNameForRole('caja'), ticketHtml).catch(() => openBrowserPrint(ticketHtml, 420));
+      } else {
+        openBrowserPrint(ticketHtml, 420);
+      }
+      // Persistir en background (no bloquea la impresión).
+      setTimeout(() => persistAll(false), 80);
     }
     function paymentReviewSnapshot(method, splitPayments = null){
       if(!currentOrder) return '';
@@ -9215,7 +9225,7 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       const w = window.open('', '_blank', `width=${width},height=760`);
       if(!w){ toast('El navegador bloqueó la ventana de impresión. Permite ventanas emergentes.', 'warning'); return false; }
       w.document.open(); w.document.write(html); w.document.close();
-      setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 150);
+      setTimeout(() => { try{ w.focus(); w.print(); }catch(_){} }, 50);
       return true;
     }
     function loadQzLibrary(){

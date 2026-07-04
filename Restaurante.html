@@ -6861,14 +6861,15 @@
       const todayReport = buildCashReport(turnoStart, endOfDay(today));
       const openTables = state.tables.filter(t => t.kind !== 'Caja' && t.status !== 'Disponible').length;
       const freeTables = state.tables.filter(t => t.kind !== 'Caja' && t.status === 'Disponible').length;
-      const activeOrders = state.orders.filter(o => o.status === 'Abierto' && o.items && o.items.length > 0);
+      const activeOrders = state.orders.filter(o => o.status === 'Abierto' && orderIsActiveOccupying(o));
       // Respaldo: si este dispositivo aún no recibió los pedidos, contamos las
       // mesas ocupadas (dato que sí viaja en la colección `tables`) para que el
       // indicador no muestre 0 cuando en realidad hay pedidos en curso.
       const tableActiveCount = state.tables.reduce((n, t) => {
         if(t.kind === 'Caja') return n;
+        if(Number(t.orderTotal || 0) <= 0 && Number(t.openCount || 0) <= 0) return n;
         if(isMultiOrderTable(t)) return n + Number(t.openCount || 0);
-        return n + (t.status && t.status !== 'Disponible' ? 1 : 0);
+        return n + (t.status && t.status !== 'Disponible' && t.status !== 'Reservada' ? 1 : 0);
       }, 0);
       const pendingOrders = Math.max(activeOrders.length, tableActiveCount);
       const closedToday = closedOrdersRange(startOfDay(today), endOfDay(today)).length;
@@ -14235,13 +14236,23 @@ function updateActiveOrdersBadge(){
     const badge = document.getElementById('activeOrdersBadge');
     const countEl = document.getElementById('activeOrdersCount');
     if(!badge || !countEl || typeof state === 'undefined') return;
-    const openOrdersCount = (state.orders || []).filter(o => o && typeof isClosedOrder === 'function' ? !isClosedOrder(o) : (o && o.status && o.status !== 'Pagado')).length;
-    // Respaldo desde las mesas (colección que sí sincroniza) por si aún no llegan los pedidos.
+    // Cuenta solo pedidos abiertos con productos (valor > $0). Los pedidos
+    // vacíos recién abiertos NO deben inflar este número.
+    const openOrdersCount = (state.orders || []).filter(o => {
+      if(!o) return false;
+      if(typeof isClosedOrder === 'function' && isClosedOrder(o)) return false;
+      if(o.status === 'Pagado' || o.status === 'Cortesía' || o.status === 'Credito') return false;
+      // Tiene productos con cantidad?
+      const hasItems = Array.isArray(o.items) && o.items.some(it => Number(it.qty || 0) > 0);
+      return hasItems || Number(o.total || 0) > 0;
+    }).length;
+    // Respaldo desde las mesas: solo mesas realmente ocupadas con valor.
     const tableActiveCount = (state.tables || []).reduce((n, t) => {
       if(!t || t.kind === 'Caja') return n;
+      if(Number(t.orderTotal || 0) <= 0 && Number(t.openCount || 0) <= 0) return n;
       const multi = (typeof isMultiOrderTable === 'function') ? isMultiOrderTable(t) : false;
       if(multi) return n + Number(t.openCount || 0);
-      return n + (t.status && t.status !== 'Disponible' ? 1 : 0);
+      return n + (t.status && t.status !== 'Disponible' && t.status !== 'Reservada' ? 1 : 0);
     }, 0);
     const open = Math.max(openOrdersCount, tableActiveCount);
     const prev = Number(countEl.textContent || '0');

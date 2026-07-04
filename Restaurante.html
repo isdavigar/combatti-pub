@@ -14025,12 +14025,30 @@ function applyConfigFromCloud(data) {
     ['orders','kitchenTickets','deletedOrders','historicalSales','movements'].forEach(coll => {
       if(Array.isArray(state[coll])) state[coll] = [];
     });
-    state.cash = { open:false, openedAt:null, openedBy:'', openedByUser:'', openingAmount:0, closures:0, history:[], deletedHistoryIds:[] };
+    // Limpiar caja PERO conservar cuadres creados DESPUÉS del reset.
+    const resetTs = Number(data.lastResetTs);
+    const survivingHistory = (state.cash?.history || []).filter(r => {
+      const opened = new Date(r.openedAt || 0).getTime();
+      return opened > resetTs; // solo sobreviven los posteriores al reset
+    });
+    state.cash = { open:false, openedAt:null, openedBy:'', openedByUser:'', openingAmount:0, closures:0, history:survivingHistory, deletedHistoryIds:[] };
+    // Si la config remota trae la caja abierta o cuadres nuevos, aplicarlos.
+    if(data.cash && data.cash.open) state.cash.open = data.cash.open;
+    if(data.cash && data.cash.openedAt) { state.cash.openedAt = data.cash.openedAt; state.cash.openingAmount = data.cash.openingAmount || 0; state.cash.openedBy = data.cash.openedBy || ''; state.cash.openedByUser = data.cash.openedByUser || ''; }
+    if(Array.isArray(data.cash?.history)){
+      data.cash.history.forEach(r => {
+        if(!r || !r.id) return;
+        const opened = new Date(r.openedAt || 0).getTime();
+        if(opened > resetTs && !state.cash.history.some(h => h.id === r.id)){
+          state.cash.history.push(r);
+        }
+      });
+    }
     (state.tables || []).forEach(t => {
       t.status = 'Disponible'; t.orderId = null; t.customer = ''; t.orderTotal = 0; t.orderStartedAt = null; t.openCount = 0;
     });
     if(typeof saveStateToDatabase === 'function') saveStateToDatabase(appStateSnapshot());
-    return; // No aplicar la config vieja encima del limpio.
+    return;
   }
   if (data.cash != null) {
     // Si hubo un reset reciente y la config remota es más vieja, forzar cash limpio.

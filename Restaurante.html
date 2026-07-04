@@ -14058,8 +14058,32 @@ function applyConfigFromCloud(data) {
         if(!byId.has(r.id)) byId.set(r.id, r);
         else {
           const existing = byId.get(r.id);
+          // Siempre conservar el que tenga más datos (cerrado > abierto, más gastos, más ventas)
           if(r.closedAt && !existing.closedAt) byId.set(r.id, r);
-          if(r.sales > 0 && !(existing.sales > 0)) byId.set(r.id, r);
+          else if(r.sales > 0 && !(existing.sales > 0)) byId.set(r.id, r);
+          // Mergear expenseHistory: conservar los gastos de ambos (sin duplicar por id)
+          const merged = byId.get(r.id);
+          const localExp = Array.isArray(r.expenseHistory) ? r.expenseHistory : [];
+          const remoteExp = Array.isArray(existing.expenseHistory) ? existing.expenseHistory : [];
+          const expIds = new Set();
+          const mergedExp = [];
+          [...localExp, ...remoteExp].forEach(e => {
+            if(!e || !e.id || expIds.has(e.id)) return;
+            expIds.add(e.id);
+            mergedExp.push(e);
+          });
+          merged.expenseHistory = mergedExp;
+          // Lo mismo para movementsHistory
+          const localMov = Array.isArray(r.movementsHistory) ? r.movementsHistory : [];
+          const remoteMov = Array.isArray(existing.movementsHistory) ? existing.movementsHistory : [];
+          const movIds = new Set();
+          const mergedMov = [];
+          [...localMov, ...remoteMov].forEach(m => {
+            if(!m || !m.id || movIds.has(m.id)) return;
+            movIds.add(m.id);
+            mergedMov.push(m);
+          });
+          merged.movementsHistory = mergedMov;
         }
       });
       const mergedHistory = [...byId.values()].sort((a,b) => new Date(a.openedAt||0) - new Date(b.openedAt||0));

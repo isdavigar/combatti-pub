@@ -2519,7 +2519,7 @@
             </div>
             <div class="mb-3">
               <label class="form-label">Usuario</label>
-              <input id="loginUser" type="text" class="form-control" placeholder="admin" autocomplete="username" autocapitalize="none" spellcheck="false" onkeydown="if(event.key==='Enter'){ event.preventDefault(); handleLogin(); }">
+              <input id="loginUser" type="text" class="form-control" placeholder="usuario o correo" autocomplete="username" autocapitalize="none" spellcheck="false" onkeydown="if(event.key==='Enter'){ event.preventDefault(); handleLogin(); }">
             </div>
             <div class="mb-3">
               <label class="form-label">Contraseña</label>
@@ -3455,6 +3455,10 @@
                     <option>Cocinero</option>
                     <option>Mesero</option>
                   </select>
+                </div>
+                <div class="col-xl-3 col-lg-4 col-md-6">
+                  <label class="form-label">Correo (opcional)</label>
+                  <input id="userEmailInput" type="email" class="form-control" placeholder="correo@ejemplo.com" autocapitalize="none">
                 </div>
                 <div class="col-12">
                   <label class="form-label">Permisos</label>
@@ -6445,7 +6449,7 @@
         if(btn){ btn.disabled = false; btn.textContent = origText; }
       }
       const userKey = user.toLowerCase();
-      const matches = state.users.filter(u => u.active !== false && u.username.toLowerCase() === userKey);
+      const matches = state.users.filter(u => u.active !== false && (u.username.toLowerCase() === userKey || (u.email && u.email.toLowerCase() === userKey)));
       const found = matches.find(u => u.password === pass);
       if(!found){
         toast(matches.length ? 'Contraseña incorrecta' : 'El usuario no existe o está inactivo', 'danger');
@@ -12173,6 +12177,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       editingUserId = null;
       setValue('userUsernameInput', '');
       setValue('userPasswordInput', '');
+      setValue('userEmailInput', '');
       const pwInput = byId('userPasswordInput');
       const toggleBtn = byId('togglePasswordBtn');
       if(pwInput) pwInput.type = 'password';
@@ -12186,6 +12191,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       const username = byId('userUsernameInput')?.value.trim();
       const password = byId('userPasswordInput')?.value.trim();
       const role = byId('userRoleInput')?.value || 'Mesero';
+      const email = byId('userEmailInput')?.value.trim() || '';
       const permissions = collectUserPermissions();
       if(!username || !password){ toast('Completa usuario y contraseña', 'warning'); return; }
       const duplicate = state.users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== editingUserId);
@@ -12201,14 +12207,14 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       }
       if(editingUserId){
         const user = originalUser;
-        if(user) Object.assign(user, normalizeUser({ ...user, username, password, role, permissions }));
+        if(user) Object.assign(user, normalizeUser({ ...user, username, password, role, email, permissions }));
         if(currentUser?.id === editingUserId){
           currentUser = state.users.find(u => u.id === editingUserId);
           localStorage.setItem(STORAGE.session, JSON.stringify(currentUser));
         }
         toast('Usuario actualizado', 'success');
       } else {
-        state.users.push(normalizeUser({ username, password, role, permissions }));
+        state.users.push(normalizeUser({ username, password, role, email, permissions }));
         toast('Usuario creado', 'success');
       }
       persistAll();
@@ -12224,6 +12230,7 @@ tr.total-row td{font-weight:900;border-top:1px solid #000;font-size:12px}
       editingUserId = id;
       setValue('userUsernameInput', user.username);
       setValue('userPasswordInput', user.password);
+      setValue('userEmailInput', user.email || '');
       setValue('userRoleInput', user.role);
       renderUserPermissionGrid(getUserPermissions(user));
       setText('userSaveButton', 'Guardar cambios');

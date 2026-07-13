@@ -617,34 +617,14 @@
     .table-node.is-locked{ touch-action:auto; }
     .table-card::after{ display:none !important; }
     .table-node::before,
-    .table-node::after{
-      content:'';
-      position:absolute;
-      inset:0;
-      z-index:0;
-      pointer-events:none;
-      opacity:1;
-      filter:drop-shadow(0 6px 9px rgba(15,23,42,.10));
-    }
-    .table-node::before{
-      background:
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) left center / 12px 48px no-repeat,
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) right center / 12px 48px no-repeat;
-      inset:0 -12px;
-    }
-    .table-node::after{
-      background:
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) top center / 48px 12px no-repeat,
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) bottom center / 48px 12px no-repeat;
-      inset:-12px 0;
-    }
+    .table-node::after{ display:none !important; }
     .table-card.status-available,
     .table-card.status-occupied,
     .table-card.status-billing,
     .table-card.status-reserved{
       border-color:rgba(226,232,240,.88);
       background:var(--card);
-      box-shadow:0 16px 34px rgba(15,23,42,.09);
+      box-shadow:0 6px 22px rgba(15,23,42,.08);
     }
     .table-card:hover{
       background:var(--primary);
@@ -677,68 +657,51 @@
       border-color:#d97706;
       color:#fff;
     }
-    .table-card::before{
-      content:'';
-      position:absolute;
+    .table-card::before{ display:none !important; }
       left:0;
       top:10px;
       bottom:10px;
       width:12px;
       border-radius:0 7px 7px 0;
-      background:var(--primary);
-      z-index:1;
-    }
-    .table-card:hover::before{ background:rgba(255,255,255,.30); }
-    .table-card.status-occupied::before,
-    .table-card.status-billing::before,
-    .table-card.status-occupied:hover::before,
-    .table-card.status-billing:hover::before{ background:#dc0041; }
-    .table-card.status-reserved::before,
-    .table-card.status-reserved:hover::before{ background:#f59e0b; }
-    .table-card::after{
-      content:'';
-      position:absolute;
-      inset:-18px -18px;
-      z-index:-1;
-      background:
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) top center / 54px 16px no-repeat,
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) bottom center / 54px 16px no-repeat,
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) left center / 16px 54px no-repeat,
-        radial-gradient(ellipse at center, #cfd9df 0 68%, transparent 70%) right center / 16px 54px no-repeat;
-      filter:drop-shadow(0 6px 9px rgba(15,23,42,.10));
-      opacity:1;
-      pointer-events:none;
-    }
-    .table-icon{ display:none; }
-    .table-card-body{ min-width:0; padding-left:12px; height:100%; display:flex; flex-direction:column; justify-content:space-between; }
+    .table-card::before,
+    .table-card:hover::before,
+    .table-card::after{ display:none !important; }
+    .table-icon{ display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:12px; color:#fff; font-size:1rem; flex-shrink:0; box-shadow:0 4px 12px rgba(0,0,0,.18); }
+    .table-card-body{ min-width:0; height:100%; display:flex; flex-direction:column; justify-content:center; gap:2px; }
     .table-card-meta{ display:grid; gap:2px; font-size:.68rem; color:var(--muted); }
     .table-card-meta strong{ color:var(--text); font-size:.72rem; }
-    .table-node .table-card{ padding:12px 10px 10px 14px; border-radius:8px; }
-    .table-node .table-card h5{ font-size:.9rem; margin-top:0; color:#334155; }
+    .table-node .table-card{
+      padding:14px 12px 12px;
+      border-radius:14px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .table-node .table-card h5{ font-size:.88rem; margin:0; color:#1e293b; font-weight:800; letter-spacing:-.02em; }
     .table-node .table-card:hover h5,
     .table-node .table-card:hover .table-card-body > .mb-2{
       color:#fff !important;
     }
+    .table-node .table-card.status-occupied h5,
+    .table-node .table-card.status-billing h5{ color:#fff; }
     .table-node .table-card.status-occupied:hover h5,
     .table-node .table-card.status-billing:hover h5,
     .table-node .table-card.status-occupied:hover .table-card-body > .mb-2,
     .table-node .table-card.status-billing:hover .table-card-body > .mb-2{
       color:#ffffff !important;
     }
-    .table-node .status-dot{ display:none; }
-    .table-node .mb-2{ margin-bottom:.25rem !important; }
-    .table-node .table-card-body > .mb-2{ font-size:.82rem; line-height:1.15; color:#334155; text-align:right; }
+    .table-node .status-dot{ width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:4px; }
+    .table-node .mb-2{ margin-bottom:.15rem !important; }
+    .table-node .table-card-body > .mb-2{ font-size:.75rem; line-height:1.1; color:#64748b; font-weight:600; }
     .table-order-total{
-      position:absolute;
-      left:0;
-      right:0;
-      bottom:-30px;
       text-align:center;
-      color:#2b7fba;
-      font-size:.84rem;
-      font-weight:900;
-      text-decoration:underline;
-      text-underline-offset:2px;
+      color:#fff;
+      font-size:.78rem;
+      font-weight:800;
+      background:rgba(0,0,0,.22);
+      border-radius:8px;
+      padding:3px 8px;
+      margin-top:2px;
     }
     .table-admin-actions{
       display:flex; gap:5px; padding:3px; border-radius:999px; background:rgba(255,255,255,.72);
@@ -7177,16 +7140,16 @@
       return `
         <div class="table-node ${isAdmin() && tableEditMode ? 'editable' : 'is-locked'}" data-table-id="${t.id}" style="left:${Number(t.x || 24)}px;top:${Number(t.y || 24)}px;width:${size}px;height:${size}px;">
           <div class="table-card status-${cls}" onclick="if(tableEditMode) return; if(shouldIgnoreTableClick()) return; openTableOrder('${t.id}')">
-            <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex justify-content-between align-items-start">
               <div class="table-icon ${tableIconClass(t)}"><i class="${t.icon}"></i></div>
               ${adminActions}
             </div>
             <div class="table-card-body">
-              <h5 class="fw-bold mb-1">${escapeHtml(t.name)}</h5>
+              <h5>${escapeHtml(t.name)}</h5>
               <div class="mb-2"><span class="status-dot status-${cls}"></span>${escapeHtml(statusText)}</div>
               ${tableElapsedHtml(t)}
-              ${activeTotal ? `<div class="table-order-total">${money(activeTotal)}</div>` : ''}
             </div>
+            ${activeTotal ? `<div class="table-order-total">${money(activeTotal)}</div>` : ''}
           </div>
           ${resizeHandle}
         </div>

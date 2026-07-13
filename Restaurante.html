@@ -7494,7 +7494,14 @@
         message:`¿Eliminar la mesa <strong>${escapeHtml(table.name)}</strong>?`,
         confirmLabel:'Sí, eliminar',
         confirmClass:'btn-danger',
-        onConfirm: () => { state.tables = state.tables.filter(t => t.id !== id); persistAll(); toast('Mesa eliminada', 'info'); }
+        onConfirm: () => {
+          state.tables = state.tables.filter(t => t.id !== id);
+          // Borrar de la nube permanentemente.
+          deleteItemFromCloud('tables', id);
+          persistAll();
+          forceCloudSyncNow();
+          toast('Mesa eliminada', 'info');
+        }
       });
     }
 

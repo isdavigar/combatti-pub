@@ -4954,6 +4954,7 @@
         id:user.id || uid(),
         username:String(user.username || '').trim(),
         password:String(user.password || ''),
+        email:String(user.email || '').trim(),
         role,
         avatar:String(user.avatar || '').trim(),
         permissions:[...new Set(permissions)].filter(p => PERMISSION_ORDER.includes(p)),

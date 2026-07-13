@@ -616,8 +616,27 @@
     .table-node.dragging .table-card, .table-node.resizing .table-card{ transform:scale(1.02); cursor:grabbing; box-shadow:0 22px 48px rgba(15,23,42,.22); }
     .table-node.is-locked{ touch-action:auto; }
     .table-card::after{ display:none !important; }
+    /* Sillas grises alrededor de cada mesa */
     .table-node::before,
-    .table-node::after{ display:none !important; }
+    .table-node::after{
+      content:'';
+      position:absolute;
+      z-index:0;
+      pointer-events:none;
+      opacity:1;
+    }
+    .table-node::before{
+      inset:0 -14px;
+      background:
+        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) left center / 14px 44px no-repeat,
+        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) right center / 14px 44px no-repeat;
+    }
+    .table-node::after{
+      inset:-14px 0;
+      background:
+        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) top center / 44px 14px no-repeat,
+        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) bottom center / 44px 14px no-repeat;
+    }
     .table-card.status-available,
     .table-card.status-occupied,
     .table-card.status-billing,

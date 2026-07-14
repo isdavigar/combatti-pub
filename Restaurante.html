@@ -7373,8 +7373,7 @@
       const secs = totalSeconds % 60;
       const text = `${late ? '+' : ''}${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
       const cls = late ? 'is-overdue' : 'is-ok';
-      const label = late ? 'Atrasado' : 'Listo en';
-      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i> ${label} ${text}</span>`;
+      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i> ${text}</span>`;
     }
     function tableActiveTotal(table, openCount = 0){
       const orderComputedTotal = order => {

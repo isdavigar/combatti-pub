@@ -7349,24 +7349,25 @@
         </div>
       `;
     }
-    // Cronómetro idéntico al de cocina: cuenta regresiva MM:SS.
-    // Verde = queda tiempo. Rojo = retrasado (+MM:SS).
+    // Cronómetro idéntico al de cocina: usa order.readyAt como referencia.
     function tableElapsedHtml(t){
       if(!t || t.status === 'Disponible' || t.status === 'Reservada') return '';
       // Solo mostrar si la comanda está guardada (tiene productos).
       const order = state.orders.find(o => o.id === t.orderId && !isClosedOrder(o));
       if(!order || !order.items || !order.items.some(it => Number(it.qty || 0) > 0)) return '';
-      const startStr = t.orderStartedAt;
-      if(!startStr) return '';
-      const start = new Date(startStr).getTime();
-      if(!start || isNaN(start)) return '';
-      // Calcular readyAt = inicio + tiempo estimado
-      const prepTime = Number(t.prepTime || TABLE_DEFAULT_PREP_TIME);
-      const readyAt = start + (prepTime * 60000);
+      // Usar readyAt del pedido (mismo que cocina) o calcular desde orderStartedAt + prepTime.
+      let readyAt;
+      if(order.readyAt){
+        readyAt = new Date(order.readyAt).getTime();
+      } else {
+        const start = t.orderStartedAt ? new Date(t.orderStartedAt).getTime() : 0;
+        if(!start) return '';
+        const prepTime = Number(t.prepTime || TABLE_DEFAULT_PREP_TIME);
+        readyAt = start + (prepTime * 60000);
+      }
+      if(!readyAt || isNaN(readyAt)) return '';
       const diff = readyAt - Date.now();
-      // Si supera 24h es dato viejo.
       if(Math.abs(diff) > 86400000) return '';
-      // Formato MM:SS igual que cocina
       const late = diff < 0;
       const totalSeconds = Math.floor(Math.abs(diff) / 1000);
       const mins = Math.floor(totalSeconds / 60);
@@ -14817,10 +14818,18 @@ setInterval(() => {
     if(!t || t.status === 'Disponible' || t.status === 'Reservada') return;
     const el = node.querySelector('.table-elapsed');
     if(!el) return;
-    const start = t.orderStartedAt ? new Date(t.orderStartedAt).getTime() : 0;
-    if(!start) return;
-    const prepTime = Number(t.prepTime || (typeof TABLE_DEFAULT_PREP_TIME !== 'undefined' ? TABLE_DEFAULT_PREP_TIME : 30));
-    const readyAt = start + (prepTime * 60000);
+    // Usar order.readyAt (mismo que cocina) o calcular desde orderStartedAt + prepTime.
+    const order = (state.orders || []).find(o => o.id === t.orderId && typeof isClosedOrder === 'function' && !isClosedOrder(o));
+    let readyAt;
+    if(order && order.readyAt){
+      readyAt = new Date(order.readyAt).getTime();
+    } else {
+      const start = t.orderStartedAt ? new Date(t.orderStartedAt).getTime() : 0;
+      if(!start) return;
+      const prepTime = Number(t.prepTime || (typeof TABLE_DEFAULT_PREP_TIME !== 'undefined' ? TABLE_DEFAULT_PREP_TIME : 30));
+      readyAt = start + (prepTime * 60000);
+    }
+    if(!readyAt || isNaN(readyAt)) return;
     const diff = readyAt - Date.now();
     if(Math.abs(diff) > 86400000) return;
     const late = diff < 0;

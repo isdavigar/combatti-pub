@@ -5873,7 +5873,8 @@
         table.orderId = openOrder.id;
         table.customer = openOrder.customer || '';
         table.orderTotal = Number(openOrder.total || 0);
-        table.orderStartedAt = openOrder.createdAt || new Date().toISOString();
+        // NO pisar orderStartedAt si ya existe (lo setea saveOrder al guardar comanda).
+        if(!table.orderStartedAt) table.orderStartedAt = new Date().toISOString();
       } else {
         table.orderId = null;
         table.customer = '';
@@ -5903,9 +5904,9 @@
             table.orderId = order.id;
             table.customer = order.customer || '';
             table.orderTotal = Number(order.total || 0);
-            // Usar updatedAt (momento de última edición) como inicio del timer
-            // para que no muestre horas absurdas por un createdAt viejo.
-            table.orderStartedAt = order.updatedAt || order.createdAt || table.orderStartedAt || new Date().toISOString();
+            // NO pisar orderStartedAt si ya fue seteado por saveOrder.
+            // Solo asignar si no existe (primer sync tras reconexión).
+            if(!table.orderStartedAt) table.orderStartedAt = order.updatedAt || order.createdAt || new Date().toISOString();
             if(table.status !== 'En proceso de pago') table.status = 'Ocupada';
           } else {
             // Pedido vacío ($0): la mesa queda libre.

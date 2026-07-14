@@ -616,59 +616,40 @@
     .table-node.dragging .table-card, .table-node.resizing .table-card{ transform:scale(1.02); cursor:grabbing; box-shadow:0 22px 48px rgba(15,23,42,.22); }
     .table-node.is-locked{ touch-action:auto; }
     .table-card::after{ display:none !important; }
-    /* === Mesa idéntica a la referencia === */
-    /* 4 sillas semicirculares pegadas a los bordes laterales */
-    .table-node::before{
-      content:'';
-      position:absolute;
-      top:10%;
-      bottom:10%;
-      left:-10px;
-      width:14px;
-      z-index:0;
-      pointer-events:none;
-      border-radius:14px 0 0 14px;
-      background:
-        radial-gradient(ellipse 140% 44% at 0% 50%, var(--primary) 0 96%, transparent 100%) center top / 100% 46% no-repeat,
-        radial-gradient(ellipse 140% 44% at 0% 50%, var(--primary) 0 96%, transparent 100%) center bottom / 100% 46% no-repeat;
-    }
+    /* === Mesa con 4 sillas ovaladas (2 a cada lado, separadas) === */
+    .table-node::before,
     .table-node::after{
       content:'';
       position:absolute;
-      top:10%;
-      bottom:10%;
-      right:-10px;
-      width:14px;
+      top:14%;
+      bottom:14%;
+      width:18px;
       z-index:0;
       pointer-events:none;
-      border-radius:0 14px 14px 0;
-      background:
-        radial-gradient(ellipse 140% 44% at 100% 50%, var(--primary) 0 96%, transparent 100%) center top / 100% 46% no-repeat,
-        radial-gradient(ellipse 140% 44% at 100% 50%, var(--primary) 0 96%, transparent 100%) center bottom / 100% 46% no-repeat;
+      background-repeat:no-repeat;
+      background-position:center top, center bottom;
+      background-size:100% 42%, 100% 42%;
+      background-image:
+        radial-gradient(ellipse 100% 100% at 50% 50%, var(--primary) 0 66%, transparent 68%),
+        radial-gradient(ellipse 100% 100% at 50% 50%, var(--primary) 0 66%, transparent 68%);
     }
+    .table-node::before{ left:-13px; }
+    .table-node::after{ right:-13px; }
     /* Mesa ocupada: sillas en rojo */
     .table-node:has(.status-occupied)::before,
-    .table-node:has(.status-billing)::before{
-      background:
-        radial-gradient(ellipse 140% 44% at 0% 50%, #ef4444 0 96%, transparent 100%) center top / 100% 46% no-repeat,
-        radial-gradient(ellipse 140% 44% at 0% 50%, #ef4444 0 96%, transparent 100%) center bottom / 100% 46% no-repeat;
-    }
+    .table-node:has(.status-billing)::before,
     .table-node:has(.status-occupied)::after,
     .table-node:has(.status-billing)::after{
-      background:
-        radial-gradient(ellipse 140% 44% at 100% 50%, #ef4444 0 96%, transparent 100%) center top / 100% 46% no-repeat,
-        radial-gradient(ellipse 140% 44% at 100% 50%, #ef4444 0 96%, transparent 100%) center bottom / 100% 46% no-repeat;
+      background-image:
+        radial-gradient(ellipse 100% 100% at 50% 50%, #ef4444 0 66%, transparent 68%),
+        radial-gradient(ellipse 100% 100% at 50% 50%, #ef4444 0 66%, transparent 68%);
     }
     /* Mesa reservada: sillas en amarillo */
-    .table-node:has(.status-reserved)::before{
-      background:
-        radial-gradient(ellipse 140% 44% at 0% 50%, #f59e0b 0 96%, transparent 100%) center top / 100% 46% no-repeat,
-        radial-gradient(ellipse 140% 44% at 0% 50%, #f59e0b 0 96%, transparent 100%) center bottom / 100% 46% no-repeat;
-    }
+    .table-node:has(.status-reserved)::before,
     .table-node:has(.status-reserved)::after{
-      background:
-        radial-gradient(ellipse 140% 44% at 100% 50%, #f59e0b 0 96%, transparent 100%) center top / 100% 46% no-repeat,
-        radial-gradient(ellipse 140% 44% at 100% 50%, #f59e0b 0 96%, transparent 100%) center bottom / 100% 46% no-repeat;
+      background-image:
+        radial-gradient(ellipse 100% 100% at 50% 50%, #f59e0b 0 66%, transparent 68%),
+        radial-gradient(ellipse 100% 100% at 50% 50%, #f59e0b 0 66%, transparent 68%);
     }
     .table-node .table-card.status-reserved{
       border-color:#fde68a !important;
@@ -7305,7 +7286,7 @@
       const resizeHandle = isAdmin() && tableEditMode ? `<button class="table-resize-handle" title="Cambiar tamano" onclick="event.stopPropagation()"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>` : '';
       return `
         <div class="table-node ${isAdmin() && tableEditMode ? 'editable' : 'is-locked'}" data-table-id="${t.id}" style="left:${Number(t.x || 24)}px;top:${Number(t.y || 24)}px;width:${size}px;height:${size}px;">
-          <div class="table-card status-${cls}" onclick="if(tableEditMode) return; if(shouldIgnoreTableClick()) return; openTableOrder('${t.id}')" oncontextmenu="event.preventDefault(); reserveTableContextMenu('${t.id}')">>
+          <div class="table-card status-${cls}" onclick="if(tableEditMode) return; if(shouldIgnoreTableClick()) return; openTableOrder('${t.id}')" oncontextmenu="event.preventDefault(); reserveTableContextMenu('${t.id}')">
             <div class="d-flex justify-content-between align-items-start">
               <div class="table-icon ${tableIconClass(t)}"><i class="${t.icon}"></i></div>
               ${adminActions}

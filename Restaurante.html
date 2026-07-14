@@ -10201,7 +10201,12 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
     function printCloseReport(record = currentCashRecord()){
       const detail = cashRecordDetailHtml(record);
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de caja</title><style>${cashReportPrintStyle()}</style></head><body>${detail}</body></html>`;
-      routePrint(html, 'caja', 720);
+      // Impresión inmediata (sin await, sin delay).
+      if(qzConnected && printerNameForRole('caja')){
+        qzPrintHtml(printerNameForRole('caja'), html).catch(() => openBrowserPrint(html, 720));
+      } else {
+        openBrowserPrint(html, 720);
+      }
     }
     function cashReportPrintStyle(){
       return `*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0;width:44ch;font-size:12px;line-height:1.3;color:#000;font-weight:700;}

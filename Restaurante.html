@@ -7349,34 +7349,32 @@
         </div>
       `;
     }
-    // Cronómetro de cuenta regresiva: del tiempo estimado hasta 0.
-    // Si queda tiempo → verde. Si se pasa → negativo en rojo.
+    // Cronómetro idéntico al de cocina: cuenta regresiva MM:SS.
+    // Verde = queda tiempo. Rojo = retrasado (+MM:SS).
     function tableElapsedHtml(t){
       if(!t || t.status === 'Disponible' || t.status === 'Reservada') return '';
-      // Solo mostrar el cronómetro si la mesa tiene un pedido con productos (comanda guardada).
+      // Solo mostrar si la comanda está guardada (tiene productos).
       const order = state.orders.find(o => o.id === t.orderId && !isClosedOrder(o));
       if(!order || !order.items || !order.items.some(it => Number(it.qty || 0) > 0)) return '';
       const startStr = t.orderStartedAt;
       if(!startStr) return '';
       const start = new Date(startStr).getTime();
       if(!start || isNaN(start)) return '';
-      const elapsed = Math.floor((Date.now() - start) / 60000);
-      // Si supera 24h es un dato viejo.
-      if(elapsed > 1440 || elapsed < 0) return '';
+      // Calcular readyAt = inicio + tiempo estimado
       const prepTime = Number(t.prepTime || TABLE_DEFAULT_PREP_TIME);
-      const remaining = prepTime - elapsed;
-      let label, cls;
-      if(remaining > 0){
-        // Aún tiene tiempo → verde
-        label = remaining < 60 ? `${remaining} min` : `${Math.floor(remaining/60)}h ${remaining%60}m`;
-        cls = 'is-ok';
-      } else {
-        // Se pasó del tiempo → negativo en rojo
-        const overdue = Math.abs(remaining);
-        label = overdue < 60 ? `-${overdue} min` : `-${Math.floor(overdue/60)}h ${overdue%60}m`;
-        cls = 'is-overdue';
-      }
-      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i> ${label}</span>`;
+      const readyAt = start + (prepTime * 60000);
+      const diff = readyAt - Date.now();
+      // Si supera 24h es dato viejo.
+      if(Math.abs(diff) > 86400000) return '';
+      // Formato MM:SS igual que cocina
+      const late = diff < 0;
+      const totalSeconds = Math.floor(Math.abs(diff) / 1000);
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      const text = `${late ? '+' : ''}${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+      const cls = late ? 'is-overdue' : 'is-ok';
+      const label = late ? 'Atrasado' : 'Listo en';
+      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i> ${label} ${text}</span>`;
     }
     function tableActiveTotal(table, openCount = 0){
       const orderComputedTotal = order => {

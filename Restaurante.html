@@ -649,6 +649,11 @@
     .table-card.status-occupied .table-accent-bar,
     .table-card.status-billing .table-accent-bar{ background:#ef4444; }
     .table-card.status-reserved .table-accent-bar{ background:#f59e0b; }
+    /* Formas de mesa */
+    .table-node.shape-round .table-card{ border-radius:50% !important; }
+    .table-node.shape-round .table-accent-bar{ display:none; }
+    .table-node.shape-round .table-card{ align-items:center; text-align:center; padding:14px !important; }
+    .table-node.shape-rect .table-card{ border-radius:16px !important; }
     .table-node .table-card.status-reserved{
       border-color:#fde68a !important;
     }
@@ -732,16 +737,30 @@
     .tables-status-chip.available .chip-count{ color:#22c55e; }
     .tables-status-chip.reserved .chip-count{ color:#f59e0b; }
     .tables-status-chip.occupied .chip-count{ color:#ef4444; }
-    .tables-status-progress{ display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px; }
-    .tables-status-progress-label{ font-size:.72rem; font-weight:600; opacity:.6; }
+    /* Recuadro blanco para "Estado de mesas" (chip ancho con barra) */
+    .tables-status-chip.progress-chip{
+      flex:1; min-width:180px; align-items:stretch; justify-content:center; gap:6px;
+    }
+    .tables-status-chip.progress-chip .chip-label{ text-align:left; margin:0; }
     .tables-status-progress-bar{
-      display:flex; height:10px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.1);
+      display:flex; height:9px; border-radius:99px; overflow:hidden; background:rgba(148,163,184,.25);
     }
     body:not(.dark-mode) .tables-status-progress-bar{ background:#e2e8f0; }
     .tables-status-progress-bar .seg{ transition:width .3s ease; }
     .tables-status-progress-bar .seg-available{ background:#22c55e; }
     .tables-status-progress-bar .seg-reserved{ background:#f59e0b; }
     .tables-status-progress-bar .seg-occupied{ background:#ef4444; }
+    /* Tabs de salón */
+    .tables-salon-tabs{ display:flex; gap:22px; margin:14px 4px 4px; border-bottom:1px solid var(--border); }
+    .salon-tab{
+      background:none; border:0; padding:8px 2px 12px; font-size:1rem; font-weight:800;
+      color:var(--muted); cursor:pointer; position:relative; letter-spacing:-.01em;
+    }
+    .salon-tab.active{ color:var(--primary); }
+    .salon-tab.active::after{
+      content:''; position:absolute; left:0; right:0; bottom:-1px; height:3px;
+      background:var(--primary); border-radius:99px 99px 0 0;
+    }
     .table-card.status-available,
     .table-card.status-occupied,
     .table-card.status-billing,
@@ -838,7 +857,9 @@
     .table-takeaway{ background:linear-gradient(135deg, #f59e0b, #d97706); }
     .table-delivery{ background:linear-gradient(135deg, #8b5cf6, #7c3aed); }
     .table-cashbox{ background:linear-gradient(135deg, #111827, #4b5563); }
-    .table-card.status-occupied .table-icon{ background:linear-gradient(135deg, #ef4444, #b91c1c); }
+    .table-card.status-occupied .table-icon,
+    .table-card.status-billing .table-icon{ background:linear-gradient(135deg, #ef4444, #b91c1c) !important; }
+    .table-card.status-reserved .table-icon{ background:linear-gradient(135deg, #f59e0b, #d97706) !important; }
     .table-card.status-available:hover .table-icon{ background:linear-gradient(135deg, #22c55e, #15803d); }
     .table-card.status-occupied:hover .table-icon{ background:linear-gradient(135deg, #f87171, #dc2626); }
     .table-card.status-reserved:hover .table-icon{ background:linear-gradient(135deg, #f59e0b, #d97706); }
@@ -3071,27 +3092,32 @@
 
       <section id="view-mesas" class="view">
         <div class="glass-card p-4 mb-4">
-          <!-- Barra de estado de mesas (estilo dashboard oscuro) -->
+          <!-- Barra de estado de mesas -->
           <div class="tables-status-bar" id="tablesStatusBar">
             <h5 class="tables-status-title">Mesas</h5>
             <div class="tables-status-chips">
               <div class="tables-status-chip available"><span class="chip-count" id="tablesAvailableCount">0</span><span class="chip-label">Disponibles</span></div>
               <div class="tables-status-chip reserved"><span class="chip-count" id="tablesReservedCount">0</span><span class="chip-label">Reservadas</span></div>
               <div class="tables-status-chip occupied"><span class="chip-count" id="tablesOccupiedCount">0</span><span class="chip-label">Ocupadas</span></div>
-            </div>
-            <div class="tables-status-progress">
-              <span class="tables-status-progress-label">Estado de mesas</span>
-              <div class="tables-status-progress-bar" id="tablesProgressBar">
-                <div class="seg seg-available" id="tablesProgressAvailable"></div>
-                <div class="seg seg-reserved" id="tablesProgressReserved"></div>
-                <div class="seg seg-occupied" id="tablesProgressOccupied"></div>
+              <div class="tables-status-chip progress-chip">
+                <span class="chip-label">Estado de mesas</span>
+                <div class="tables-status-progress-bar" id="tablesProgressBar">
+                  <div class="seg seg-available" id="tablesProgressAvailable"></div>
+                  <div class="seg seg-reserved" id="tablesProgressReserved"></div>
+                  <div class="seg seg-occupied" id="tablesProgressOccupied"></div>
+                </div>
               </div>
             </div>
           </div>
+          <!-- Tabs de salón -->
+          <div class="tables-salon-tabs">
+            <button class="salon-tab active" type="button">Salón Principal</button>
+          </div>
           <!-- Botones admin (solo admin del sistema) -->
-          <div class="d-flex gap-2 flex-wrap mt-3" data-system-admin-only>
+          <div class="d-flex gap-2 flex-wrap mt-2" data-system-admin-only>
             <button class="btn btn-success btn-pill" onclick="openTableModal('Mesa')"><i class="fa-solid fa-plus me-2"></i>Nueva mesa</button>
             <button id="tableModeButton" class="btn btn-primary-soft btn-pill" onclick="toggleTableEditMode()"><i class="fa-solid fa-pen-ruler me-2"></i>Editar posiciones</button>
+            <button id="moveAllButton" class="btn btn-outline-secondary btn-pill d-none" onclick="toggleMoveAll()"><i class="fa-solid fa-up-down-left-right me-2"></i>Mover todas juntas</button>
             <button class="btn btn-outline-secondary btn-pill" onclick="autoArrangeTables()"><i class="fa-solid fa-table-cells me-2"></i>Ordenar</button>
           </div>
           
@@ -3638,6 +3664,14 @@
             <div class="col-md-6">
               <label class="form-label">Tamano de mesa</label>
               <input id="tableSizeInput" class="form-control" type="number" min="130" max="280" step="10" value="178">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Forma / diseño</label>
+              <select id="tableShapeInput" class="form-select">
+                <option value="square">Cuadrada</option>
+                <option value="round">Redonda</option>
+                <option value="rect">Rectangular (ancha)</option>
+              </select>
             </div>
             <div class="col-md-6">
               <label class="form-label">Estado</label>
@@ -4722,7 +4756,7 @@
     let currentUser = null, currentView = 'dashboard', tableFilter = 'all', productCategoryFilter = 'Todos',
         editingTableId = null, editingProductId = null, currentOrderTableId = null, currentOrder = null,
         orderCategoryFilter = 'Todos', selectedTableIcon = ICONS[0].key, charts = {}, searchTimer = null,
-        editingUserId = null, productSearchQuery = '', currentDeliveryTableId = null, tableEditMode = false,
+        editingUserId = null, productSearchQuery = '', currentDeliveryTableId = null, tableEditMode = false, moveAllTables = false,
         autosaveTimer = null, loginAuthMode = null, lastTicketOrderId = null, kitchenTimer = null,
         loginCarouselTimer = null, loginCarouselIndex = 0,
         productChannelFilter = 'Local', editingSupplyId = null, editingDeliveryZoneId = null, seenKitchenTicketIds = new Set();
@@ -7282,8 +7316,11 @@
           <button class="btn btn-sm btn-outline-danger rounded-pill" onclick="event.stopPropagation(); deleteTable('${t.id}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
         </div>` : '';
       const resizeHandle = isAdmin() && tableEditMode ? `<button class="table-resize-handle" title="Cambiar tamano" onclick="event.stopPropagation()"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>` : '';
+      const shape = t.shape || 'square';
+      const nodeW = shape === 'rect' ? Math.round(size * 1.35) : size;
+      const nodeH = shape === 'rect' ? Math.round(size * 0.78) : size;
       return `
-        <div class="table-node ${isAdmin() && tableEditMode ? 'editable' : 'is-locked'}" data-table-id="${t.id}" style="left:${Number(t.x || 24)}px;top:${Number(t.y || 24)}px;width:${size}px;height:${size}px;">
+        <div class="table-node shape-${shape} ${isAdmin() && tableEditMode ? 'editable' : 'is-locked'}" data-table-id="${t.id}" style="left:${Number(t.x || 24)}px;top:${Number(t.y || 24)}px;width:${nodeW}px;height:${nodeH}px;">
           <span class="table-chair chair-tl"></span>
           <span class="table-chair chair-bl"></span>
           <span class="table-chair chair-tr"></span>
@@ -7372,11 +7409,27 @@
         button.classList.toggle('btn-success', tableEditMode);
         button.classList.toggle('btn-primary-soft', !tableEditMode);
       }
+      const moveBtn = byId('moveAllButton');
+      if(moveBtn){
+        moveBtn.classList.toggle('d-none', !tableEditMode);
+        moveBtn.classList.toggle('btn-success', moveAllTables);
+        moveBtn.classList.toggle('btn-outline-secondary', !moveAllTables);
+        moveBtn.innerHTML = moveAllTables
+          ? '<i class="fa-solid fa-up-down-left-right me-2"></i>Moviendo TODAS'
+          : '<i class="fa-solid fa-up-down-left-right me-2"></i>Mover todas juntas';
+      }
     }
     function toggleTableEditMode(){
       if(!requireAdmin('editar posiciones de mesas')) return;
       tableEditMode = !tableEditMode;
+      if(!tableEditMode) moveAllTables = false;
       renderTables();
+    }
+    function toggleMoveAll(){
+      if(!requireAdmin('mover mesas')) return;
+      moveAllTables = !moveAllTables;
+      updateTableModeUI();
+      toast(moveAllTables ? 'Arrastra una mesa y se moverán TODAS juntas' : 'Mover mesa individual', 'info');
     }
     function autoArrangeTables(){
       if(!requireAdmin('ordenar mesas')) return;
@@ -7463,26 +7516,27 @@
           if(!table) return;
           ev.preventDefault();
           const startX = ev.clientX, startY = ev.clientY;
-          const originX = Number(table.x || 24), originY = Number(table.y || 24);
-          let moved = false, raf = 0, nextX = originX, nextY = originY;
+          // Grupo a mover: todas las mesas (moveAllTables) o solo la actual.
+          const group = moveAllTables
+            ? state.tables.map(t => ({ t, ox:Number(t.x || 24), oy:Number(t.y || 24), node: canvas.querySelector(`.table-node[data-table-id="${t.id}"]`) }))
+            : [{ t:table, ox:Number(table.x || 24), oy:Number(table.y || 24), node }];
+          let moved = false, raf = 0, dx = 0, dy = 0;
           node.setPointerCapture?.(ev.pointerId);
           node.classList.add('dragging');
           node.style.cursor = 'grabbing';
           const paint = () => {
-            table.x = Math.round(nextX);
-            table.y = Math.round(nextY);
-            node.style.left = `${table.x}px`;
-            node.style.top = `${table.y}px`;
-            expandTableCanvas(canvas, table.x, table.y, tableSize(table));
+            group.forEach(g => {
+              g.t.x = Math.round(Math.max(16, g.ox + dx));
+              g.t.y = Math.round(Math.max(16, g.oy + dy));
+              if(g.node){ g.node.style.left = `${g.t.x}px`; g.node.style.top = `${g.t.y}px`; }
+              expandTableCanvas(canvas, g.t.x, g.t.y, tableSize(g.t));
+            });
             raf = 0;
           };
-          const maxX = Math.max(16, (board.clientWidth - 6) / tableZoom - tableSize(table) - 8);
           node.onpointermove = moveEv => {
-            const dx = (moveEv.clientX - startX) / tableZoom;
-            const dy = (moveEv.clientY - startY) / tableZoom;
+            dx = (moveEv.clientX - startX) / tableZoom;
+            dy = (moveEv.clientY - startY) / tableZoom;
             if(Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-            nextX = Math.min(maxX, Math.max(16, originX + dx));
-            nextY = Math.max(16, originY + dy);
             if(!raf) raf = requestAnimationFrame(paint);
           };
           node.onpointerup = node.onpointercancel = () => {
@@ -7569,6 +7623,7 @@
       document.getElementById('tableTypeInput').value = table ? table.kind : kind;
       document.getElementById('tableSizeInput').value = table ? tableSize(table) : TABLE_DEFAULT_SIZE;
       document.getElementById('tableStatusInput').value = table ? (table.status || 'Disponible') : 'Disponible';
+      setValue('tableShapeInput', table ? (table.shape || 'square') : 'square');
       renderIconPicker(table ? table.icon : selectedTableIcon); modals.table.show();
     }
     function renderIconPicker(activeIcon){
@@ -7589,10 +7644,11 @@
       const kind = document.getElementById('tableTypeInput').value;
       const size = clampNumber(document.getElementById('tableSizeInput').value || TABLE_DEFAULT_SIZE, TABLE_MIN_SIZE, TABLE_MAX_SIZE);
       const status = document.getElementById('tableStatusInput').value || 'Disponible';
+      const shape = byId('tableShapeInput')?.value || 'square';
       if(!name){ toast('Escribe un nombre para la mesa', 'warning'); return; }
-      if(editingTableId){ const table = state.tables.find(t => t.id === editingTableId); if(table){ table.name = name; table.kind = kind; table.icon = selectedTableIcon; table.size = size; table.status = status; } }
+      if(editingTableId){ const table = state.tables.find(t => t.id === editingTableId); if(table){ table.name = name; table.kind = kind; table.icon = selectedTableIcon; table.size = size; table.status = status; table.shape = shape; } }
       else {
-        const table = { id: uid(), name, kind, icon:selectedTableIcon, status, orderId:null, size };
+        const table = { id: uid(), name, kind, icon:selectedTableIcon, status, orderId:null, size, shape };
         ensureTablePosition(table, state.tables.length);
         state.tables.push(table);
       }

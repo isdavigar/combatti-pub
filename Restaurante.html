@@ -3120,6 +3120,7 @@
             <button id="tableModeButton" class="btn btn-primary-soft btn-pill" onclick="toggleTableEditMode()"><i class="fa-solid fa-pen-ruler me-2"></i>Editar posiciones</button>
             <button id="moveAllButton" class="btn btn-outline-secondary btn-pill d-none" onclick="toggleMoveAll()"><i class="fa-solid fa-up-down-left-right me-2"></i>Mover todas juntas</button>
             <button class="btn btn-outline-secondary btn-pill" onclick="autoArrangeTables()"><i class="fa-solid fa-table-cells me-2"></i>Ordenar</button>
+            <button class="btn btn-outline-secondary btn-pill" onclick="toggleAllTableIcons()"><i class="fa-solid fa-eye-slash me-2"></i>Quitar/poner iconos</button>
           </div>
           
           <div id="tablesGrid" class="tables-floor"></div>
@@ -7345,10 +7346,10 @@
           <span class="table-chair chair-br"></span>
           <div class="table-card status-${cls}" onclick="if(tableEditMode) return; if(shouldIgnoreTableClick()) return; openTableOrder('${t.id}')" oncontextmenu="event.preventDefault(); reserveTableContextMenu('${t.id}')">
             <div class="table-accent-bar"></div>
-            <div class="d-flex justify-content-between align-items-start">
+            ${t.icon && t.icon !== 'none' ? `<div class="d-flex justify-content-between align-items-start">
               <div class="table-icon ${tableIconClass(t)}"><i class="${t.icon}"></i></div>
               ${adminActions}
-            </div>
+            </div>` : (adminActions ? `<div class="d-flex justify-content-end">${adminActions}</div>` : '')}
             <div class="table-card-body">
               <h5>${escapeHtml(t.name)}</h5>
               <div class="mb-2"><span class="status-dot status-${cls}"></span>${escapeHtml(statusText)}</div>
@@ -7460,6 +7461,20 @@
       moveAllTables = !moveAllTables;
       updateTableModeUI();
       toast(moveAllTables ? 'Arrastra una mesa y se moverán TODAS juntas' : 'Mover mesa individual', 'info');
+    }
+    // Quitar o poner iconos a TODAS las mesas (parejas).
+    function toggleAllTableIcons(){
+      if(!requireAdmin('cambiar iconos de mesas')) return;
+      const hasIcons = state.tables.some(t => t.icon && t.icon !== 'none');
+      if(hasIcons){
+        state.tables.forEach(t => { t.icon = 'none'; });
+        toast('Iconos quitados de todas las mesas', 'info');
+      } else {
+        state.tables.forEach(t => { t.icon = iconForKind(t.kind); });
+        toast('Iconos restaurados en todas las mesas', 'success');
+      }
+      persistAll();
+      renderTables();
     }
     function autoArrangeTables(){
       if(!requireAdmin('ordenar mesas')) return;
@@ -7660,7 +7675,8 @@
     function renderIconPicker(activeIcon){
       selectedTableIcon = activeIcon || selectedTableIcon;
       const picker = document.getElementById('tableIconPicker');
-      picker.innerHTML = ICONS.map(ic => `
+      const noneOption = `<div class="col-6 col-md-3"><button type="button" class="${selectedTableIcon === 'none' ? 'active' : ''}" onclick="selectIcon('none')"><i class="fa-solid fa-ban fa-lg mb-2"></i><div class="small fw-bold">Sin icono</div></button></div>`;
+      picker.innerHTML = noneOption + ICONS.map(ic => `
         <div class="col-6 col-md-3">
           <button type="button" class="${selectedTableIcon === ic.key ? 'active' : ''}" onclick="selectIcon('${ic.key}')">
             <i class="${ic.key} fa-lg mb-2"></i><div class="small fw-bold">${ic.label}</div>

@@ -8401,8 +8401,9 @@ const colors = [
         ...record,
         orders:Array.isArray(record.orders) ? record.orders.filter(id => id !== orderId) : record.orders
       }));
-      // Delete order completely from state
+      // Delete order completely from state AND from cloud database.
       state.orders = state.orders.filter(o => o.id !== orderId);
+      deleteItemFromCloud('orders', orderId);
       // Recalcular el estado de la mesa (si no tiene más pedidos, queda Disponible).
       if(order.tableId) updateMultiOrderTableStatus(order.tableId);
       persistAll();
@@ -8422,6 +8423,7 @@ const colors = [
         onConfirm: () => {
           recordDeletedOrder({ kind:'Pedido', reason:'Eliminado desde caja (pedido abierto/error)', order:JSON.parse(JSON.stringify(order)) });
           state.orders = state.orders.filter(o => o.id !== orderId);
+          deleteItemFromCloud('orders', orderId);
           updateMultiOrderTableStatus(order.tableId);
           persistAll();
           forceCloudSyncNow();

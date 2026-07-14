@@ -2502,12 +2502,13 @@
     .kitchen-timer.is-late strong { animation: uxLatePulse 1.1s ease-in-out infinite; }
     @keyframes uxLatePulse { 0%,100% { opacity:1; } 50% { opacity:.45; } }
 
-    .table-elapsed { display:inline-flex; align-items:center; gap:4px; font-size:.62rem; font-weight:800;
-      padding:1px 6px; border-radius:999px; margin-top:2px; }
-    .table-elapsed.t-ok { background:rgba(var(--primary-rgb),.12); color:var(--primary); }
-    .table-elapsed.t-warn { background:rgba(245,158,11,.16); color:#b45309; }
-    .table-elapsed.t-late { background:rgba(239,68,68,.16); color:#dc2626; }
-    body.dark-mode .table-elapsed.t-warn { color:#fbbf24; }
+    .table-elapsed { display:inline-flex; align-items:center; gap:4px; font-size:.68rem; font-weight:800;
+      padding:3px 9px; border-radius:999px; margin-top:2px; white-space:nowrap; }
+    .table-elapsed.is-ok { background:rgba(34,197,94,.14); color:#16a34a; }
+    .table-elapsed.is-overdue { background:rgba(239,68,68,.16); color:#dc2626; animation:uxOverduePulse 1.2s ease-in-out infinite; }
+    @keyframes uxOverduePulse { 0%,100%{ opacity:1; } 50%{ opacity:.5; } }
+    body.dark-mode .table-elapsed.is-ok { color:#4ade80; }
+    body.dark-mode .table-elapsed.is-overdue { color:#f87171; }
 
     .ux-pay-ok { position:fixed; inset:0; z-index:4000; display:grid; place-items:center;
       background:rgba(15,23,42,.35); animation:uxFadeIn .18s ease both; }
@@ -3674,6 +3675,10 @@
               </select>
             </div>
             <div class="col-md-6">
+              <label class="form-label">Tiempo estimado (min)</label>
+              <input id="tablePrepTimeInput" class="form-control" type="number" min="5" max="180" step="5" value="30" placeholder="30">
+            </div>
+            <div class="col-md-6">
               <label class="form-label">Estado</label>
               <select id="tableStatusInput" class="form-select">
                 <option value="Disponible">Libre</option>
@@ -4732,6 +4737,7 @@
     const TABLE_MIN_SIZE = 96;
     const TABLE_MAX_SIZE = 220;
     const TABLE_DEFAULT_SIZE = 118;
+    const TABLE_DEFAULT_PREP_TIME = 30; // Tiempo estimado por defecto (minutos)
     const TABLE_CANVAS_MIN_WIDTH = 1400;
     const TABLE_CANVAS_MIN_HEIGHT = 910;
     // Zoom del salon de mesas (estilo Google Maps): Ctrl + rueda o pellizco.
@@ -7342,19 +7348,30 @@
         </div>
       `;
     }
-    // Badge con el tiempo que lleva ocupada la mesa (igual que cocina).
+    // Cronómetro de cuenta regresiva: del tiempo estimado hasta 0.
+    // Si queda tiempo → verde. Si se pasa → negativo en rojo.
     function tableElapsedHtml(t){
       if(!t || t.status === 'Disponible' || t.status === 'Reservada') return '';
-      // Usar orderStartedAt (que se actualiza al guardar comanda) como referencia.
       const startStr = t.orderStartedAt;
       if(!startStr) return '';
       const start = new Date(startStr).getTime();
       if(!start || isNaN(start)) return '';
-      const mins = Math.floor((Date.now() - start) / 60000);
-      // Si supera 24h es un dato viejo, no mostrar.
-      if(mins > 1440 || mins < 0) return '';
-      const label = mins < 60 ? `${mins} min` : `${Math.floor(mins/60)} h ${mins%60} min`;
-      const cls = mins > 45 ? 'is-late' : mins > 20 ? 'is-warning' : '';
+      const elapsed = Math.floor((Date.now() - start) / 60000);
+      // Si supera 24h es un dato viejo.
+      if(elapsed > 1440 || elapsed < 0) return '';
+      const prepTime = Number(t.prepTime || TABLE_DEFAULT_PREP_TIME);
+      const remaining = prepTime - elapsed;
+      let label, cls;
+      if(remaining > 0){
+        // Aún tiene tiempo → verde
+        label = remaining < 60 ? `${remaining} min` : `${Math.floor(remaining/60)}h ${remaining%60}m`;
+        cls = 'is-ok';
+      } else {
+        // Se pasó del tiempo → negativo en rojo
+        const overdue = Math.abs(remaining);
+        label = overdue < 60 ? `-${overdue} min` : `-${Math.floor(overdue/60)}h ${overdue%60}m`;
+        cls = 'is-overdue';
+      }
       return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i> ${label}</span>`;
     }
     function tableActiveTotal(table, openCount = 0){
@@ -7624,6 +7641,7 @@
       document.getElementById('tableSizeInput').value = table ? tableSize(table) : TABLE_DEFAULT_SIZE;
       document.getElementById('tableStatusInput').value = table ? (table.status || 'Disponible') : 'Disponible';
       setValue('tableShapeInput', table ? (table.shape || 'square') : 'square');
+      setValue('tablePrepTimeInput', table ? (table.prepTime || TABLE_DEFAULT_PREP_TIME) : TABLE_DEFAULT_PREP_TIME);
       renderIconPicker(table ? table.icon : selectedTableIcon); modals.table.show();
     }
     function renderIconPicker(activeIcon){
@@ -7645,10 +7663,11 @@
       const size = clampNumber(document.getElementById('tableSizeInput').value || TABLE_DEFAULT_SIZE, TABLE_MIN_SIZE, TABLE_MAX_SIZE);
       const status = document.getElementById('tableStatusInput').value || 'Disponible';
       const shape = byId('tableShapeInput')?.value || 'square';
+      const prepTime = clampNumber(byId('tablePrepTimeInput')?.value || TABLE_DEFAULT_PREP_TIME, 5, 180);
       if(!name){ toast('Escribe un nombre para la mesa', 'warning'); return; }
-      if(editingTableId){ const table = state.tables.find(t => t.id === editingTableId); if(table){ table.name = name; table.kind = kind; table.icon = selectedTableIcon; table.size = size; table.status = status; table.shape = shape; } }
+      if(editingTableId){ const table = state.tables.find(t => t.id === editingTableId); if(table){ table.name = name; table.kind = kind; table.icon = selectedTableIcon; table.size = size; table.status = status; table.shape = shape; table.prepTime = prepTime; } }
       else {
-        const table = { id: uid(), name, kind, icon:selectedTableIcon, status, orderId:null, size, shape };
+        const table = { id: uid(), name, kind, icon:selectedTableIcon, status, orderId:null, size, shape, prepTime };
         ensureTablePosition(table, state.tables.length);
         state.tables.push(table);
       }

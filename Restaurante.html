@@ -616,48 +616,39 @@
     .table-node.dragging .table-card, .table-node.resizing .table-card{ transform:scale(1.02); cursor:grabbing; box-shadow:0 22px 48px rgba(15,23,42,.22); }
     .table-node.is-locked{ touch-action:auto; }
     .table-card::after{ display:none !important; }
-    /* === Mesa idéntica a la referencia: 2 sillas arriba + barra verde izquierda === */
+    /* === Mesa idéntica a la referencia === */
+    /* Sillas semicirculares a los LADOS (izquierda y derecha) */
     .table-node::before{
-      /* 2 sillas semicirculares arriba (separadas) */
       content:'';
       position:absolute;
-      top:-11px;
-      left:18%;
-      right:18%;
-      height:14px;
+      top:20%;
+      bottom:20%;
+      left:-12px;
+      right:-12px;
       z-index:0;
       pointer-events:none;
       background:
-        radial-gradient(ellipse at 25% 100%, var(--primary) 0 60%, transparent 62%) 0 0 / 50% 100% no-repeat,
-        radial-gradient(ellipse at 75% 100%, var(--primary) 0 60%, transparent 62%) 100% 0 / 50% 100% no-repeat;
+        radial-gradient(circle at 0% 30%, var(--primary) 0 10px, transparent 11px) left top / 22px 50% no-repeat,
+        radial-gradient(circle at 0% 70%, var(--primary) 0 10px, transparent 11px) left bottom / 22px 50% no-repeat,
+        radial-gradient(circle at 100% 30%, var(--primary) 0 10px, transparent 11px) right top / 22px 50% no-repeat,
+        radial-gradient(circle at 100% 70%, var(--primary) 0 10px, transparent 11px) right bottom / 22px 50% no-repeat;
     }
     .table-node::after{
-      /* Barra verde lateral izquierda (toda la altura) */
-      content:'';
-      position:absolute;
-      left:-1px;
-      top:8%;
-      bottom:8%;
-      width:6px;
-      border-radius:0 5px 5px 0;
-      background:var(--primary);
-      z-index:2;
-      pointer-events:none;
+      /* NO hay barra lateral — se eliminó */
+      display:none;
     }
-    /* Mesa ocupada: sillas y barra en rojo */
+    /* Mesa ocupada: sillas en rojo */
     .table-node:has(.status-occupied)::before,
     .table-node:has(.status-billing)::before{
       background:
-        radial-gradient(ellipse at 25% 100%, #ef4444 0 60%, transparent 62%) 0 0 / 50% 100% no-repeat,
-        radial-gradient(ellipse at 75% 100%, #ef4444 0 60%, transparent 62%) 100% 0 / 50% 100% no-repeat;
-    }
-    .table-node:has(.status-occupied)::after,
-    .table-node:has(.status-billing)::after{
-      background:#ef4444;
+        radial-gradient(circle at 0% 30%, #ef4444 0 10px, transparent 11px) left top / 22px 50% no-repeat,
+        radial-gradient(circle at 0% 70%, #ef4444 0 10px, transparent 11px) left bottom / 22px 50% no-repeat,
+        radial-gradient(circle at 100% 30%, #ef4444 0 10px, transparent 11px) right top / 22px 50% no-repeat,
+        radial-gradient(circle at 100% 70%, #ef4444 0 10px, transparent 11px) right bottom / 22px 50% no-repeat;
     }
     /* Mesa rectangular con esquinas redondeadas */
     .table-node .table-card{
-      border-radius:12px !important;
+      border-radius:14px !important;
       position:relative;
       z-index:1;
       background:#fff;
@@ -668,29 +659,26 @@
       background:#1e293b;
       border-color:#334155;
     }
-    /* Hover: fondo verde, titulo blanco */
+    /* Ocupada: borde rojo */
+    .table-node .table-card.status-occupied,
+    .table-node .table-card.status-billing{
+      border-color:#fecaca !important;
+    }
+    body.dark-mode .table-node .table-card.status-occupied,
+    body.dark-mode .table-node .table-card.status-billing{
+      border-color:#7f1d1d !important;
+    }
+    /* Titulos siempre negros (oscuros) */
+    .table-node .table-card h5{ color:#1e293b !important; }
+    body.dark-mode .table-node .table-card h5{ color:#f8fafc !important; }
+    /* Hover disponible: fondo verde, titulo blanco */
     .table-node .table-card:hover{
       background:var(--primary) !important;
       border-color:var(--primary) !important;
     }
     .table-node .table-card:hover h5,
     .table-node .table-card:hover .table-card-body > .mb-2{ color:#fff !important; }
-    /* Ocupada: titulo negro, fondo blanco */
-    .table-node .table-card.status-occupied,
-    .table-node .table-card.status-billing{
-      background:#fff !important;
-      border-color:#fecaca !important;
-    }
-    body.dark-mode .table-node .table-card.status-occupied,
-    body.dark-mode .table-node .table-card.status-billing{
-      background:#1e293b !important;
-      border-color:#7f1d1d !important;
-    }
-    .table-node .table-card.status-occupied h5,
-    .table-node .table-card.status-billing h5{ color:#1e293b !important; }
-    body.dark-mode .table-node .table-card.status-occupied h5,
-    body.dark-mode .table-node .table-card.status-billing h5{ color:#f8fafc !important; }
-    /* Hover en ocupada: fondo rojo, titulo blanco */
+    /* Hover ocupada: fondo rojo, titulo blanco */
     .table-node .table-card.status-occupied:hover,
     .table-node .table-card.status-billing:hover{
       background:#ef4444 !important;
@@ -7300,20 +7288,20 @@
         </div>
       `;
     }
-    // Badge con el tiempo que lleva ocupada la mesa (color escala con el tiempo).
+    // Badge con el tiempo que lleva ocupada la mesa (igual que cocina).
     function tableElapsedHtml(t){
-      if(!t || !t.orderStartedAt) return '';
-      if(t.status !== 'Ocupada' && t.status !== 'En proceso de pago') return '';
-      const start = new Date(t.orderStartedAt).getTime();
+      if(!t || t.status === 'Disponible' || t.status === 'Reservada') return '';
+      // Usar orderStartedAt (que se actualiza al guardar comanda) como referencia.
+      const startStr = t.orderStartedAt;
+      if(!startStr) return '';
+      const start = new Date(startStr).getTime();
       if(!start || isNaN(start)) return '';
       const mins = Math.floor((Date.now() - start) / 60000);
-      // Si la fecha de inicio es mayor a 24h, probablemente es un dato viejo
-      // de un pedido que quedó huérfano. Mostrar desde updatedAt en su lugar.
-      if(mins > 1440) return '';
-      if(mins < 0) return '';
-      const cls = mins >= 60 ? 't-late' : (mins >= 30 ? 't-warn' : 't-ok');
-      const label = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins} min`;
-      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i>${label}</span>`;
+      // Si supera 24h es un dato viejo, no mostrar.
+      if(mins > 1440 || mins < 0) return '';
+      const label = mins < 60 ? `${mins} min` : `${Math.floor(mins/60)} h ${mins%60} min`;
+      const cls = mins > 45 ? 'is-late' : mins > 20 ? 'is-warning' : '';
+      return `<span class="table-elapsed ${cls}"><i class="fa-regular fa-clock"></i> ${label}</span>`;
     }
     function tableActiveTotal(table, openCount = 0){
       const orderComputedTotal = order => {

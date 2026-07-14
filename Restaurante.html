@@ -5589,7 +5589,7 @@
         const lowerNames = new Set((state.tables || []).map(t => String(t.name || '').toLowerCase()));
         defaultTables().forEach(t => { if(!lowerNames.has(t.name.toLowerCase())) state.tables.push(t); });
       }
-      state.tables.filter(t => t.kind === 'Caja').forEach(t => { t.name = 'CAJA'; t.icon = 'fa-solid fa-box-archive'; });
+      state.tables.filter(t => t.kind === 'Caja').forEach(t => { t.name = 'CAJA'; if(localStorage.getItem('combatti_tables_icons_off') !== '1') t.icon = 'fa-solid fa-box-archive'; });
       state.tables.forEach(t => {
         const name = String(t.name || '').toLowerCase();
         if(name.includes('rappi')) t.kind = 'Rappi';
@@ -5617,6 +5617,10 @@
       state.deletedOrders = Array.isArray(state.deletedOrders) ? state.deletedOrders : [];
       dedupeStateCollections();
       state.tables.forEach((table, index) => normalizeTable(table, index));
+      // Respetar preferencia de "sin iconos" al cargar desde IndexedDB.
+      if(localStorage.getItem('combatti_tables_icons_off') === '1'){
+        state.tables.forEach(t => { t.icon = 'none'; });
+      }
     }
     function applyTableLayoutPresetOnce(){
       if(state.tableLayoutVersion === TABLE_LAYOUT_VERSION) return;
@@ -7281,6 +7285,10 @@
       const keepLeft = grid.scrollLeft;
       const keepTop = grid.scrollTop;
       state.tables.forEach((table, index) => normalizeTable(table, index));
+      // Respetar "sin iconos" si el admin lo configuró así.
+      if(localStorage.getItem('combatti_tables_icons_off') === '1'){
+        state.tables.forEach(t => { if(t.icon !== 'none') t.icon = 'none'; });
+      }
       updateTableModeUI();
       const filtered = state.tables.filter(t => tableFilter === 'all' ? true : t.kind === tableFilter);
       // Tamano natural del contenido segun las posiciones reales de las mesas.
@@ -7469,9 +7477,11 @@
       const hasIcons = state.tables.some(t => t.icon && t.icon !== 'none');
       if(hasIcons){
         state.tables.forEach(t => { t.icon = 'none'; t._seq = Date.now(); t._device = CLOUD_DEVICE_ID; });
+        localStorage.setItem('combatti_tables_icons_off', '1');
         toast('Iconos quitados de todas las mesas', 'info');
       } else {
         state.tables.forEach(t => { t.icon = iconForKind(t.kind); t._seq = Date.now(); t._device = CLOUD_DEVICE_ID; });
+        localStorage.removeItem('combatti_tables_icons_off');
         toast('Iconos restaurados en todas las mesas', 'success');
       }
       persistAll(false);
@@ -14319,6 +14329,14 @@ function handleAWSMessage(msg) {
         });
       }
       state[coll] = items;
+      // Si las mesas locales tenían iconos quitados ('none') y la nube trae iconos viejos,
+      // respetar la preferencia local de "sin iconos".
+      if(coll === 'tables'){
+        const iconsDisabled = localStorage.getItem('combatti_tables_icons_off') === '1';
+        if(iconsDisabled){
+          state.tables.forEach(t => { t.icon = 'none'; });
+        }
+      }
       // Recuerda lo recibido para no reenviarlo luego (evita eco/churn).
       items.forEach(it => rememberCloudShadow(coll, it));
       isApplyingRemoteState = false;

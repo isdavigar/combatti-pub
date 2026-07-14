@@ -8403,9 +8403,12 @@ const colors = [
       }));
       // Delete order completely from state
       state.orders = state.orders.filter(o => o.id !== orderId);
+      // Recalcular el estado de la mesa (si no tiene más pedidos, queda Disponible).
+      if(order.tableId) updateMultiOrderTableStatus(order.tableId);
       persistAll();
       forceCloudSyncNow();
       renderMultiOrderHub();
+      renderTables();
       toast('Pedido eliminado de todos los dispositivos', 'info');
     }
     function deleteOpenCajaOrder(orderId){
@@ -8423,6 +8426,7 @@ const colors = [
           persistAll();
           forceCloudSyncNow();
           renderMultiOrderHub();
+          renderTables();
           toast('Pedido eliminado', 'info');
         }
       });

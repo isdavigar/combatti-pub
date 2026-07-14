@@ -7352,6 +7352,9 @@
     // Si queda tiempo → verde. Si se pasa → negativo en rojo.
     function tableElapsedHtml(t){
       if(!t || t.status === 'Disponible' || t.status === 'Reservada') return '';
+      // Solo mostrar el cronómetro si la mesa tiene un pedido con productos (comanda guardada).
+      const order = state.orders.find(o => o.id === t.orderId && !isClosedOrder(o));
+      if(!order || !order.items || !order.items.some(it => Number(it.qty || 0) > 0)) return '';
       const startStr = t.orderStartedAt;
       if(!startStr) return '';
       const start = new Date(startStr).getTime();

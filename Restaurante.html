@@ -6140,6 +6140,10 @@
       licenseState.local = { ...licenseState.local, ...settings, databaseUrl:normalizeDatabaseUrl(databaseUrl) };
       localStorage.setItem(LICENSE_LOCAL_KEY, JSON.stringify(licenseState.local));
     }
+    // Devuelve la config de licencia para sincronizar a otros dispositivos via la nube.
+    function licenseConfigForSync(){
+      return { ...licenseState.local };
+    }
     function getCachedRemoteLicense(){
       try{ return JSON.parse(localStorage.getItem(LICENSE_CACHE_KEY) || 'null'); }
       catch(_){ return null; }
@@ -6527,8 +6531,8 @@
       modals.licenseConfig?.hide();
       renderLicenseUi();
       refreshLicenseStatus(true);
-      // Comparte la configuración de licencia con los demás dispositivos.
-      if(typeof queueCloudPush === 'function') queueCloudPush();
+      // Propagar la configuración de licencia a todos los dispositivos via la nube.
+      pushConfigToCloud();
       toast('Licencia guardada y sincronizada en todos los dispositivos', 'success');
     }
     function bindLicenseButtons(){

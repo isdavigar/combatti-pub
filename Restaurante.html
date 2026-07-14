@@ -616,27 +616,74 @@
     .table-node.dragging .table-card, .table-node.resizing .table-card{ transform:scale(1.02); cursor:grabbing; box-shadow:0 22px 48px rgba(15,23,42,.22); }
     .table-node.is-locked{ touch-action:auto; }
     .table-card::after{ display:none !important; }
-    /* Sillas grises alrededor de cada mesa */
+    /* Sillas semicirculares verdes alrededor de cada mesa (forma rectangular) */
     .table-node::before,
     .table-node::after{
       content:'';
       position:absolute;
       z-index:0;
       pointer-events:none;
-      opacity:1;
     }
     .table-node::before{
-      inset:0 -14px;
+      inset:15% -10px;
       background:
-        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) left center / 14px 44px no-repeat,
-        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) right center / 14px 44px no-repeat;
+        radial-gradient(ellipse 100% 80% at 0% 50%, var(--primary) 0 48%, transparent 50%) left center / 18px 36px no-repeat,
+        radial-gradient(ellipse 100% 80% at 100% 50%, var(--primary) 0 48%, transparent 50%) right center / 18px 36px no-repeat;
     }
     .table-node::after{
-      inset:-14px 0;
+      inset:-10px 20%;
       background:
-        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) top center / 44px 14px no-repeat,
-        radial-gradient(ellipse at center, #cbd5e1 0 65%, transparent 67%) bottom center / 44px 14px no-repeat;
+        radial-gradient(ellipse 80% 100% at 50% 0%, var(--primary) 0 48%, transparent 50%) top center / 36px 18px no-repeat,
+        radial-gradient(ellipse 80% 100% at 50% 100%, var(--primary) 0 48%, transparent 50%) bottom center / 36px 18px no-repeat;
     }
+    /* Mesa rectangular con esquinas redondeadas */
+    .table-node .table-card{
+      border-radius:12px !important;
+      position:relative;
+      z-index:1;
+    }
+
+    /* === Barra de estado de mesas === */
+    .tables-status-bar{
+      display:flex;
+      align-items:center;
+      gap:18px;
+      flex-wrap:wrap;
+      background:#1a1a2e;
+      border-radius:16px;
+      padding:14px 20px;
+      color:#fff;
+    }
+    body:not(.dark-mode) .tables-status-bar{
+      background:#f1f5f9;
+      color:#1e293b;
+    }
+    .tables-status-title{ font-size:1.2rem; font-weight:900; margin:0; white-space:nowrap; }
+    body:not(.dark-mode) .tables-status-title{ color:#0f172a; }
+    .tables-status-chips{ display:flex; gap:10px; flex-wrap:wrap; }
+    .tables-status-chip{
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:rgba(255,255,255,.08); border-radius:12px; padding:8px 14px; min-width:80px;
+      border:1px solid rgba(255,255,255,.12);
+    }
+    body:not(.dark-mode) .tables-status-chip{
+      background:#fff; border-color:var(--border); box-shadow:0 2px 8px rgba(0,0,0,.05);
+    }
+    .tables-status-chip .chip-count{ font-size:1.3rem; font-weight:900; line-height:1; }
+    .tables-status-chip .chip-label{ font-size:.7rem; font-weight:600; opacity:.75; margin-top:2px; }
+    .tables-status-chip.available .chip-count{ color:#22c55e; }
+    .tables-status-chip.reserved .chip-count{ color:#f59e0b; }
+    .tables-status-chip.occupied .chip-count{ color:#ef4444; }
+    .tables-status-progress{ display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px; }
+    .tables-status-progress-label{ font-size:.72rem; font-weight:600; opacity:.6; }
+    .tables-status-progress-bar{
+      display:flex; height:10px; border-radius:99px; overflow:hidden; background:rgba(255,255,255,.1);
+    }
+    body:not(.dark-mode) .tables-status-progress-bar{ background:#e2e8f0; }
+    .tables-status-progress-bar .seg{ transition:width .3s ease; }
+    .tables-status-progress-bar .seg-available{ background:#22c55e; }
+    .tables-status-progress-bar .seg-reserved{ background:#f59e0b; }
+    .tables-status-progress-bar .seg-occupied{ background:#ef4444; }
     .table-card.status-available,
     .table-card.status-occupied,
     .table-card.status-billing,
@@ -676,12 +723,6 @@
       border-color:#d97706;
       color:#fff;
     }
-    .table-card::before{ display:none !important; }
-      left:0;
-      top:10px;
-      bottom:10px;
-      width:12px;
-      border-radius:0 7px 7px 0;
     .table-card::before,
     .table-card:hover::before,
     .table-card::after{ display:none !important; }
@@ -2970,21 +3011,28 @@
 
       <section id="view-mesas" class="view">
         <div class="glass-card p-4 mb-4">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div>
-              <h5 class="section-title mb-1">Gestión de mesas</h5>
-              <p class="section-subtitle mb-0">Acerca o aleja con los botones (o <strong>Ctrl + rueda</strong> / <strong>pellizco</strong>). El admin puede mover las mesas en <strong>Editar posiciones</strong>.</p>
+          <!-- Barra de estado de mesas (estilo dashboard oscuro) -->
+          <div class="tables-status-bar" id="tablesStatusBar">
+            <h5 class="tables-status-title">Mesas</h5>
+            <div class="tables-status-chips">
+              <div class="tables-status-chip available"><span class="chip-count" id="tablesAvailableCount">0</span><span class="chip-label">Disponibles</span></div>
+              <div class="tables-status-chip reserved"><span class="chip-count" id="tablesReservedCount">0</span><span class="chip-label">Reservadas</span></div>
+              <div class="tables-status-chip occupied"><span class="chip-count" id="tablesOccupiedCount">0</span><span class="chip-label">Ocupadas</span></div>
             </div>
-            <div class="d-flex gap-2 flex-wrap align-items-center">
-              <div class="btn-group" role="group" aria-label="Zoom de mesas">
-                <button class="btn btn-outline-secondary btn-pill" onclick="applyTableZoom(tableZoom - 0.2)" title="Alejar"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-                <button class="btn btn-outline-secondary btn-pill" onclick="resetTableZoom()" title="Restablecer zoom"><i class="fa-solid fa-expand"></i></button>
-                <button class="btn btn-outline-secondary btn-pill" onclick="applyTableZoom(tableZoom + 0.2)" title="Acercar"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+            <div class="tables-status-progress">
+              <span class="tables-status-progress-label">Estado de mesas</span>
+              <div class="tables-status-progress-bar" id="tablesProgressBar">
+                <div class="seg seg-available" id="tablesProgressAvailable"></div>
+                <div class="seg seg-reserved" id="tablesProgressReserved"></div>
+                <div class="seg seg-occupied" id="tablesProgressOccupied"></div>
               </div>
-              <button class="btn btn-success btn-pill" data-system-admin-only onclick="openTableModal('Mesa')"><i class="fa-solid fa-plus me-2"></i>Nueva mesa</button>
-              <button id="tableModeButton" class="btn btn-primary-soft btn-pill" data-system-admin-only onclick="toggleTableEditMode()"><i class="fa-solid fa-pen-ruler me-2"></i>Editar posiciones</button>
-              <button class="btn btn-outline-secondary btn-pill" data-system-admin-only onclick="autoArrangeTables()"><i class="fa-solid fa-table-cells me-2"></i>Ordenar</button>
             </div>
+          </div>
+          <!-- Botones admin (solo admin del sistema) -->
+          <div class="d-flex gap-2 flex-wrap mt-3" data-system-admin-only>
+            <button class="btn btn-success btn-pill" onclick="openTableModal('Mesa')"><i class="fa-solid fa-plus me-2"></i>Nueva mesa</button>
+            <button id="tableModeButton" class="btn btn-primary-soft btn-pill" onclick="toggleTableEditMode()"><i class="fa-solid fa-pen-ruler me-2"></i>Editar posiciones</button>
+            <button class="btn btn-outline-secondary btn-pill" onclick="autoArrangeTables()"><i class="fa-solid fa-table-cells me-2"></i>Ordenar</button>
           </div>
           
           <div id="tablesGrid" class="tables-floor"></div>
@@ -7140,6 +7188,24 @@
       grid.scrollLeft = 0;
       grid.scrollTop = keepTop;
       bindTableDragHandlers();
+      updateTablesStatusBar();
+    }
+    // Actualiza la barra de estado de mesas (disponibles/reservadas/ocupadas + barra de progreso)
+    function updateTablesStatusBar(){
+      const all = state.tables.filter(t => t.kind !== 'Caja');
+      const available = all.filter(t => t.status === 'Disponible').length;
+      const reserved = all.filter(t => t.status === 'Reservada').length;
+      const occupied = all.filter(t => t.status !== 'Disponible' && t.status !== 'Reservada').length;
+      const total = Math.max(1, all.length);
+      setText('tablesAvailableCount', available);
+      setText('tablesReservedCount', reserved);
+      setText('tablesOccupiedCount', occupied);
+      const pAvail = byId('tablesProgressAvailable');
+      const pRes = byId('tablesProgressReserved');
+      const pOcc = byId('tablesProgressOccupied');
+      if(pAvail) pAvail.style.width = `${(available / total * 100).toFixed(1)}%`;
+      if(pRes) pRes.style.width = `${(reserved / total * 100).toFixed(1)}%`;
+      if(pOcc) pOcc.style.width = `${(occupied / total * 100).toFixed(1)}%`;
     }
     function tableNodeHtml(t){
       const size = tableSize(t);

@@ -9787,11 +9787,19 @@ td{padding:8px;border-bottom:1px solid #eee;vertical-align:top}
       } catch(_){}
     }
     function kitchenOrders(){
-      const openOrderIds = new Set((state.orders || []).filter(order => !isClosedOrder(order)).map(order => order.id));
+      const openOrders = (state.orders || []).filter(order => !isClosedOrder(order) && orderIsActiveOccupying(order));
+      // Primero intentar con tickets de cocina (fuente ideal).
       const tickets = Array.isArray(state.kitchenTickets) ? state.kitchenTickets : [];
-      return tickets
+      const openOrderIds = new Set(openOrders.map(o => o.id));
+      const ticketOrders = tickets
         .filter(ticket => openOrderIds.has(ticket.orderId) && ticket.kitchenStatus !== 'Pagado')
         .sort((a,b) => new Date(a.sentToKitchenAt || a.createdAt || 0) - new Date(b.sentToKitchenAt || b.createdAt || 0));
+      // Si hay tickets, usarlos. Si no, mostrar los pedidos abiertos directamente.
+      if(ticketOrders.length) return ticketOrders;
+      // Fallback: mostrar pedidos abiertos como si fueran tickets (para que cocina vea algo).
+      return openOrders
+        .map(o => ({ ...o, orderId:o.id, tableName:o.tableName || 'Pedido', sentToKitchenAt:o.updatedAt || o.createdAt, readyAt: o.readyAt || new Date(new Date(o.updatedAt || o.createdAt || Date.now()).getTime() + (TABLE_DEFAULT_PREP_TIME * 60000)).toISOString() }))
+        .sort((a,b) => new Date(a.sentToKitchenAt || 0) - new Date(b.sentToKitchenAt || 0));
     }
     // Envía un BEEP (pitido) a la impresora térmica de COCINA vía QZ Tray.
     // ESC/POS: 1B 42 n t  -> n pitidos de t*100ms. Suena en la impresora, no en el PC.
@@ -14799,6 +14807,31 @@ function uxInitBottomNav(){
 
 // Timer de ocupación de mesas desactivado para evitar refrescos innecesarios.
 // El timer se actualiza solo al navegar a la vista de mesas o al recibir cambios.
+// Actualizar los cronómetros de mesas en tiempo real (solo el texto, sin re-renderizar).
+setInterval(() => {
+  const mesas = document.getElementById('view-mesas');
+  if(!mesas || !mesas.classList.contains('active')) return;
+  document.querySelectorAll('.table-node').forEach(node => {
+    const tid = node.dataset.tableId;
+    const t = (typeof state !== 'undefined' && Array.isArray(state.tables)) ? state.tables.find(x => x.id === tid) : null;
+    if(!t || t.status === 'Disponible' || t.status === 'Reservada') return;
+    const el = node.querySelector('.table-elapsed');
+    if(!el) return;
+    const start = t.orderStartedAt ? new Date(t.orderStartedAt).getTime() : 0;
+    if(!start) return;
+    const prepTime = Number(t.prepTime || (typeof TABLE_DEFAULT_PREP_TIME !== 'undefined' ? TABLE_DEFAULT_PREP_TIME : 30));
+    const readyAt = start + (prepTime * 60000);
+    const diff = readyAt - Date.now();
+    if(Math.abs(diff) > 86400000) return;
+    const late = diff < 0;
+    const totalSeconds = Math.floor(Math.abs(diff) / 1000);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    const text = `${late ? '+' : ''}${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+    el.innerHTML = `<i class="fa-regular fa-clock"></i> ${text}`;
+    el.className = `table-elapsed ${late ? 'is-overdue' : 'is-ok'}`;
+  });
+}, 1000);
 
 document.addEventListener('DOMContentLoaded', () => { setTimeout(uxInitBottomNav, 800); });
 if(document.readyState !== 'loading'){ setTimeout(uxInitBottomNav, 800); }

@@ -695,6 +695,7 @@
     }
     .table-node .table-card:hover h5,
     .table-node .table-card:hover .table-card-body > .mb-2{ color:#fff !important; }
+    .table-node .table-card:hover .table-icon{ background:rgba(255,255,255,.22) !important; color:#fff !important; }
     /* Hover ocupada: fondo rojo, titulo blanco */
     .table-node .table-card.status-occupied:hover,
     .table-node .table-card.status-billing:hover{
@@ -860,11 +861,10 @@
     .table-card.status-occupied .table-icon,
     .table-card.status-billing .table-icon{ background:rgba(239,68,68,.15) !important; color:#dc2626 !important; }
     .table-card.status-reserved .table-icon{ background:rgba(245,158,11,.15) !important; color:#d97706 !important; }
-    .table-card.status-available:hover .table-icon{ background:linear-gradient(135deg, #22c55e, #15803d); }
-    .table-card.status-occupied:hover .table-icon{ background:linear-gradient(135deg, #f87171, #dc2626); }
-    .table-card.status-reserved:hover .table-icon{ background:linear-gradient(135deg, #f59e0b, #d97706); }
-    .table-card.status-billing .table-icon,
-    .table-card.status-billing:hover .table-icon{ background:linear-gradient(135deg, #ef4444, #b91c1c); }
+    .table-card.status-available:hover .table-icon{ background:rgba(255,255,255,.25) !important; color:#fff !important; }
+    .table-card.status-occupied:hover .table-icon{ background:rgba(255,255,255,.25) !important; color:#fff !important; }
+    .table-card.status-reserved:hover .table-icon{ background:rgba(255,255,255,.25) !important; color:#fff !important; }
+    .table-card.status-billing:hover .table-icon{ background:rgba(255,255,255,.25) !important; color:#fff !important; }
     .cash-history-row{ border:1px solid var(--border); border-radius:16px; padding:14px 16px; background:var(--card); box-shadow:0 4px 14px rgba(15,23,42,.05); transition:box-shadow .15s ease, border-color .15s ease; }
     .cash-history-row:hover{ border-color:rgba(var(--primary-rgb),.30); box-shadow:0 8px 24px rgba(var(--primary-rgb),.08); }
     .cash-history-row + .cash-history-row{ margin-top:12px; }

@@ -5839,7 +5839,8 @@
     }
     function normalizeTable(table, index = 0){
       table.status = table.status || 'Disponible';
-      table.icon = table.icon || ICONS[0].key;
+      // Respetar 'none' como valor válido (sin icono). Solo asignar default si no tiene nada.
+      if(!table.icon) table.icon = ICONS[0].key;
       table.kind = table.kind || 'Mesa';
       table.size = tableSize(table);
       ensureTablePosition(table, index);
@@ -7467,13 +7468,18 @@
       if(!requireAdmin('cambiar iconos de mesas')) return;
       const hasIcons = state.tables.some(t => t.icon && t.icon !== 'none');
       if(hasIcons){
-        state.tables.forEach(t => { t.icon = 'none'; });
+        state.tables.forEach(t => { t.icon = 'none'; t._seq = Date.now(); t._device = CLOUD_DEVICE_ID; });
         toast('Iconos quitados de todas las mesas', 'info');
       } else {
-        state.tables.forEach(t => { t.icon = iconForKind(t.kind); });
+        state.tables.forEach(t => { t.icon = iconForKind(t.kind); t._seq = Date.now(); t._device = CLOUD_DEVICE_ID; });
         toast('Iconos restaurados en todas las mesas', 'success');
       }
-      persistAll();
+      persistAll(false);
+      // Sincronizar CADA mesa a la nube para que el cambio de icono se propague.
+      state.tables.forEach(t => {
+        const docId = String(t.id || '');
+        if(docId) sendAWS({ action:'sync', type:'put', collection:'tables', docId, payload:t });
+      });
       renderTables();
     }
     function autoArrangeTables(){

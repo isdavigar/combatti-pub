@@ -16,8 +16,8 @@
     :root{
       --primary:var(--primary);
       --primary-2:#2563eb;
-      --primary-rgb:25, 195, 125;
-      --primary-dark:#0f9f63;
+      --primary-rgb:60, 208, 112;
+      --primary-dark:#28a85a;
       --default-login-image:url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1600&auto=format&fit=crop');
       --bg:#f4f7fb;
       --card:#ffffff;
@@ -3412,7 +3412,7 @@
               </div>
               <div class="mb-3">
                 <label class="form-label">Color principal</label>
-                <input id="brandColorInput" class="form-control form-control-color" type="color" value="#19c37d" style="width:100%;height:48px;">
+                <input id="brandColorInput" class="form-control form-control-color" type="color" value="#3cd070" style="width:100%;height:48px;">
               </div>
               <div class="mb-3">
                 <label class="form-label">Modo visual</label>
@@ -4757,7 +4757,7 @@
     let state = {
       users: [], tables: [], products: [], orders: [], movements: [], categories: [], supplies: [], deliveryZones: [], kitchenTickets: [], deletedOrders: [], layoutVersion: DATA_VERSION,
       cash: { open:false, openingAmount:0, openedAt:null, closedAt:null, closures:0, history:[] },
-      brand: { name:'Combatti PUB', color:'#19c37d', logo:'Combatti PUB', info:'', loginImage:'', loginGallery:[], theme:'light' }, theme: 'light', shift:'Dia', tableLayoutVersion:''
+      brand: { name:'Combatti PUB', color:'#3cd070', logo:'Combatti PUB', info:'', loginImage:'', loginGallery:[], theme:'light' }, theme: 'light', shift:'Dia', tableLayoutVersion:''
     };
     let currentUser = null, currentView = 'dashboard', tableFilter = 'all', productCategoryFilter = 'Todos',
         editingTableId = null, editingProductId = null, currentOrderTableId = null, currentOrder = null,
@@ -5746,11 +5746,11 @@
       return `#${next.map(v => v.toString(16).padStart(2, '0')).join('')}`;
     }
     function brandPrimaryColor(){
-      return String(state.brand?.color || '#19c37d').trim() || '#19c37d';
+      return String(state.brand?.color || '#3cd070').trim() || '#3cd070';
     }
     function applyBrandPalette(){
       const primary = brandPrimaryColor();
-      const rgb = hexToRgb(primary) || [25, 195, 125];
+      const rgb = hexToRgb(primary) || [60, 208, 112];
       const root = document.documentElement.style;
       root.setProperty('--primary', primary);
       root.setProperty('--primary-rgb', rgb.join(', '));

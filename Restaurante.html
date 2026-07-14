@@ -7333,7 +7333,7 @@
       const size = tableSize(t);
       // Si este dispositivo aún no recibió los pedidos, usa el conteo sincronizado
       // en la mesa (t.openCount) para no mostrar "Libre" una mesa ocupada.
-      const openCount = isMultiOrderTable(t) ? (openOrdersForTable(t.id).filter(orderIsActiveOccupying).length || Number(t.openCount || 0)) : 0;
+      const openCount = isMultiOrderTable(t) ? openOrdersForTable(t.id).length : 0;
       const statusText = tableStatusLabel(t, openCount);
 
       const activeTotal = t.kind === 'Mesa' ? tableActiveTotal(t, openCount) : 0;
@@ -8307,14 +8307,7 @@ const colors = [
         table.orderTotal = openOrders.reduce((s, o) => s + Number(o.total || 0), 0);
         return;
       }
-      // No hay pedidos ABIERTOS localmente. Si NO tenemos ningún pedido de esta
-      // mesa (aún no sincronizaron) pero la nube dice que está ocupada, mantenemos
-      // ese estado en vez de mostrar "Libre" por error.
-      const hasAnyLocal = state.orders.some(o => o.tableId === tableId);
-      if(!hasAnyLocal && Number(table.openCount || 0) > 0){
-        table.status = 'En proceso de pago';
-        return;
-      }
+      // No quedan pedidos activos → mesa disponible.
       table.status = 'Disponible';
       table.orderId = null;
       table.openCount = 0;

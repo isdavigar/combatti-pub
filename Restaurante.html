@@ -582,7 +582,7 @@
       box-shadow:0 14px 32px rgba(15,23,42,.10);
       position:relative;
     }
-    .table-card:hover{ transform:translateY(-3px); box-shadow:0 20px 44px rgba(15,23,42,.16); }
+    .table-card:hover{ transform:translateY(-2px); box-shadow:0 12px 28px rgba(15,23,42,.12); }
     .table-card h5{ font-size:1rem; }
     .tables-floor{
       position:relative; width:100%; min-height:820px; overflow-x:hidden; overflow-y:auto; scroll-behavior:smooth;
@@ -616,39 +616,90 @@
     .table-node.dragging .table-card, .table-node.resizing .table-card{ transform:scale(1.02); cursor:grabbing; box-shadow:0 22px 48px rgba(15,23,42,.22); }
     .table-node.is-locked{ touch-action:auto; }
     .table-card::after{ display:none !important; }
-    /* Sillas semicirculares verdes SOLO arriba y abajo + barra verde a la izquierda */
-    .table-node::before,
-    .table-node::after{
+    /* === Mesa idéntica a la referencia: 2 sillas arriba + barra verde izquierda === */
+    .table-node::before{
+      /* 2 sillas semicirculares arriba (separadas) */
       content:'';
       position:absolute;
+      top:-11px;
+      left:18%;
+      right:18%;
+      height:14px;
       z-index:0;
       pointer-events:none;
-    }
-    .table-node::before{
-      /* Sillas arriba y abajo */
-      inset:-12px 20%;
       background:
-        radial-gradient(ellipse 80% 100% at 50% 0%, var(--primary) 0 48%, transparent 50%) top center / 32px 16px no-repeat,
-        radial-gradient(ellipse 80% 100% at 50% 100%, var(--primary) 0 48%, transparent 50%) bottom center / 32px 16px no-repeat;
+        radial-gradient(ellipse at 25% 100%, var(--primary) 0 60%, transparent 62%) 0 0 / 50% 100% no-repeat,
+        radial-gradient(ellipse at 75% 100%, var(--primary) 0 60%, transparent 62%) 100% 0 / 50% 100% no-repeat;
     }
     .table-node::after{
-      /* Barra verde lateral izquierda */
+      /* Barra verde lateral izquierda (toda la altura) */
       content:'';
       position:absolute;
-      left:0;
-      top:12%;
-      bottom:12%;
-      width:5px;
-      border-radius:0 4px 4px 0;
+      left:-1px;
+      top:8%;
+      bottom:8%;
+      width:6px;
+      border-radius:0 5px 5px 0;
       background:var(--primary);
       z-index:2;
+      pointer-events:none;
+    }
+    /* Mesa ocupada: sillas y barra en rojo */
+    .table-node:has(.status-occupied)::before,
+    .table-node:has(.status-billing)::before{
+      background:
+        radial-gradient(ellipse at 25% 100%, #ef4444 0 60%, transparent 62%) 0 0 / 50% 100% no-repeat,
+        radial-gradient(ellipse at 75% 100%, #ef4444 0 60%, transparent 62%) 100% 0 / 50% 100% no-repeat;
+    }
+    .table-node:has(.status-occupied)::after,
+    .table-node:has(.status-billing)::after{
+      background:#ef4444;
     }
     /* Mesa rectangular con esquinas redondeadas */
     .table-node .table-card{
       border-radius:12px !important;
       position:relative;
       z-index:1;
+      background:#fff;
+      border:1px solid #e2e8f0;
+      box-shadow:0 4px 16px rgba(15,23,42,.06);
     }
+    body.dark-mode .table-node .table-card{
+      background:#1e293b;
+      border-color:#334155;
+    }
+    /* Hover: fondo verde, titulo blanco */
+    .table-node .table-card:hover{
+      background:var(--primary) !important;
+      border-color:var(--primary) !important;
+    }
+    .table-node .table-card:hover h5,
+    .table-node .table-card:hover .table-card-body > .mb-2{ color:#fff !important; }
+    /* Ocupada: titulo negro, fondo blanco */
+    .table-node .table-card.status-occupied,
+    .table-node .table-card.status-billing{
+      background:#fff !important;
+      border-color:#fecaca !important;
+    }
+    body.dark-mode .table-node .table-card.status-occupied,
+    body.dark-mode .table-node .table-card.status-billing{
+      background:#1e293b !important;
+      border-color:#7f1d1d !important;
+    }
+    .table-node .table-card.status-occupied h5,
+    .table-node .table-card.status-billing h5{ color:#1e293b !important; }
+    body.dark-mode .table-node .table-card.status-occupied h5,
+    body.dark-mode .table-node .table-card.status-billing h5{ color:#f8fafc !important; }
+    /* Hover en ocupada: fondo rojo, titulo blanco */
+    .table-node .table-card.status-occupied:hover,
+    .table-node .table-card.status-billing:hover{
+      background:#ef4444 !important;
+      border-color:#ef4444 !important;
+    }
+    .table-node .table-card.status-occupied:hover h5,
+    .table-node .table-card.status-billing:hover h5,
+    .table-node .table-card.status-occupied:hover .table-card-body > .mb-2,
+    .table-node .table-card.status-billing:hover .table-card-body > .mb-2{ color:#fff !important; }
 
     /* === Barra de estado de mesas === */
     .tables-status-bar{
@@ -697,8 +748,10 @@
     .table-card.status-reserved{
       border-color:rgba(226,232,240,.88);
       background:var(--card);
-      box-shadow:0 6px 22px rgba(15,23,42,.08);
+      box-shadow:0 4px 16px rgba(15,23,42,.06);
     }
+    .table-card.status-occupied h5,
+    .table-card.status-billing h5{ color:#1e293b; }
     .table-card:hover{
       background:var(--primary);
       border-color:var(--primary);

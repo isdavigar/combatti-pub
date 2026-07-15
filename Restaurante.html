@@ -423,15 +423,16 @@
     .dashboard-filter-title{ display:flex; align-items:center; gap:8px; min-width:0; color:rgba(255,255,255,.9); font-weight:900; }
     .dashboard-filter-title i{ width:32px; height:32px; display:grid; place-items:center; border-radius:10px; background:rgba(255,255,255,.14); }
     .dashboard-filter-controls{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; align-items:end; }
+    @media(max-width:480px){ .dashboard-filter-controls{ grid-template-columns:1fr; } }
     .dashboard-filter-field{
       display:flex; align-items:center; gap:8px; min-height:42px; padding:6px 10px;
       border:1px solid rgba(255,255,255,.16); border-radius:14px; background:rgba(255,255,255,.92);
-      color:#18212f;
+      color:#18212f; overflow:hidden;
     }
-    .dashboard-filter-field span{ font-size:.72rem; line-height:1; color:#64748b; font-weight:800; text-transform:uppercase; }
+    .dashboard-filter-field span{ font-size:.72rem; line-height:1; color:#64748b; font-weight:800; text-transform:uppercase; white-space:nowrap; }
     .dashboard-filter-field .form-select,
     .dashboard-filter-field .form-control{
-      border:0; box-shadow:none; padding:0; min-width:118px; height:auto; background:transparent;
+      border:0; box-shadow:none; padding:0; min-width:0; width:100%; height:auto; background:transparent;
       color:#18212f; font-weight:800;
     }
     .dashboard-filter-field .form-control{ min-width:138px; }
